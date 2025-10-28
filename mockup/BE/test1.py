@@ -4,6 +4,7 @@ import edge_tts
 import asyncio
 import os
 import torch
+import pygame
 
 # GPU 사용 가능 여부 출력
 print(torch.cuda.is_available())
@@ -19,7 +20,7 @@ NEXT_SONG_KEYWORDS = ["다음"]
 STOP_ALL_KEYWORDS = ["종료", "끝"]
 EMERGENCY_KEYWORDS = ["도와줘", "살려줘"]
 
-# 키워드에 따른 명령 분기 함수
+# 명령 분기 함수
 def command_match(text):
     text = text.lower()
     if any(k in text for k in PLAY_MUSIC_KEYWORDS):
@@ -39,44 +40,67 @@ def command_match(text):
     else:
         return "UNKNOWN"
 
-# 명령어에 따른 피드백 메시지 생성
+# 피드백 메시지 생성
 def generate_feedback(command_type):
     feedbacks = {
-        "PLAY_MUSIC": "노래를 재생할게요.",
-        "START_EXERCISE": "체조 모드로 전환합니다.",
-        "PAUSE": "재생을 일시정지할게요.",
-        "RESUME": "노래를 계속 재생할게요.",
-        "NEXT_SONG": "다음 노래로 넘어갈게요.",
-        "STOP_ALL": "모든 재생을 종료합니다.",
-        "EMERGENCY": "긴급 상황입니다. 도움을 요청합니다.",
-        "UNKNOWN": "명령을 이해하지 못했습니다. 다시 말씀해 주세요."
+        "PLAY_MUSIC": "네~ 노래 틀어드릴게요!",
+        "START_EXERCISE": "좋아요! 체조 모드로 바꿀게요.",
+        "PAUSE": "잠깐 멈출게요.",
+        "RESUME": "계속 들려드릴게요~",
+        "NEXT_SONG": "다음 곡으로 넘어갈게요!",
+        "STOP_ALL": "알겠어요. 종료할게요.",
+        "EMERGENCY": "괜찮으세요? 대답해주세요! 지금 도움을 요청할게요!",
+        "UNKNOWN": "잘 못 들었어요. 다시 한번 말씀해주세요~"
     }
     return feedbacks.get(command_type, "명령을 실행했습니다.")
 
-# Edge TTS로 음성 합성 및 재생
-async def tts_and_play(text, voice="ko-KR-InJoonNeural", filename="output.mp3"):
-    tts = edge_tts.Communicate(text, voice)
+# pygame 초기화 및 재생 함수
+def play_audio_with_pygame(file_path):
+    pygame.mixer.init()
+    pygame.mixer.music.load(file_path)
+    pygame.mixer.music.play()
+    while pygame.mixer.music.get_busy():
+        pygame.time.Clock().tick(10)
+
+# Edge TTS 음성 합성 및 재생 (블로킹)
+async def tts_and_play(text, voice="ko-KR-JiMinNeural", filename="output.mp3"):
+    tts = edge_tts.Communicate(
+        text,
+        voice=voice,
+        rate="+10%",
+        pitch="+5Hz"
+    )
     await tts.save(filename)
-    os.system(f"start {filename}")
+    play_audio_with_pygame(filename)  # 블로킹 재생
 
-# Whisper 음성 인식 모델 불러오기 (GPU 자동 감지 가능)
+# Whisper 모델 로드
+print("\n🎤 Whisper 모델 로딩 중...")
 model = whisper.load_model("medium")
+print("✅ 모델 로드 완료!\n")
 
-# 음성 파일 경로
-audio_path = r"C:\Users\SSAFY\Documents\소리 녹음\test3_voice.m4a"
-
-# 음성 인식 및 처리 시작
+# 음성 인식 시작
+audio_path = r"C:\Users\SSAFY\Documents\소리 녹음\test8_voice.m4a"
+print("🔊 음성 인식 시작...")
 start = time.time()
 result = model.transcribe(audio_path)
 end = time.time()
 
-print(f"Processing time: {end - start} seconds")
-print("Recognized text:", result["text"])
+print(f"⏱️  처리 시간: {end - start:.2f}초")
+print(f"📝 인식된 텍스트: {result['text']}")
 
-# 명령 분기
 command_type = command_match(result["text"])
-print("Command type:", command_type)
+print(f"🎯 명령 타입: {command_type}")
 
-# 피드백 생성 및 음성 재생
+# 피드백 음성 재생
 feedback_text = generate_feedback(command_type)
+print(f"💬 응답: {feedback_text}")
+print("\n🔊 음성 재생 중...")
 asyncio.run(tts_and_play(feedback_text))
+
+# 노래 재생 (명령어에 따라)
+if command_type == "PLAY_MUSIC":
+    music_file_path = r"C:\Users\SSAFY\흥부자\S13P31A103\mockup\BE\AI_나이가 어때서.mp3"
+    print(f"🎵 {music_file_path} 재생 시작...")
+    play_audio_with_pygame(music_file_path)  # 블로킹 재생
+
+print("✅ 완료!")
