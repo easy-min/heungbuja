@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>카메라 테스트</title>
+    <style>
+        .app {
+            text-align: center;
+            padding: 20px;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+        }
+
+        .error {
+            color: red;
+            margin-bottom: 10px;
+        }
+
+        video {
+            width: 100%;
+            max-width: 640px;
+            display: block;
+            margin: 0 auto 20px;
+            border: 1px solid #ccc;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+
+        button:hover {
+            background-color: #cc0000;
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <h1>카메라 테스트</h1>
+        <p id="error" class="error"></p>
+        <video id="video" autoplay playsinline></video>
+        <button id="stopBtn">카메라 끄기</button>
+    </div>
+
+    <script>
+        const video = document.getElementById('video');
+        const errorElement = document.getElementById('error');
+        const stopBtn = document.getElementById('stopBtn');
+
+        // 카메라 시작
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: true 
+                });
+                
+                video.srcObject = stream;
+            } catch (err) {
+                errorElement.textContent = '카메라 접근 실패: ' + err.message;
+            }
+        }
+
+        // 카메라 중지
+        function stopCamera() {
+            if (video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+            }
+        }
+
+        // 카메라 시작
+        startCamera();
+
+        // 버튼 이벤트
+        stopBtn.addEventListener('click', stopCamera);
+
+        // 페이지 언로드 시 카메라 정리
+        window.addEventListener('beforeunload', stopCamera);
+    </script>
+</body>
+</html>
