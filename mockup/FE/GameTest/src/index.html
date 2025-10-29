@@ -8,11 +8,31 @@
   <h1>Video 재생 테스트</h1>
 
   <video id="motion" width="1000" controls loop preload="auto" muted playsinline>
-    <source src="level3_cut2.mp4" type="video/mp4" />
+    <source src="level3.mp4" type="video/mp4" />
   </video>
 
+  <!-- 음원 선택 + 오디오 -->
+  <div style="margin:8px 0;">
+    <label for="musicSelect">음원 선택: </label>
+    <select id="musicSelect">
+      <!-- 프로젝트에 있는 파일명으로 옵션 채워두기 -->
+      <option value="장윤정_어머나.mp3">장윤정_어머나.mp3</option>
+      <option value="어머나_베이스.mp3">어머나_베이스.mp3</option>
+      <option value="내건강이어때서.mp3" selected>내건강이어때서.mp3</option>
+      <option value="송가인_오늘같이 좋은 날.mp3">송가인_오늘같이 좋은 날.mp3</option>
+      <option value="송가인_베이스.mp3">송가인_베이스.mp3</option>
+      <option value="심수봉_남자는 배 여자는 항구.mp3">심수봉_남자는 배 여자는 항구.mp3</option>
+      <option value="영탁_누나가 딱이야.mp3">영탁_누나가 딱이야.mp3</option>
+      <option value="영탁_베이스.mp3">영탁_베이스.mp3</option>
+      <option value="태진아_동반자.mp3">태진아_동반자.mp3</option>
+      <option value="동반자_베이스.mp3">동반자_베이스.mp3</option>
+      <option value="남배여항.mp3">남배여항.mp3</option>
+      <!-- 필요하면 더 추가 -->
+    </select>
+  </div>
+
   <audio id="music" controls preload="auto">
-    <source src="내건강이어때서.mp3" type="audio/mpeg" />
+    <source src="장윤정_어머나.mp3" type="audio/mpeg" />
   </audio>
 
   <div style="margin-top:12px;">
@@ -24,7 +44,5 @@
   </div>
 
   <script type="module" src="main.js"></script>
-
-
 </body>
 </html>

@@ -1,11 +1,13 @@
 // ===== 설정 =====
-const VIDEO_BPM = 113.4;                         // 영상(실측) BPM
+const VIDEO_BPM = 112;                         // 영상(실측) BPM
 const LOOP_BEATS = 8;
-const LOOP_LEN  = (60 / VIDEO_BPM) * LOOP_BEATS; // ≈ 4.2333s 기준으로 계산 권장
+const LOOP_LEN  = (60 / VIDEO_BPM) * LOOP_BEATS; // ≈ 4.2333s
+const START_OFFSET = 0.0; // 영상 시작 지연(초) - 박 시점 이후 0.15s
 
 // ===== 요소 =====
-const video   = document.getElementById('motion');
-const audioEl = document.getElementById('music');
+const video     = document.getElementById('motion');
+const audioEl   = document.getElementById('music');
+const musicSel  = document.getElementById('musicSelect');
 
 // 버튼
 const btnBar1Beat1 = document.getElementById('btnBar1Beat1');
@@ -23,15 +25,41 @@ let t0 = 0;                   // 오디오 시계 기준 "영상 시작 시각"
 
 // --- 유틸 ---
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const getSelectedMp3 = () => musicSel.value.trim();
+const baseName = (filename) => filename.replace(/\.[^/.]+$/, '');
+const jsonUrlFromMp3 = (mp3) => encodeURI(`${baseName(mp3)}.json`); // 공백/한글 안전
 
-// JSON 로드
+// 선택된 음원으로 오디오 src 교체
+function applySelectedAudio() {
+  const mp3 = getSelectedMp3();
+  audioEl.pause();
+  // audio <source>를 직접 바꾸지 않아도 audio.src로 교체 가능
+  audioEl.src = encodeURI(mp3);
+  audioEl.load();                      // 소스 교체 반영
+  // 시작 위치 초기화
+  audioEl.currentTime = 0;
+  console.log(`[AUDIO] source -> ${mp3}`);
+}
+
+// JSON 로드 (선택된 mp3와 동일한 이름의 json)
 async function loadBeatGrid() {
-  const res = await fetch('내건강이어때서.json');
-  const data = await res.json();
-  SONG_BPM = data?.tempoMap?.[0]?.bpm ?? SONG_BPM;
-  beats    = data?.beats ?? [];
-  baseRate = SONG_BPM / VIDEO_BPM;
-  console.log(`[LOAD] SONG_BPM=${SONG_BPM.toFixed(3)} baseRate=${baseRate.toFixed(4)} beats=${beats.length}`);
+  const jsonUrl = jsonUrlFromMp3(getSelectedMp3());
+  try {
+    const res = await fetch(jsonUrl, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`fetch ${jsonUrl} ${res.status}`);
+    const data = await res.json();
+
+    SONG_BPM = data?.tempoMap?.[0]?.bpm ?? SONG_BPM;
+    beats    = Array.isArray(data?.beats) ? data.beats : [];
+    baseRate = SONG_BPM / VIDEO_BPM;
+
+    console.log(`[LOAD] ${jsonUrl} -> SONG_BPM=${SONG_BPM.toFixed(3)} baseRate=${baseRate.toFixed(4)} beats=${beats.length}`);
+  } catch (e) {
+    console.warn(`[LOAD] ${jsonUrl} 읽기 실패. 기본값 사용`, e);
+    // 최소 동작을 위해 기본값 유지
+    beats = [];
+    baseRate = SONG_BPM / VIDEO_BPM;
+  }
 }
 
 // 싱크 루프 (오디오=마스터, 비디오=추종)
@@ -83,8 +111,9 @@ async function armStartAt(targetTimeSec) {
   video.playbackRate = baseRate;
 
   // 오디오 엘리먼트 시간 기준 딜레이 계산
+  const targetWithOffset = targetTimeSec + START_OFFSET;
   const nowEl = audioEl.currentTime;
-  const delaySec = Math.max(0, targetTimeSec - nowEl);
+  const delaySec = Math.max(0, targetWithOffset - nowEl);
   const startAtAudioCtxTime = audioCtx.currentTime + delaySec;
 
   // 기준 시각 저장: "이때 영상이 0초에서 시작했다"로 간주
@@ -123,14 +152,18 @@ function findBarBeatTime(bar, beat) {
 function findNextBeatNumberTime(beatNum) {
   const now = audioEl.currentTime;
   let next = beats.find(b => b.t >= now && b.beat === beatNum);
-  if (!next) {
-    // 못 찾으면 그냥 현재 이후의 아무 박으로 폴백
-    next = beats.find(b => b.t >= now);
-  }
+  if (!next) next = beats.find(b => b.t >= now); // 폴백
   return next ? next.t : null;
 }
 
-// ---- 버튼 핸들러 바인딩 ----
+// ---- 이벤트: 음원 선택 시 소스/JSON 동기 교체 ----
+musicSel.addEventListener('change', async () => {
+  applySelectedAudio();
+  await loadBeatGrid();
+  // 선택만 바꾸면 자동 재생하지 않고 대기
+});
+
+// ---- 버튼 핸들러 ----
 btnBar1Beat1.addEventListener('click', async () => {
   await loadBeatGrid();
   const t = findBarBeatTime(1, 1) ?? (beats[0]?.t ?? 0);
@@ -160,3 +193,7 @@ btnBar2Beat1.addEventListener('click', async () => {
   const t = findBarBeatTime(2, 1);
   armStartAt(t ?? (beats.find(b => b.beat===1)?.t ?? 0));
 });
+
+// 초기 상태: select의 기본값 반영
+applySelectedAudio();
+loadBeatGrid();
