@@ -197,3 +197,145 @@ btnBar2Beat1.addEventListener('click', async () => {
 // 초기 상태: select의 기본값 반영
 applySelectedAudio();
 loadBeatGrid();
+
+// === 가사 동기화 =========================================
+// 가사 DOM
+const $lyPrev = document.getElementById('lyricPrev');
+const $lyCurr = document.getElementById('lyricCurrent');
+const $lyNext = document.getElementById('lyricNext');
+
+// 상태
+let lyrics = []; // [{ line, start, end }, ...]
+let lyricIdx = -1;
+
+// MP3 파일명 -> _가사.json 경로로 변환
+function lyricsJsonUrlFromMp3(mp3FileName) {
+  const base = mp3FileName.replace(/\.[^/.]+$/, ''); // 확장자 제거
+  return `${base}_가사.json`;
+}
+
+// 다양한 스키마를 수용해 통일된 배열 [{line,start,end}]로 변환
+function normalizeLyricsPayload(data) {
+  // 1) 우리 포맷: { lines: [{text,start,end}, ...] }
+  if (Array.isArray(data?.lines)) {
+    return data.lines.map(it => ({
+      line: String(it.text ?? it.line ?? '').trim(),
+      start: Number(it.start ?? 0),
+      end: Number(it.end ?? (Number(it.start ?? 0) + 2))
+    }));
+  }
+  // 2) 예전 포맷: { lyricsTimeline: { items: [{ line,start,end }, ...] } }
+  if (Array.isArray(data?.lyricsTimeline?.items)) {
+    return data.lyricsTimeline.items.map(it => ({
+      line: String(it.line ?? it.text ?? '').trim(),
+      start: Number(it.start ?? 0),
+      end: Number(it.end ?? (Number(it.start ?? 0) + 2))
+    }));
+  }
+  // 3) 최상위 배열
+  if (Array.isArray(data)) {
+    return data.map(it => ({
+      line: String(it.line ?? it.text ?? '').trim(),
+      start: Number(it.start ?? 0),
+      end: Number(it.end ?? (Number(it.start ?? 0) + 2))
+    }));
+  }
+  return [];
+}
+
+// JSON에서 _가사 파일 로드 (loadBeatGrid 내부를 살짝 확장)
+const _origLoadBeatGrid = loadBeatGrid;
+loadBeatGrid = async function patchedLoadBeatGrid() {
+  await _origLoadBeatGrid();
+
+  const mp3 = getSelectedMp3();               // 기존 함수 그대로 사용
+  const jsonUrl = lyricsJsonUrlFromMp3(mp3);  // ✅ _가사.json 로드
+
+  try {
+    const res = await fetch(jsonUrl, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`fetch ${jsonUrl} ${res.status}`);
+    const data = await res.json();
+
+    // 포맷 통일
+    const items = normalizeLyricsPayload(data);
+    lyrics = items
+      .filter(it => it.line) // 빈 줄 제거
+      .sort((a, b) => a.start - b.start);
+
+    lyricIdx = -1;
+
+    if (lyrics.length === 0) {
+      // 비어있으면 안내
+      $lyPrev.textContent = '';
+      $lyCurr.textContent = '가사 정보가 없어요';
+      $lyCurr.classList.add('lyrics-empty');
+      $lyNext.textContent = '';
+    } else {
+      $lyCurr.classList.remove('lyrics-empty');
+      // 처음 상태 렌더
+      renderLyricsAt(0);
+    }
+    console.log(`[LYRICS] loaded ${lyrics.length} lines from ${jsonUrl}`);
+  } catch (e) {
+    console.warn('[LYRICS] load failed:', e);
+    lyrics = [];
+    lyricIdx = -1;
+    $lyPrev.textContent = '';
+    $lyCurr.textContent = '가사 파일을 찾을 수 없어요';
+    $lyCurr.classList.add('lyrics-empty');
+    $lyNext.textContent = '';
+  }
+};
+
+function findLyricIndex(t) {
+  if (!lyrics.length) return -1;
+  let i = lyricIdx >= 0 ? lyricIdx : 0;
+
+  while (i > 0 && lyrics[i].start > t) i--;
+  while (i + 1 < lyrics.length && lyrics[i + 1].start <= t) i++;
+
+  if (lyrics[i].start <= t && t < (lyrics[i].end ?? (lyrics[i].start + 2))) {
+    return i;
+  }
+  for (let k = 0; k < lyrics.length; k++) {
+    const L = lyrics[k];
+    if (L.start <= t && t < (L.end ?? (L.start + 2))) return k;
+  }
+  return -1;
+}
+
+function renderLyricsAt(t) {
+  if (!lyrics.length) return;
+  const idx = findLyricIndex(t);
+  if (idx === lyricIdx) return;
+
+  lyricIdx = idx;
+
+  if (idx < 0) {
+    const next = lyrics.find(l => l.start > t);
+    $lyPrev.textContent = '';
+    $lyCurr.textContent = next ? '(간주 중)' : '';
+    $lyCurr.classList.add('lyrics-empty');
+    $lyNext.textContent = next ? next.line : '';
+    return;
+  }
+
+  $lyCurr.classList.remove('lyrics-empty');
+  $lyCurr.textContent = lyrics[idx].line;
+  $lyPrev.textContent = lyrics[idx - 1]?.line ?? '';
+  $lyNext.textContent = lyrics[idx + 1]?.line ?? '';
+}
+
+// 오디오 시간 변화에 맞춰 렌더
+audioEl.addEventListener('timeupdate', () => {
+  renderLyricsAt(audioEl.currentTime);
+});
+audioEl.addEventListener('seeked', () => {
+  renderLyricsAt(audioEl.currentTime);
+});
+musicSel.addEventListener('change', () => {
+  $lyPrev.textContent = '';
+  $lyCurr.textContent = '(가사를 불러오는 중…)';
+  $lyCurr.classList.add('lyrics-empty');
+  $lyNext.textContent = '';
+});
