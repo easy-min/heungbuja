@@ -27,9 +27,8 @@
 <body>
   <h1>Video 재생 테스트</h1>
 
-  <video id="motion" width="800" controls loop preload="auto" muted playsinline>
-    <source src="level3.mp4" type="video/mp4" />
-  </video>
+  <!-- src는 JS에서 섹션에 맞게 바꿔 끼움 -->
+  <video id="motion" width="200" controls loop preload="auto" muted playsinline></video>
 
   <!-- === 가사 패널 === -->
   <section class="lyrics-wrap" aria-live="polite">
@@ -70,7 +69,6 @@
     <button id="btnBeat4">4) 네 번째 박자</button>
     <button id="btnBar2Beat1">5) 두 번째 마디 시작(1박)</button>
   </div>
-
 
   <script type="module" src="main.js"></script>
 </body>
