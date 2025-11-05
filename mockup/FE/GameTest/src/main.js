@@ -1,5 +1,5 @@
 // ==============================
-// main.js (전체 코드)
+// main.js (전체 코드) — 섹션 전환 시 영상 처음부터, 노래 끝나면 영상도 멈춤
 // ==============================
 
 // ===== 전역 설정 =====
@@ -39,10 +39,14 @@ let beats = [];               // [{i,bar,beat,t}, ...] (t: 초)
 let sections = [];            // [{label,startBeat,endBeat,startBar,endBar,lineRange}, ...]
 let t0 = 0;                   // 오디오 기준 "영상 0초" 시각
 let currentSection = null;    // 'intro' | 'break' | 'part1' | 'part2'
+let syncActive = false;       // 싱크 루프 on/off
 
 // 가사
 let lyrics = [];              // [{line,start,end}]
 let lyricIdx = -1;
+
+// 위상 앵커(섹션 전환 시 '영상은 0초부터'를 보이되, 내부 동기화 기준을 재설정)
+let phaseAnchor = 0;
 
 // ===== 유틸 =====
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -217,15 +221,30 @@ function sectionByBeat(beatNum) {
   return sections.find(s => beatNum >= s.startBeat && beatNum <= s.endBeat)?.label ?? null;
 }
 
-// 오디오 경과 → 이상적 루프 위상(초), 섹션별 루프 길이 사용
-function computeIdealPhase(section = currentSection) {
+// 오디오 경과 → '원시' 영상 위상(초) (앵커 적용 전)
+function computeRawPhase(section = currentSection) {
   if (!audioCtx) return 0;
   const { bpm } = getVideoMeta(section);
   const loopLen = getLoopLenSec(section);
   const audioElapsed = Math.max(0, audioCtx.currentTime - t0);
-  // 오디오 시간 * (영상BPM/노래BPM) = 영상 시간 스케일
   const videoPhase = audioElapsed * (bpm / SONG_BPM);
   return videoPhase % loopLen;
+}
+
+// 앵커 적용한 이상적 위상: 섹션 전환 시 항상 0부터 보이도록 보정
+function computeIdealPhase(section = currentSection) {
+  const loopLen = getLoopLenSec(section);
+  const raw = computeRawPhase(section);
+  // (raw - anchor)를 0..loopLen 양수로 정규화
+  let p = raw - phaseAnchor;
+  while (p < 0) p += loopLen;
+  while (p >= loopLen) p -= loopLen;
+  return p;
+}
+
+// 현재 시점 기준으로 이상적 위상이 0이 되도록 앵커 재설정
+function reanchorPhase(section = currentSection) {
+  phaseAnchor = computeRawPhase(section);
 }
 
 // ===== 섹션 전환: 영상 소스 교체 + 루프 보강 =====
@@ -237,7 +256,9 @@ async function ensureVideoForSection(label) {
   _switching = true;
 
   const { src } = getVideoMeta(label);
-  const targetPhase = computeIdealPhase(label);
+
+  // 섹션 바뀌는 '현재' 시점을 앵커로 기록 → 새 섹션은 0초부터 보이게
+  reanchorPhase(label);
 
   const onLoaded = new Promise(resolve => {
     const handler = () => { video.removeEventListener('loadedmetadata', handler); resolve(); };
@@ -252,13 +273,12 @@ async function ensureVideoForSection(label) {
   video.src = encodeURI(src);
   video.dataset.section = label;
 
-  // 🔁 루프 보장
+  // 🔁 루프 보장 (break 포함)
   video.loop = true;
   video.onended = () => {
+    // 일반적으로 loop가 켜져 있어 호출되지 않지만, 환경에 따라 안전장치
     try {
-      const loopLen = getLoopLenSec(label);
-      const phase = computeIdealPhase(label);
-      video.currentTime = phase % (video.duration || loopLen);
+      video.currentTime = 0; // 새 요구사항: 전환 후/루프 시 항상 처음부터
       video.play();
     } catch {}
   };
@@ -266,7 +286,7 @@ async function ensureVideoForSection(label) {
   video.load();
   await onLoaded;
 
-  try { video.currentTime = targetPhase; } catch {}
+  try { video.currentTime = 0; } catch {}       // ⬅️ 전환 시 항상 첫 프레임부터
   try {
     video.playbackRate = getBaseRate(label);
     await video.play();
@@ -274,13 +294,14 @@ async function ensureVideoForSection(label) {
 
   currentSection = label;
   _switching = false;
-  console.log(`[VIDEO] section=${label} src=${src} phase=${targetPhase.toFixed(3)} rate=${getBaseRate(label).toFixed(3)}`);
+  console.log(`[VIDEO] section=${label} src=${src} startAt=0 rate=${getBaseRate(label).toFixed(3)}`);
 }
 
 // ===== 싱크 루프 (오디오=마스터, 비디오=추종) =====
 function startSyncLoop() {
   const KP = 0.35;
   const MICRO = 0.03;
+  syncActive = true;
 
   const shortestSignedDelta = (a, b, period) => {
     let d = a - b;
@@ -290,8 +311,10 @@ function startSyncLoop() {
   };
 
   const loop = () => {
+    if (!syncActive) return; // 노래가 끝나면 루프 중지
+
     const loopLen = getLoopLenSec();               // 현재 섹션 기준
-    const idealPhase   = computeIdealPhase();      // 0~loopLen
+    const idealPhase   = computeIdealPhase();      // 0~loopLen (섹션 전환 시 0부터)
     const actualPhase  = (video.currentTime % loopLen); // 0~loopLen
     const drift        = shortestSignedDelta(idealPhase, actualPhase, loopLen);
     const microAdjust  = clamp(drift * KP, -MICRO, MICRO);
@@ -309,8 +332,7 @@ function startSyncLoop() {
     // 드물게 loop 끊김 시 수동 래핑(세이프가드)
     if (video.duration && video.currentTime >= video.duration - 0.02) {
       try {
-        const phase = computeIdealPhase();
-        video.currentTime = phase % (video.duration || loopLen);
+        video.currentTime = 0; // 요구사항: 항상 처음부터
       } catch {}
     }
 
@@ -343,6 +365,9 @@ async function armStartAt(targetTimeSec) {
     startBeat = idx >= 0 ? idx + 1 : 1;
   }
   const startSection = sectionByBeat(startBeat) || 'part1';
+
+  // 시작 시점에 맞춰 앵커 재설정 → 영상 0초부터
+  reanchorPhase(startSection);
   await ensureVideoForSection(startSection);
 
   // 오디오 기준 예약
@@ -353,9 +378,8 @@ async function armStartAt(targetTimeSec) {
   t0 = startAtAudioCtxTime;
 
   const startVideo = () => {
-    const phase = computeIdealPhase();
-    try { video.currentTime = phase; } catch {}
-    video.playbackRate = getBaseRate();
+    try { video.currentTime = 0; } catch {} // ⬅️ 시작도 0초부터
+    video.playbackRate = getBaseRate(startSection);
     video.play().then(() => startSyncLoop());
   };
 
@@ -394,6 +418,7 @@ musicSel.addEventListener('change', async () => {
   await loadLyrics();
 
   const initialSection = sectionByBeat(1) || 'part1';
+  reanchorPhase(initialSection);           // 초기에도 0초부터 보이도록
   await ensureVideoForSection(initialSection);
 
   // 가사 패널 초기 메시지
@@ -435,6 +460,16 @@ audioEl.addEventListener('timeupdate', () => {
   const sec = sectionByBeat(getCurrentBeatNumber(audioEl.currentTime));
   if (sec && sec !== currentSection) ensureVideoForSection(sec);
 });
+
+// ✅ 노래가 끝나면 영상도 멈춤
+audioEl.addEventListener('ended', () => {
+  syncActive = false;        // 싱크 루프 중단
+  try { video.pause(); } catch {}
+  try { video.currentTime = 0; } catch {}
+  console.log('[AUDIO] ended → video paused & reset to 0');
+});
+
+// 시킹 시 가사/섹션 재확인
 audioEl.addEventListener('seeked', () => {
   renderLyricsAt(audioEl.currentTime);
   const sec = sectionByBeat(getCurrentBeatNumber(audioEl.currentTime));
@@ -445,5 +480,6 @@ audioEl.addEventListener('seeked', () => {
 applySelectedAudio();
 Promise.all([loadBeatGrid(), loadLyrics()]).then(async () => {
   const initialSection = sectionByBeat(1) || 'part1';
+  reanchorPhase(initialSection);
   await ensureVideoForSection(initialSection);
 });
