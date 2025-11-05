@@ -17,6 +17,7 @@ services:
       - MYSQL_DATABASE=${MYSQL_DATABASE}
       - MYSQL_USER=${MYSQL_USER}
       - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+    # no host port mapping; internal network only
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
@@ -41,10 +42,10 @@ services:
       - TZ=Asia/Seoul
       - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}
       - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
-    volumes:
-      - mongo-data:/data/db
     ports:
       - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
@@ -55,7 +56,7 @@ services:
     networks: [app-net]
 
   redis:
-    image: redis:7-alpine # 경량화된 alpine 이미지 사용 추천
+    image: redis:7-alpine
     container_name: heungbuja-redis
     ports:
       - "6379:6379"
@@ -79,10 +80,13 @@ services:
       - .env
     environment:
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-prod}
+      - SPRING_DATA_MONGODB_URI=mongodb://mongodb:27017/heungbuja
       - SPRING_DATA_REDIS_HOST=redis
       - SPRING_DATA_REDIS_PORT=6379
     depends_on:
       mysql:
+        condition: service_healthy
+      mongodb:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -95,87 +99,6 @@ services:
       retries: 3
       start_period: 60s
     restart: unless-stopped
-    networks: [app-net]
-
-  motion:
-    container_name: motion-server
-    build:
-      context: ./backend/motion-server
-      dockerfile: Dockerfile
-    env_file:
-      - ./.env
-    ports:
-      - "8000:8000"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    restart: unless-stopped
-    networks: [app-net]
-
-  music:
-    container_name: music-server
-    build:
-      context: ./backend/music-server
-      dockerfile: Dockerfile
-    env_file:
-      - ./.env
-    ports:
-      - "8001:8001"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8001/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    restart: unless-stopped
-    networks: [app-net]
-
-  nginx:
-    image: nginx:1.27-alpine
-    container_name: heungbuja-nginx
-    depends_on:
-      spring:
-        condition: service_started
-      motion:
-        condition: service_started
-      music:
-        condition: service_started
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./certbot/conf:/etc/letsencrypt
-      - ./certbot/www:/var/www/certbot
-    ports:
-      - "80:80"
-      - "443:443"
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "wget -qO- http://localhost/nginx-health || curl -fsS http://localhost/nginx-health",
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
-    restart: unless-stopped
-    networks: [app-net]
-
-  certbot:
-    image: certbot/certbot
-    container_name: heungbuja-certbot
-    volumes:
-      - ./certbot/conf:/etc/letsencrypt
-      - ./certbot/www:/var/www/certbot
-    entrypoint: >
-      sh -c "certbot certonly --webroot \
-      --webroot-path=/var/www/certbot \
-      --email your@email.com \
-      --agree-tos \
-      --no-eff-email \
-      -d k13a103.p.ssafy.io"
     networks: [app-net]
 
 networks:
