@@ -1,3 +1,16 @@
+# Certificates and ACME working data
+certbot/conf/
+certbot/www/
+nginx/certs/
+
+# Python venvs
+**/.venv/
+
+# Node / general
+node_modules/
+dist/
+build/
+*.log
 # === 공통 ===
 .DS_Store
 Thumbs.db
@@ -38,3 +51,6 @@ coverage/
 # === Spring Backend (빌드 전체 제외, 세부는 각 모듈에 따름) ===
 **/build/
 **/.gradle/
+
+!**/gradle/wrapper/gradle-wrapper.jar
+!**/gradle/wrapper/gradle-wrapper.properties
