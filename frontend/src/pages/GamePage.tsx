@@ -36,6 +36,7 @@ function GamePage() {
 
         // (선택) 오디오 진행과 대략 맞추고 싶으면 0으로 두세요.
         // mv.currentTime = 0;
+        try { mv.currentTime = LOOP_RESTART; } catch {}
 
         if (shouldPlay || (au && !au.paused)) {
           await mv.play().catch(() => {});
@@ -58,26 +59,24 @@ function GamePage() {
   const VIDEO_META = {
     intro: { src: '/break.mp4', bpm: 100, loopBeats: 8 },
     break: { src: '/break.mp4', bpm: 100, loopBeats: 8 },
-    part1: { src: '/part1.mp4', bpm: 100, loopBeats: 16 },
-    part2: { src: '/part2.mp4', bpm: 100, loopBeats: 16 },
+    part1: { src: '/part1.mp4', bpm: 99, loopBeats: 16 },
+    part2: { src: '/part2.mp4', bpm: 99, loopBeats: 16 },
   } as const;
 
   type SectionKey = keyof typeof VIDEO_META;
 
   // === BPM, 싱크 상태 Ref ===
   const songBpmRef = useRef<number>(120); // JSON에서 갱신
-  const currentSectionRef = useRef<SectionKey>('part1');
-  const syncActiveRef = useRef(false);
+  const currentSectionRef = useRef<SectionKey>('break');
 
-  // === 동작 유틸 ===
-  const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+  // 수동 루프용
+  const LOOP_EPS = 0.02;          // 끝 경계 여유 (초) - 10~30ms 권장
+  const LOOP_RESTART = 0.005;     // 되감을 위치 (초)
+
+  /** 현재 섹션 루프 길이(초) */
   const getLoopLenSec = (section: SectionKey) => {
     const { bpm, loopBeats } = VIDEO_META[section];
     return (60 / bpm) * loopBeats;
-  };
-  const getBaseRate = (section: SectionKey) => {
-    const videoBpm = VIDEO_META[section].bpm;
-    return songBpmRef.current / videoBpm; // <-- 노래 BPM / 영상 BPM (기본 배속)
   };
 
   // URL 파라미터
@@ -228,6 +227,43 @@ function GamePage() {
     };
   }, []);
 
+  // 수동 루프
+  useEffect(() => {
+    const mv = motionVideoRef.current;
+    if (!mv) return;
+
+    let raf = 0;
+
+    const tick = () => {
+      raf = requestAnimationFrame(tick);
+      if (mv.readyState < 1) return; // 메타데이터 아직 X
+
+      // 이론 루프 길이(섹션 bpm & loopBeats) vs 실제 소스 duration 중 작은 값 사용
+      const nominal = getLoopLenSec(currentSectionRef.current);
+      const dur = Number.isFinite(mv.duration) ? mv.duration : nominal;
+      const loopEnd = Math.min(nominal, dur);
+
+      if (mv.currentTime >= loopEnd - LOOP_EPS) {
+        try { mv.currentTime = LOOP_RESTART; } catch {}
+        if (mv.paused) { mv.play().catch(() => {}); }
+      }
+    };
+
+    // 혹시 duration이 더 짧아 실제로 ended가 발생해도 복구
+    const onEnded = () => {
+      try { mv.currentTime = LOOP_RESTART; } catch {}
+      mv.play().catch(() => {});
+    };
+
+    mv.addEventListener('ended', onEnded);
+    raf = requestAnimationFrame(tick);
+
+    return () => {
+      mv.removeEventListener('ended', onEnded);
+      cancelAnimationFrame(raf);
+    };
+  }, []);
+
   // 이벤트 핸들러
   async function handleTestStart() {
     if (!audioRef.current || !isReady) {
@@ -238,7 +274,8 @@ function GamePage() {
     switchSectionVideo('break');
 
     console.log('🎬 테스트 시작');
-    const sectionVideoBpm = VIDEO_META.part1.bpm;
+    const currentSection = currentSectionRef.current;
+    const sectionVideoBpm = VIDEO_META[currentSection].bpm;
     const mv = motionVideoRef.current;
 
     await audioRef.current.play().catch(e => console.warn('audio play err', e));
@@ -342,11 +379,11 @@ function GamePage() {
           <video
             ref={motionVideoRef}
             id="motion"
-            loop
+            // loop
             preload="auto"
             muted
             playsInline
-            src="/part1.mp4"
+            src="/break.mp4"
             className="motion-video"
           />
         </div>
