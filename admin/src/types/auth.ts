@@ -9,6 +9,7 @@ export interface LoginResponse {
   accessToken: string;
   refreshToken?: string;
   adminId?: number;
+  userId?: number; // HTML에서는 userId로 반환
   username?: string;
 }
 
