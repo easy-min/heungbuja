@@ -9,10 +9,10 @@ const START_OFFSET = 0.0; // 오디오-비디오 시작 오프셋(초)
 //  - 모든 영상이 100BPM이면 bpm: 100으로 통일
 //  - 루프가 8박 기준이면 loopBeats: 8 (필요 시 섹션별로 수정)
 const VIDEO_META = {
-  intro: { src: 'break.mp4', bpm: 100, loopBeats: 8 },
-  break: { src: 'break.mp4', bpm: 100, loopBeats: 8 },
-  part1: { src: 'part1.mp4', bpm: 100, loopBeats: 8 },
-  part2: { src: 'part2.mp4', bpm: 100, loopBeats: 8 },
+  intro: { src: 'part1.mp4', bpm: 100, loopBeats: 16 },
+  break: { src: 'part1.mp4', bpm: 100, loopBeats: 16 },
+  part1: { src: 'part1.mp4', bpm: 100, loopBeats: 16 },
+  part2: { src: 'part2_level2.mp4', bpm: 100, loopBeats: 16 },
 };
 
 // ===== 요소 =====
