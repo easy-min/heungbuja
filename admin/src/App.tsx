@@ -1,15 +1,15 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import './index.css';
-import HomePage from './pages/HomePage';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import LoginPage from './pages/LoginPage';
+// import DashboardPage from './pages/DashboardPage'; // 나중에 추가
 
 function App() {
   return (
     <BrowserRouter>
-      <div className="app">
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-        </Routes>
-      </div>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        {/* <Route path="/dashboard" element={<DashboardPage />} /> */}
+        <Route path="/" element={<Navigate to="/login" replace />} />
+      </Routes>
     </BrowserRouter>
   );
 }
