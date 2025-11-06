@@ -68,6 +68,34 @@ export const useMusicMonitor = ({
 
   const sectionTimesRef = useRef<SectionTime[]>([]);
 
+  // 현재 시각으로 섹션 감지
+  const detectSectionAt = (t: number) => {
+    const secs = sectionTimesRef.current;
+    if (!secs.length) return;
+
+    const eps = GAME_CONFIG.EPS;
+    const curIdx = currentSectionIdxRef.current;
+
+    // 현재 섹션 유지 중이면 아무 것도 안 함
+    if (
+      curIdx >= 0 &&
+      curIdx < secs.length &&
+      t >= secs[curIdx].startTime - eps &&
+      t <  secs[curIdx].endTime   - eps
+    ) {
+      return;
+    }
+
+    // 재탐색
+    const found = secs.findIndex(
+      (s) => t >= s.startTime - eps && t < s.endTime - eps
+    );
+    if (found !== -1 && found !== currentSectionIdxRef.current) {
+      currentSectionIdxRef.current = found;
+      onSectionEnter?.(secs[found].label);
+    }
+  };
+
   useEffect(() => {
     sectionTimesRef.current = sectionTimes;
   }, [sectionTimes]);
@@ -160,30 +188,7 @@ export const useMusicMonitor = ({
 
 
       // --- (1) 섹션 감지: 루프 안에서 매 프레임 확인) ---
-      const secs = sectionTimesRef.current;
-      if (secs.length) {
-        const eps = GAME_CONFIG.EPS;
-        let idx = currentSectionIdxRef.current;
-
-        // 빠른 경로: 현재 섹션 유지 여부
-        if (
-          idx >= 0 &&
-          idx < secs.length &&
-          currentTime >= secs[idx].startTime - eps &&
-          currentTime <  secs[idx].endTime   - eps
-        ) {
-          // same section → do nothing
-        } else {
-          // 재탐색
-          const found = secs.findIndex(
-            s => currentTime >= s.startTime - eps && currentTime < s.endTime - eps
-          );
-          if (found !== -1 && found !== currentSectionIdxRef.current) {
-            currentSectionIdxRef.current = found;
-            onSectionEnter?.(secs[found].label);   // ✅ 여기서 섹션 변경 이벤트 발생
-          }
-        }
-      }
+      detectSectionAt(currentTime);
 
       // --- (2) 세그먼트 감지: 기존 그대로 ---
       if (!group) {
@@ -210,8 +215,27 @@ export const useMusicMonitor = ({
     };
 
     animationFrameIdRef.current = requestAnimationFrame(checkTiming);
-  }, [audioRef, barGroups, onSegmentStart, onSegmentEnd, onAllComplete, stopMonitoring]);
+  }, [audioRef, barGroups, onSegmentStart, onSegmentEnd, onAllComplete, onSectionEnter, stopMonitoring]);
 
+  // 오디오의 timeupdate/seeked 때도 섹션 감지 (rAF가 잠깐 쉬어도 놓치지 않게)
+  useEffect(() => {
+    const au = audioRef.current;
+    if (!au) return;
+
+    const onTime = () => detectSectionAt(au.currentTime);
+    const onSeek = () => detectSectionAt(au.currentTime);
+    const onPlay = () => detectSectionAt(au.currentTime); // 시작 직후 한 번 보정
+
+    au.addEventListener('timeupdate', onTime);
+    au.addEventListener('seeked', onSeek);
+    au.addEventListener('play', onPlay);
+
+    return () => {
+      au.removeEventListener('timeupdate', onTime);
+      au.removeEventListener('seeked', onSeek);
+      au.removeEventListener('play', onPlay);
+    };
+  }, [audioRef, onSectionEnter]);
 
   /**
    * 컴포넌트 언마운트 시 정리
