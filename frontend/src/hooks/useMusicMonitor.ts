@@ -4,7 +4,7 @@ import { calculateBarGroups } from '@/utils';
 import { GAME_CONFIG } from '@/utils/constants';
 
 interface UseMusicMonitorProps {
-  audioRef: React.RefObject<HTMLAudioElement>;
+  audioRef: React.RefObject<HTMLAudioElement | null>;
   onSegmentStart?: (segmentIndex: number) => void;
   onSegmentEnd?: (segmentIndex: number, frames: Frame[]) => void;
   onAllComplete?: () => void;
@@ -28,9 +28,10 @@ export const useMusicMonitor = ({
   const [barGroups, setBarGroups] = useState<BarGroup[]>([]);
   const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0);
   const [isMonitoring, setIsMonitoring] = useState(false);
-  
+
   const animationFrameIdRef = useRef<number | null>(null);
   const hasStartedRef = useRef<boolean>(false);
+  const currentSegmentIndexRef = useRef<number>(0);
 
   /**
    * JSON 데이터 로드 및 세그먼트 계산
@@ -58,65 +59,6 @@ export const useMusicMonitor = ({
   }, []);
 
   /**
-   * 모니터링 시작
-   */
-  const startMonitoring = useCallback((): void => {
-    if (!audioRef.current || barGroups.length === 0) {
-      console.warn('⚠️  모니터링 시작 실패: audio 또는 barGroups 없음');
-      return;
-    }
-
-    setIsMonitoring(true);
-    setCurrentSegmentIndex(0);
-    hasStartedRef.current = false;
-    
-    console.log('👀 음악 모니터링 시작');
-
-    /**
-     * requestAnimationFrame 기반 타이밍 체크
-     */
-    const checkTiming = () => {
-      if (!isMonitoring || !audioRef.current) return;
-
-      const currentTime = audioRef.current.currentTime;
-      const group = barGroups[currentSegmentIndex];
-
-      if (!group) {
-        // 모든 세그먼트 완료
-        console.log('🎉 모든 세그먼트 완료');
-        stopMonitoring();
-        onAllComplete?.();
-        return;
-      }
-
-      // 세그먼트 시작 감지
-      if (
-        !hasStartedRef.current &&
-        currentTime >= group.startTime - GAME_CONFIG.EPS &&
-        currentTime < group.endTime - GAME_CONFIG.EPS
-      ) {
-        hasStartedRef.current = true;
-        console.log(`▶️  세그먼트 ${group.segmentIndex} 시작 (${currentTime.toFixed(2)}s)`);
-        onSegmentStart?.(currentSegmentIndex);
-      }
-
-      // 세그먼트 종료 감지
-      if (hasStartedRef.current && currentTime >= group.endTime - GAME_CONFIG.EPS) {
-        hasStartedRef.current = false;
-        console.log(`⏹ 세그먼트 ${group.segmentIndex} 종료 (${currentTime.toFixed(2)}s)`);
-        onSegmentEnd?.(currentSegmentIndex, []);
-        
-        // 다음 세그먼트로 이동
-        setCurrentSegmentIndex((prev) => prev + 1);
-      }
-
-      animationFrameIdRef.current = requestAnimationFrame(checkTiming);
-    };
-
-    animationFrameIdRef.current = requestAnimationFrame(checkTiming);
-  }, [audioRef, barGroups, currentSegmentIndex, isMonitoring, onSegmentStart, onSegmentEnd, onAllComplete]);
-
-  /**
    * 모니터링 중지
    */
   const stopMonitoring = useCallback((): void => {
@@ -129,6 +71,81 @@ export const useMusicMonitor = ({
     
     console.log('⏸ 음악 모니터링 중지');
   }, []);
+  /**
+   * 모니터링 시작
+   */
+  const startMonitoring = useCallback((): void => {
+  // console.log('🟢 startMonitoring 호출됨');  // ✅ 추가
+  // console.log('🔍 audioRef.current:', audioRef.current);  // ✅ 추가
+  // console.log('🔍 barGroups.length:', barGroups.length);  // ✅ 추가
+
+    if (!audioRef.current || barGroups.length === 0) {
+      console.warn('⚠️  모니터링 시작 실패: audio 또는 barGroups 없음');
+      return;
+    }
+
+    setIsMonitoring(true);
+    setCurrentSegmentIndex(0);
+    currentSegmentIndexRef.current = 0;
+    hasStartedRef.current = false;
+
+    console.log('👀 음악 모니터링 시작');
+      console.log('🔍 첫 세그먼트:', barGroups[0]);  // ✅ 추가
+
+    /**
+     * requestAnimationFrame 기반 타이밍 체크
+     */
+    const checkTiming = () => {
+      //  console.log('🔄 checkTiming 호출됨');  // ✅ 추가
+      
+       if (animationFrameIdRef.current === null) return;
+
+      if (!audioRef.current) {
+      console.log('❌ audioRef.current 없음');  // ✅ 추가
+      return;
+    }
+      const currentTime = audioRef.current.currentTime;
+      const group = barGroups[currentSegmentIndexRef.current];
+      // console.log(`⏰ currentTime: ${currentTime.toFixed(2)}, segmentIndex: ${currentSegmentIndexRef.current}, group:`, group);  // ✅ 추가
+
+      if (!group) {
+        // 모든 세그먼트 완료
+        console.log('🎉 모든 세그먼트 완료');
+        stopMonitoring();
+        onAllComplete?.();
+        return;
+      }
+ // 세그먼트 시작 감지
+  // console.log(`🔍 체크: hasStarted=${hasStartedRef.current}, currentTime=${currentTime.toFixed(2)} >= ${group.startTime.toFixed(2)} - ${GAME_CONFIG.EPS}`);  // ✅ 추가
+ 
+      // 세그먼트 시작 감지
+      if (
+        !hasStartedRef.current &&
+        currentTime >= group.startTime - GAME_CONFIG.EPS &&
+        currentTime < group.endTime - GAME_CONFIG.EPS
+      ) {
+        hasStartedRef.current = true;
+        console.log(`▶️  세그먼트 ${group.segmentIndex} 시작 (${currentTime.toFixed(2)}s)`);
+        onSegmentStart?.(currentSegmentIndexRef.current);
+      }
+
+      // 세그먼트 종료 감지
+      if (hasStartedRef.current && currentTime >= group.endTime - GAME_CONFIG.EPS) {
+        hasStartedRef.current = false;
+        console.log(`⏹ 세그먼트 ${group.segmentIndex} 종료 (${currentTime.toFixed(2)}s)`);
+        onSegmentEnd?.(currentSegmentIndexRef.current, []);
+
+        // 다음 세그먼트로 이동
+        currentSegmentIndexRef.current += 1;
+        setCurrentSegmentIndex(currentSegmentIndexRef.current);
+      }
+
+      animationFrameIdRef.current = requestAnimationFrame(checkTiming);
+    };
+
+    animationFrameIdRef.current = requestAnimationFrame(checkTiming);
+  }, [audioRef, barGroups, onSegmentStart, onSegmentEnd, onAllComplete, stopMonitoring]);
+
 
   /**
    * 컴포넌트 언마운트 시 정리
@@ -147,4 +164,6 @@ export const useMusicMonitor = ({
     startMonitoring,
     stopMonitoring,
   };
+
+  
 };

@@ -1,5 +1,6 @@
 import { type Beat, type Section, type BarGroup, type Segment, type SegmentMetadata} from '@/types';
 import { GAME_CONFIG } from './constants';
+import JSZip from 'jszip';
 
 /**
  * Data URI 문자열을 Blob으로 변환
