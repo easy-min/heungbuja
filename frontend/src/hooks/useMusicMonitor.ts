@@ -14,6 +14,7 @@ interface UseMusicMonitorReturn {
   barGroups: BarGroup[];
   currentSegmentIndex: number;
   isMonitoring: boolean;
+  songBpm: number;
   loadSongData: (jsonPath: string) => Promise<void>;
   startMonitoring: () => void;
   stopMonitoring: () => void;
@@ -28,6 +29,7 @@ export const useMusicMonitor = ({
   const [barGroups, setBarGroups] = useState<BarGroup[]>([]);
   const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0);
   const [isMonitoring, setIsMonitoring] = useState(false);
+  const [songBpm, setSongBpm] = useState<number>(100);
 
   const animationFrameIdRef = useRef<number | null>(null);
   const hasStartedRef = useRef<boolean>(false);
@@ -45,6 +47,15 @@ export const useMusicMonitor = ({
 
       if (!data.beats || data.beats.length === 0) {
         throw new Error('beats 데이터가 없습니다');
+      }
+
+      // 비트 계산
+      const bpm = Number((data as any)?.tempoMap?.[0]?.bpm);
+      if (!Number.isFinite(bpm)) {
+        console.warn('⚠️ tempoMap[0].bpm 없음. 기본 120 사용');
+        setSongBpm(120);
+      } else {
+        setSongBpm(bpm);
       }
 
       // 세그먼트 시간 계산
@@ -98,7 +109,7 @@ export const useMusicMonitor = ({
     const checkTiming = () => {
       //  console.log('🔄 checkTiming 호출됨');  // ✅ 추가
       
-       if (animationFrameIdRef.current === null) return;
+      if (animationFrameIdRef.current === null) return;
 
       if (!audioRef.current) {
       console.log('❌ audioRef.current 없음');  // ✅ 추가
@@ -109,15 +120,12 @@ export const useMusicMonitor = ({
       // console.log(`⏰ currentTime: ${currentTime.toFixed(2)}, segmentIndex: ${currentSegmentIndexRef.current}, group:`, group);  // ✅ 추가
 
       if (!group) {
-        // 모든 세그먼트 완료
         console.log('🎉 모든 세그먼트 완료');
         stopMonitoring();
         onAllComplete?.();
         return;
       }
- // 세그먼트 시작 감지
-  // console.log(`🔍 체크: hasStarted=${hasStartedRef.current}, currentTime=${currentTime.toFixed(2)} >= ${group.startTime.toFixed(2)} - ${GAME_CONFIG.EPS}`);  // ✅ 추가
- 
+
       // 세그먼트 시작 감지
       if (
         !hasStartedRef.current &&
@@ -160,6 +168,7 @@ export const useMusicMonitor = ({
     barGroups,
     currentSegmentIndex,
     isMonitoring,
+    songBpm,
     loadSongData,
     startMonitoring,
     stopMonitoring,

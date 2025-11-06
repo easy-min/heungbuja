@@ -8,15 +8,44 @@ import { generateSessionId } from '@/utils/gameHelpers';
 import './GamePage.css';
 
 function GamePage() {
+
+  // === 섹션별 메타 (영상 BPM/루프 박자 수) ===
+  const VIDEO_META = {
+    intro: { src: '/break.mp4', bpm: 100, loopBeats: 8 },
+    break: { src: '/break.mp4', bpm: 100, loopBeats: 8 },
+    part1: { src: '/part1.mp4', bpm: 100, loopBeats: 16 },
+    part2: { src: '/part2_level2.mp4', bpm: 100, loopBeats: 16 },
+  } as const;
+
+  type SectionKey = keyof typeof VIDEO_META;
+
+  // === BPM, 싱크 상태 Ref ===
+  const songBpmRef = useRef<number>(120); // JSON에서 갱신
+  const currentSectionRef = useRef<SectionKey>('part1');
+  const syncActiveRef = useRef(false);
+
+  // === 동작 유틸 ===
+  const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+  const getLoopLenSec = (section: SectionKey) => {
+    const { bpm, loopBeats } = VIDEO_META[section];
+    return (60 / bpm) * loopBeats;
+  };
+  const getBaseRate = (section: SectionKey) => {
+    const videoBpm = VIDEO_META[section].bpm;
+    return songBpmRef.current / videoBpm; // <-- 노래 BPM / 영상 BPM (기본 배속)
+  };
+
   // URL 파라미터
   const { songId } = useParams<{ songId: string }>();
-  const navigate = useNavigate();
+  // const navigate = useNavigate();
 
   // Refs
+  const motionVideoRef = useRef<HTMLVideoElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const startTimerRef = useRef<number | null>(null);
+
   // 상태
   const [isGameStarted, setIsGameStarted] = useState(false);
   const [currentSegment, setCurrentSegment] = useState(0);
@@ -31,6 +60,7 @@ function GamePage() {
     barGroups,
     currentSegmentIndex,
     isMonitoring,
+    songBpm,
     loadSongData,
     startMonitoring,
     stopMonitoring,
@@ -77,7 +107,7 @@ function GamePage() {
     startCamera();
 
     // JSON 로드
-    loadSongData('/당돌한여자_섹션추가.json');
+    loadSongData('/당돌한여자.json');
 
     // ✅ 수정: 언마운트/정리 useEffect 내
     return () => {
@@ -120,14 +150,32 @@ function GamePage() {
   }, [currentSegmentIndex]);
 
   // 이벤트 핸들러
-  function handleTestStart() {
+  async function handleTestStart() {
     if (!audioRef.current || !isReady) {
       console.warn('⚠️  카메라 또는 오디오가 준비되지 않았습니다');
       return;
     }
 
     console.log('🎬 테스트 시작');
-    audioRef.current.play();
+    const sectionVideoBpm = VIDEO_META.part1.bpm;
+    const mv = motionVideoRef.current;
+
+    await audioRef.current.play().catch(e => console.warn('audio play err', e));
+
+    if (mv) {
+      if (mv.readyState < 1) {
+        await new Promise<void>((resolve) => {
+          const onMeta = () => { mv.removeEventListener('loadedmetadata', onMeta); resolve(); };
+          mv.addEventListener('loadedmetadata', onMeta, { once: true });
+        });
+      }
+      try { mv.currentTime = 0; } catch {}
+      mv.playbackRate = songBpm / sectionVideoBpm;
+      await mv.play().catch(e => console.warn('video play err', e));
+    } else {
+      console.warn('⚠️ motionVideoRef 없음');
+    }
+
     startMonitoring();
     setIsGameStarted(true);
   }
@@ -202,31 +250,23 @@ function GamePage() {
   function handleUploadError(segmentIndex: number, error: Error) {
     console.error(`❌ 세그먼트 ${segmentIndex} 업로드 실패:`, error);
   }
-// useEffect(() => {
-//   console.log('🔍 barGroups:', barGroups);
-//   if (barGroups.length > 0) {
-//     console.log('🔍 세그먼트 1:', barGroups[0]);
-//   }
-// }, [barGroups]);
 
-// useEffect(() => {
-//   if (!audioRef.current || !isGameStarted) return;
-  
-//   const interval = setInterval(() => {
-//     console.log('🎵 음악 시간:', audioRef.current?.currentTime.toFixed(2));
-//   }, 1000);
-  
-//   return () => clearInterval(interval);
-// }, [isGameStarted]);
   return (
     <div className="game-page">
       {/* 상단: 좌우 분할 */}
       <div className="video-container">
         {/* 왼쪽: 캐릭터 영상 자리 */}
         <div className="character-section">
-          <div className="placeholder">
-            <h2>캐릭터 영상 자리</h2>
-          </div>
+          <video
+            ref={motionVideoRef}
+            id="motion"
+            loop
+            preload="auto"
+            muted
+            playsInline
+            src="/part1.mp4"
+            className="motion-video"
+          />
         </div>
 
         {/* 오른쪽: 카메라 */}

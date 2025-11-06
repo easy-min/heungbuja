@@ -2,7 +2,7 @@
   "version": "1.0",
   "pipeline": "librosa(HPSS/normalize/trim) + madmom + Essentia + meter-phase-search",
   "audio": {
-    "title": "[Official Audio] 서주경(Seo Joo Kyung) - 당돌한 여자.mp3",
+    "title": "당돌한여자.mp3",
     "durationSec": 220.35736961451246,
     "sampleRate": 44100
   },
