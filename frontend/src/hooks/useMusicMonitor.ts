@@ -1,13 +1,20 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { type BarGroup, type SongData, type Frame } from '@/types';
+import { type BarGroup, type SongData, type Frame, type Beat, type Section } from '@/types';
 import { calculateBarGroups } from '@/utils';
 import { GAME_CONFIG } from '@/utils/constants';
+
+interface SectionTime {
+  label: 'intro' | 'break' | 'part1' | 'part2';
+  startTime: number;
+  endTime: number;
+}
 
 interface UseMusicMonitorProps {
   audioRef: React.RefObject<HTMLAudioElement | null>;
   onSegmentStart?: (segmentIndex: number) => void;
   onSegmentEnd?: (segmentIndex: number, frames: Frame[]) => void;
   onAllComplete?: () => void;
+  onSectionEnter?: (label: SectionTime['label']) => void;
 }
 
 interface UseMusicMonitorReturn {
@@ -15,9 +22,30 @@ interface UseMusicMonitorReturn {
   currentSegmentIndex: number;
   isMonitoring: boolean;
   songBpm: number;
+  sectionTimes: SectionTime[];
   loadSongData: (jsonPath: string) => Promise<void>;
   startMonitoring: () => void;
   stopMonitoring: () => void;
+}
+
+function buildSectionTimes(beats: Beat[], sections: Section[]): SectionTime[] {
+  const firstBeatOfBar = new Map<number, number>();
+  const lastBeatOfBar  = new Map<number, number>();
+
+  for (const b of beats) {
+    if (!firstBeatOfBar.has(b.bar)) firstBeatOfBar.set(b.bar, b.t);
+    lastBeatOfBar.set(b.bar, b.t); // 마지막 beat 시간이 남음
+  }
+
+  return (sections || []).map(s => {
+    const startTime = firstBeatOfBar.get(s.startBar) ?? 0;
+    const endTimeRaw = lastBeatOfBar.get(s.endBar) ?? startTime;
+    return {
+      label: s.label as SectionTime['label'],
+      startTime,
+      endTime: endTimeRaw,
+    };
+  }).sort((a, b) => a.startTime - b.startTime);
 }
 
 export const useMusicMonitor = ({
@@ -25,15 +53,24 @@ export const useMusicMonitor = ({
   onSegmentStart,
   onSegmentEnd,
   onAllComplete,
+  onSectionEnter,
 }: UseMusicMonitorProps): UseMusicMonitorReturn => {
   const [barGroups, setBarGroups] = useState<BarGroup[]>([]);
   const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0);
   const [isMonitoring, setIsMonitoring] = useState(false);
   const [songBpm, setSongBpm] = useState<number>(100);
+  const [sectionTimes, setSectionTimes] = useState<SectionTime[]>([]);
 
   const animationFrameIdRef = useRef<number | null>(null);
   const hasStartedRef = useRef<boolean>(false);
   const currentSegmentIndexRef = useRef<number>(0);
+  const currentSectionIdxRef = useRef<number>(-1);
+
+  const sectionTimesRef = useRef<SectionTime[]>([]);
+
+  useEffect(() => {
+    sectionTimesRef.current = sectionTimes;
+  }, [sectionTimes]);
 
   /**
    * JSON 데이터 로드 및 세그먼트 계산
@@ -61,8 +98,13 @@ export const useMusicMonitor = ({
       // 세그먼트 시간 계산
       const groups = calculateBarGroups(data.beats, data.sections || []);
       setBarGroups(groups);
-      
       console.log('✅ 세그먼트 계산 완료:', groups);
+      
+      // 섹션 타임라인 계산 추가
+      const secTimes = buildSectionTimes(data.beats, data.sections || []);
+      setSectionTimes(secTimes);
+      console.log('✅ 섹션 타임라인 계산 완료:', secTimes);
+      
     } catch (err) {
       console.error('❌ JSON 로드 실패:', err);
       throw err;
@@ -99,6 +141,7 @@ export const useMusicMonitor = ({
     setCurrentSegmentIndex(0);
     currentSegmentIndexRef.current = 0;
     hasStartedRef.current = false;
+    currentSectionIdxRef.current = -1;
 
     console.log('👀 음악 모니터링 시작');
       console.log('🔍 첫 세그먼트:', barGroups[0]);  // ✅ 추가
@@ -106,44 +149,59 @@ export const useMusicMonitor = ({
     /**
      * requestAnimationFrame 기반 타이밍 체크
      */
-    const checkTiming = () => {
-      //  console.log('🔄 checkTiming 호출됨');  // ✅ 추가
-      
+    const checkTiming = () => {      
       if (animationFrameIdRef.current === null) return;
+      const au = audioRef.current;
+      if (!au) return;
 
-      if (!audioRef.current) {
-      console.log('❌ audioRef.current 없음');  // ✅ 추가
-      return;
-    }
-      const currentTime = audioRef.current.currentTime;
+      const currentTime = au.currentTime;
       const group = barGroups[currentSegmentIndexRef.current];
       // console.log(`⏰ currentTime: ${currentTime.toFixed(2)}, segmentIndex: ${currentSegmentIndexRef.current}, group:`, group);  // ✅ 추가
 
+
+      // --- (1) 섹션 감지: 루프 안에서 매 프레임 확인) ---
+      const secs = sectionTimesRef.current;
+      if (secs.length) {
+        const eps = GAME_CONFIG.EPS;
+        let idx = currentSectionIdxRef.current;
+
+        // 빠른 경로: 현재 섹션 유지 여부
+        if (
+          idx >= 0 &&
+          idx < secs.length &&
+          currentTime >= secs[idx].startTime - eps &&
+          currentTime <  secs[idx].endTime   - eps
+        ) {
+          // same section → do nothing
+        } else {
+          // 재탐색
+          const found = secs.findIndex(
+            s => currentTime >= s.startTime - eps && currentTime < s.endTime - eps
+          );
+          if (found !== -1 && found !== currentSectionIdxRef.current) {
+            currentSectionIdxRef.current = found;
+            onSectionEnter?.(secs[found].label);   // ✅ 여기서 섹션 변경 이벤트 발생
+          }
+        }
+      }
+
+      // --- (2) 세그먼트 감지: 기존 그대로 ---
       if (!group) {
-        console.log('🎉 모든 세그먼트 완료');
         stopMonitoring();
         onAllComplete?.();
         return;
       }
-
-      // 세그먼트 시작 감지
       if (
         !hasStartedRef.current &&
         currentTime >= group.startTime - GAME_CONFIG.EPS &&
-        currentTime < group.endTime - GAME_CONFIG.EPS
+        currentTime <  group.endTime   - GAME_CONFIG.EPS
       ) {
         hasStartedRef.current = true;
-        console.log(`▶️  세그먼트 ${group.segmentIndex} 시작 (${currentTime.toFixed(2)}s)`);
         onSegmentStart?.(currentSegmentIndexRef.current);
       }
-
-      // 세그먼트 종료 감지
       if (hasStartedRef.current && currentTime >= group.endTime - GAME_CONFIG.EPS) {
         hasStartedRef.current = false;
-        console.log(`⏹ 세그먼트 ${group.segmentIndex} 종료 (${currentTime.toFixed(2)}s)`);
         onSegmentEnd?.(currentSegmentIndexRef.current, []);
-
-        // 다음 세그먼트로 이동
         currentSegmentIndexRef.current += 1;
         setCurrentSegmentIndex(currentSegmentIndexRef.current);
       }
@@ -169,6 +227,7 @@ export const useMusicMonitor = ({
     currentSegmentIndex,
     isMonitoring,
     songBpm,
+    sectionTimes,
     loadSongData,
     startMonitoring,
     stopMonitoring,

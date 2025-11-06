@@ -2800,7 +2800,7 @@
     },
     {
       "label": "part1",
-      "lineRange": [1, 20],
+      "lineRange": [1, 19],
       "startBeat": 65,
       "endBeat": 224,
       "startBar" : 17,
@@ -2816,7 +2816,7 @@
     },
     {
       "label": "part2",
-      "lineRange": [21, 40],
+      "lineRange": [20, 38],
       "startBeat": 293,
       "endBeat": 460,
       "startBar" : 74,

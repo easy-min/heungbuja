@@ -9,12 +9,57 @@ import './GamePage.css';
 
 function GamePage() {
 
+  function switchSectionVideo(next: SectionKey) {
+    const mv = motionVideoRef.current;
+    const au = audioRef.current;
+    if (!mv) return;
+
+    // 같은 섹션이면 스킵
+    if (currentSectionRef.current === next) return;
+    currentSectionRef.current = next;
+
+    const { src, bpm: videoBpm } = VIDEO_META[next];
+
+    // 현재 재생중인지 보관
+    const shouldPlay = !mv.paused;
+
+    // 소스 갈아끼우고 로드
+    mv.src = src;
+    mv.load();
+
+    // 메타 로드 후 배속 반영 + 재생
+    const applyAndPlay = async () => {
+      try {
+        // 오디오 BPM 대비 영상 배속
+        const songBpm = songBpmRef.current || 120;
+        mv.playbackRate = songBpm / videoBpm;
+
+        // (선택) 오디오 진행과 대략 맞추고 싶으면 0으로 두세요.
+        // mv.currentTime = 0;
+
+        if (shouldPlay || (au && !au.paused)) {
+          await mv.play().catch(() => {});
+        }
+      } catch {}
+    };
+
+    if (mv.readyState < 2) {
+      const onCanPlay = () => {
+        mv.removeEventListener('canplay', onCanPlay);
+        applyAndPlay();
+      };
+      mv.addEventListener('canplay', onCanPlay, { once: true });
+    } else {
+      void applyAndPlay();
+    }
+  }
+
   // === 섹션별 메타 (영상 BPM/루프 박자 수) ===
   const VIDEO_META = {
     intro: { src: '/break.mp4', bpm: 100, loopBeats: 8 },
     break: { src: '/break.mp4', bpm: 100, loopBeats: 8 },
     part1: { src: '/part1.mp4', bpm: 100, loopBeats: 16 },
-    part2: { src: '/part2_level2.mp4', bpm: 100, loopBeats: 16 },
+    part2: { src: '/part2.mp4', bpm: 100, loopBeats: 16 },
   } as const;
 
   type SectionKey = keyof typeof VIDEO_META;
@@ -61,6 +106,7 @@ function GamePage() {
     currentSegmentIndex,
     isMonitoring,
     songBpm,
+    sectionTimes,
     loadSongData,
     startMonitoring,
     stopMonitoring,
@@ -69,6 +115,15 @@ function GamePage() {
     onSegmentStart: handleSegmentStart,
     onSegmentEnd: handleSegmentEnd,
     onAllComplete: handleAllComplete,
+    onSectionEnter: (label) => {
+      const map: Record<string, SectionKey> = {
+        intro: 'break',
+        break: 'break',
+        part1: 'part1',
+        part2: 'part2',
+      };
+      switchSectionVideo(map[label] ?? 'break');
+    },
   });
 
   // 프레임 캡처 훅
@@ -144,10 +199,34 @@ function GamePage() {
     }
   }, []);
 
+  // 노래 bpm 업데이트
+  useEffect(() => {
+    if (songBpm) songBpmRef.current = songBpm;
+  }, [songBpm]);
+
   // 세그먼트 인덱스 업데이트
   useEffect(() => {
     setCurrentSegment(currentSegmentIndex + 1);
   }, [currentSegmentIndex]);
+
+  // 오디오 끝날 때 영상 정지
+  useEffect(() => {
+    const audio = audioRef.current;
+    const mv = motionVideoRef.current;
+    if (!audio || !mv) return;
+
+    const handleEnded = () => {
+      console.log('🎵 노래 재생 완료 → 영상 정지');
+      mv.pause();              // 영상 멈춤
+      mv.currentTime = 0;      // (선택) 처음으로 돌리기
+      setIsGameStarted(false); // 상태도 초기화
+    };
+
+    audio.addEventListener('ended', handleEnded);
+    return () => {
+      audio.removeEventListener('ended', handleEnded);
+    };
+  }, []);
 
   // 이벤트 핸들러
   async function handleTestStart() {
@@ -155,6 +234,8 @@ function GamePage() {
       console.warn('⚠️  카메라 또는 오디오가 준비되지 않았습니다');
       return;
     }
+
+    switchSectionVideo('break');
 
     console.log('🎬 테스트 시작');
     const sectionVideoBpm = VIDEO_META.part1.bpm;
@@ -253,9 +334,10 @@ function GamePage() {
 
   return (
     <div className="game-page">
-      {/* 상단: 좌우 분할 */}
+
+      {/* 좌측: 동작 시연 및 가사 */}
       <div className="video-container">
-        {/* 왼쪽: 캐릭터 영상 자리 */}
+        {/* 위쪽: 캐릭터 영상 자리 */}
         <div className="character-section">
           <video
             ref={motionVideoRef}
@@ -268,8 +350,24 @@ function GamePage() {
             className="motion-video"
           />
         </div>
+        {/* 아래쪽: 가사 자리 */}
+        <div className="lyrics-container">
+          <div className="placeholder">
+            <h3>가사</h3>
+          </div>
+          {/* 오디오 (항상 렌더링, testMode일 때만 보임) */}
+          <audio
+            controls
+            ref={audioRef}
+            src="/당돌한여자.mp3"
+            style={{ display: testMode ? 'block' : 'none', width: '30%' }}
+          />
+        </div>        
+      </div>
 
-        {/* 오른쪽: 카메라 */}
+      {/* 우측: 카메라 촬영 및 피드백 */}
+      <div className="camera-container">
+        {/* 위쪽: 카메라 */}
         <div className="camera-section">
           <video
             ref={videoRef}
@@ -307,52 +405,43 @@ function GamePage() {
             </div>
           )}
         </div>
-      </div>
 
-      {/* 하단: 가사 자리 */}
-      <div className="lyrics-container">
-        <div className="placeholder">
-          <h3>가사 자리</h3>
-        </div>
-      </div>
+        {/* 아래쪽: 피드백 */}
+        <div className="feedback-section">
+          {/* 테스트용 컨트롤 */}
+          {testMode && (
+            <div className="test-controls">
+              <div className="button-group">
+                <button
+                  onClick={handleTestStart}
+                  disabled={isGameStarted || !isReady}
+                  className="btn-start"
+                >
+                  🎬 테스트 시작
+                </button>
+                <button
+                  onClick={handleTestStop}
+                  disabled={!isGameStarted}
+                  className="btn-stop"
+                >
+                  ⏹ 테스트 중지
+                </button>
+              </div>
 
-      {/* 오디오 (항상 렌더링, testMode일 때만 보임) */}
-      <audio
-        ref={audioRef}
-        src="/당돌한여자.mp3"
-        style={{ display: testMode ? 'block' : 'none' }}
-      />
-
-      {/* 테스트용 컨트롤 */}
-      {testMode && (
-        <div className="test-controls">
-          <div className="button-group">
-            <button
-              onClick={handleTestStart}
-              disabled={isGameStarted || !isReady}
-              className="btn-start"
-            >
-              🎬 테스트 시작
-            </button>
-            <button
-              onClick={handleTestStop}
-              disabled={!isGameStarted}
-              className="btn-stop"
-            >
-              ⏹ 테스트 중지
-            </button>
-          </div>
-
-          <div className="debug-info">
-            <div>카메라: {isReady ? '✅ 준비' : '⏳ 대기'}</div>
-            <div>세그먼트: {barGroups.length}개 로드</div>
-            <div>모니터링: {isMonitoring ? '✅ 진행 중' : '⏸ 대기'}</div>
-            <div>캡처: {isCapturing ? '✅ 진행 중' : '⏸ 대기'}</div>
-            <div>업로드 큐: {uploadQueue.length}개</div>
+              <div className="debug-info">
+                <div>카메라: {isReady ? '✅ 준비' : '⏳ 대기'}</div>
+                <div>세그먼트: {barGroups.length}개 로드</div>
+                <div>모니터링: {isMonitoring ? '✅ 진행 중' : '⏸ 대기'}</div>
+                <div>캡처: {isCapturing ? '✅ 진행 중' : '⏸ 대기'}</div>
+                <div>업로드 큐: {uploadQueue.length}개</div>
+              </div>
+            </div>
+          )}
           </div>
         </div>
-      )}
-    </div>
+      </div>
+
+
   );
 }
 
