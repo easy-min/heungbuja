@@ -49,11 +49,17 @@
 </head>
 <body>
 <div class="container">
-    <h1>👴 흥부자 사용자 페이지</h1>
+    <h1>👴 흥부자 사용자 페이지 (v1.1 - JWT 인증)</h1>
 
     <!-- 로그인 -->
     <div class="section" id="login-section">
-        <div><strong>기기 로그인</strong></div>
+        <div><strong>🔐 기기 로그인 (JWT 인증)</strong></div>
+        <div style="background:#fff3cd; padding:10px; border-radius:6px; margin-bottom:10px; font-size:13px;">
+            ⚠️ <strong>보안 강화 (v1.1.0)</strong><br>
+            - 모든 음성 명령 API는 JWT 인증 필수<br>
+            - userId는 JWT 토큰에서 자동 추출 (파라미터 전달 불필요)<br>
+            - 테스트용: userId=1 고정
+        </div>
         <input type="text" id="device-serial" placeholder="DEVICE001" value="DEVICE001"/>
         <button class="btn btn-primary" onclick="deviceLogin()">로그인</button>
         <div id="res-device-login" class="response-box"></div>
@@ -135,21 +141,28 @@
     }
 
     async function deviceLogin(){
-        const serial = document.getElementById('device-serial').value;
+        const deviceNumber = document.getElementById('device-serial').value;
+        // ⚠️ 실제로는 사용자 선택 UI를 만들어야 하지만, 테스트를 위해 userId=1 고정
+        const testUserId = 1;
+
         try{
             const res = await fetch(`${API_BASE}/auth/device`,{
                 method:'POST',
                 headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({serialNumber: serial})
+                body:JSON.stringify({
+                    serialNumber: deviceNumber,  // ← API는 serialNumber를 받음
+                    userId: testUserId
+                })
             });
             const data = await res.json();
             showResponse('res-device-login', data, !res.ok);
             if(res.ok){
                 userToken = data.accessToken;
-                userId = data.userId;
+                userId = testUserId; // JWT에서 추출될 userId
                 document.getElementById('login-section').style.display='none';
                 document.getElementById('voice-section').style.display='block';
                 document.getElementById('emergency-section').style.display='block';
+                alert(`✅ 로그인 성공! (userId: ${userId})`);
             }
         }catch(e){showResponse('res-device-login',{error:e.message},true);}
     }
@@ -250,16 +263,21 @@
 
     // 음성 파일 전송 (음성 직접 응답)
     async function sendVoiceCommand(){
-        if(!userId || !recordedBlob) return alert('녹음된 파일이 없습니다!');
+        if(!userToken) return alert('로그인이 필요합니다!');
+        if(!recordedBlob) return alert('녹음된 파일이 없습니다!');
 
         const formData = new FormData();
-        formData.append('userId', userId);
+        // ⚠️ userId는 제거! JWT 토큰에서 자동 추출됨
         formData.append('audioFile', recordedBlob, 'voice.webm');
 
         try{
             document.getElementById('record-status').textContent = '⏳ 음성 인식 중...';
             const res = await fetch(`${API_BASE}/commands/process-audio`, {
                 method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${userToken}`
+                    // ⚠️ Content-Type은 설정하지 마세요! (자동 설정됨)
+                },
                 body: formData
             });
 
@@ -318,13 +336,16 @@
 
     // 텍스트 명령 전송
     async function sendTextCommand(){
-        if(!userId) return alert('로그인 필요!');
+        if(!userToken) return alert('로그인이 필요합니다!');
 
         const text = document.getElementById('voice-text').value;
         try{
             const res = await fetch(`${API_BASE}/commands/text`,{
                 method:'POST',
-                headers:{'Content-Type':'application/json'},
+                headers:{
+                    'Content-Type':'application/json',
+                    'Authorization': `Bearer ${userToken}` // ⭐ JWT 토큰 추가
+                },
                 body:JSON.stringify({userId: userId, text: text})
             });
             const data = await res.json();

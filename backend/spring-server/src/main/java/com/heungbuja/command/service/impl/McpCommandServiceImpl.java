@@ -80,14 +80,11 @@ public class McpCommandServiceImpl implements CommandService {
             // 4. Tool 결과를 GPT에게 전달하여 최종 응답 생성
             String finalResponse = generateFinalResponse(text, contextInfo, toolCalls, toolResults);
 
-            // 5. TTS 음성 생성
-            String ttsUrl = ttsService.synthesize(finalResponse);
-
-            // 6. 음성 명령 로그 저장
+            // 5. 음성 명령 로그 저장
             saveVoiceCommand(user, text, Intent.UNKNOWN); // MCP에서는 Intent가 불명확
 
-            // 7. 응답 생성
-            return buildResponse(finalResponse, ttsUrl, toolResults);
+            // 6. 응답 생성 (TTS는 Controller에서 synthesizeBytes()로 직접 처리)
+            return buildResponse(finalResponse, null, toolResults);
 
         } catch (CustomException e) {
             throw e;
@@ -301,7 +298,12 @@ public class McpCommandServiceImpl implements CommandService {
                 %s
 
                 위 결과를 바탕으로 사용자에게 자연스러운 응답을 생성하세요.
-                어르신이 이해하기 쉽게 짧고 명확하게 답변하세요.
+
+                [중요 제약사항]
+                - 반드시 1-2문장으로만 답변하세요
+                - 15단어 이내로 짧게 답변하세요
+                - "~했어요", "~할게요", "~드릴게요" 등 간단한 종결어미 사용
+                - 어르신이 듣기 편하도록 핵심만 전달하세요
                 """, originalMessage, toolResultsText);
 
         var gptResponse = gptService.chat(prompt);
@@ -315,12 +317,21 @@ public class McpCommandServiceImpl implements CommandService {
      * Tool을 호출하지 않고 GPT가 직접 응답한 경우
      */
     private CommandResponse handleDirectGptResponse(User user, String text) {
-        var gptResponse = gptService.chat("Answer in Korean", text);
+        String prompt = String.format("""
+                사용자 요청: "%s"
+
+                위 요청에 대해 간단히 답변하세요.
+
+                [중요 제약사항]
+                - 반드시 1문장으로만 답변하세요
+                - 10단어 이내로 짧게 답변하세요
+                - 어르신이 이해하기 쉽게 답변하세요
+                """, text);
+
+        var gptResponse = gptService.chat(prompt);
         String responseText = gptResponse != null && gptResponse.getContent() != null
                 ? gptResponse.getContent()
                 : "죄송합니다. 이해하지 못했습니다";
-
-        String ttsUrl = ttsService.synthesize(responseText);
 
         saveVoiceCommand(user, text, Intent.UNKNOWN);
 
@@ -328,12 +339,13 @@ public class McpCommandServiceImpl implements CommandService {
                 .success(false)
                 .intent(Intent.UNKNOWN)
                 .responseText(responseText)
-                .ttsAudioUrl("/commands/tts/" + ttsUrl)
+                .ttsAudioUrl(null)  // TTS는 Controller에서 처리
                 .build();
     }
 
     /**
      * 응답 생성
+     * ttsUrl은 사용하지 않음 (Controller에서 synthesizeBytes()로 직접 처리)
      */
     private CommandResponse buildResponse(String responseText, String ttsUrl, List<McpToolResult> toolResults) {
         // Tool 결과에 따라 응답 생성
@@ -344,7 +356,7 @@ public class McpCommandServiceImpl implements CommandService {
                         .success(true)
                         .intent(Intent.UNKNOWN)
                         .responseText(responseText)
-                        .ttsAudioUrl("/commands/tts/" + ttsUrl)
+                        .ttsAudioUrl(null)  // TTS는 Controller에서 처리
                         .songInfo(result.getSongInfo())
                         .screenTransition(CommandResponse.ScreenTransition.builder()
                                 .targetScreen("/listening")
@@ -366,7 +378,7 @@ public class McpCommandServiceImpl implements CommandService {
                         .success(true)
                         .intent(Intent.UNKNOWN)
                         .responseText(responseText)
-                        .ttsAudioUrl("/commands/tts/" + ttsUrl)
+                        .ttsAudioUrl(null)  // TTS는 Controller에서 처리
                         .screenTransition(CommandResponse.ScreenTransition.builder()
                                 .targetScreen("/game")
                                 .action("START_GAME")
@@ -387,7 +399,7 @@ public class McpCommandServiceImpl implements CommandService {
                 .success(true)
                 .intent(Intent.UNKNOWN)
                 .responseText(responseText)
-                .ttsAudioUrl("/commands/tts/" + ttsUrl)
+                .ttsAudioUrl(null)  // TTS는 Controller에서 처리
                 .build();
     }
 

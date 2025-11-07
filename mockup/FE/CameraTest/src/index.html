@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>카메라 테스트 (24fps 캡처)</title>
+    <style>
+        .app {
+            text-align: center;
+            padding: 20px;
+        }
+        h1 {
+            margin-bottom: 20px;
+        }
+        .error {
+            color: red;
+            margin-bottom: 10px;
+        }
+        .status {
+            color: #333;
+            margin: 10px 0;
+            font-family: monospace;
+        }
+        video {
+            width: 100%;
+            max-width: 640px;
+            display: block;
+            margin: 0 auto 20px;
+            border: 1px solid #ccc;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            margin: 0 5px;
+        }
+        button:hover {
+            background-color: #cc0000;
+        }
+        canvas {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <h1>카메라 테스트</h1>
+        <p id="error" class="error"></p>
+        <div id="status" class="status">대기 중...</div>
+        <video id="video" autoplay playsinline></video>
+        <div>
+            <button id="stopBtn">카메라 끄기</button>
+        </div>
+        <audio id="audioPlayer" src="./당돌한여자.mp3" controls></audio>
+        <canvas id="captureCanvas" width="320" height="240"></canvas>
+    </div>
+
+    <script>
+        const video = document.getElementById('video');
+        const errorElement = document.getElementById('error');
+        const statusElement = document.getElementById('status');
+        const stopBtn = document.getElementById('stopBtn');
+        const canvas = document.getElementById('captureCanvas');
+        const ctx = canvas.getContext('2d');
+        const audio = document.getElementById('audioPlayer');
+
+        // ===== 설정 =====
+        const MAX_RETRIES = 3;
+        const FPS = 24;
+        const FRAME_MS = 1000 / FPS;
+        const EPS = 0.03;
+        const LATE_GUARD = 0.02;
+
+        // ===== 상태 변수 =====
+        let stream = null;
+        let captureIntervalId = null;
+        let frameBuffer = [];
+        let isCapturing = false;
+        let encoding = false;
+        let expectedFrames = 0;
+        let captureStartTime = 0; // ✅ 정확한 타이밍을 위한 시작 시간
+        
+        // ===== JSON 데이터 =====
+        let barTimes = {};
+        let maxBar = 0;
+        let barGroups = [];
+        let currentGroupIndex = 0;
+        let monitoring = false;
+
+        // ===== 업로드 큐 =====
+        const uploadQueue = [];
+        let isUploading = false;
+        const retryMap = new Map();
+
+        // ===== JSON 로드 =====
+        async function loadBarTimes() {
+            try {
+                const res = await fetch('./당돌한여자_섹션추가.json');
+                const jsonData = await res.json();
+
+                const beats = jsonData.beats;
+                const sections = jsonData.sections || [];
+
+                if (!beats || beats.length === 0) {
+                    console.error("beats 데이터가 없습니다.");
+                    return;
+                }
+
+                beats.forEach(b => {
+                    if (b.beat === 1) {
+                        barTimes[b.bar] = b.t;
+                        if (b.bar > maxBar) maxBar = b.bar;
+                    }
+                });
+
+                const part1 = sections.find(s => s.label === 'part1');
+                const verseStartBar = part1 ? part1.startBar + 4 : 1;
+
+                const BARS_PER_SEGMENT = 4;
+                const SEGMENT_COUNT = 6;
+                const groups = [];
+
+                for (let i = 0; i < SEGMENT_COUNT; i++) {
+                    const startBar = verseStartBar + i * BARS_PER_SEGMENT;
+                    const endBar = startBar + BARS_PER_SEGMENT - 1;
+                    const startTime = barTimes[startBar];
+                    const endTime = barTimes[endBar + 1] || beats[beats.length - 1].t;
+
+                    groups.push({
+                        segmentIndex: i + 1,
+                        startBar,
+                        endBar,
+                        startTime,
+                        endTime,
+                    });
+                }
+
+                barGroups = groups;
+                console.log("1절 4마디씩(16비트) 6세그먼트:", barGroups);
+            } catch (err) {
+                console.error("JSON 파일 로드 실패:", err);
+            }
+        }
+
+        loadBarTimes();
+
+        // ===== 카메라 시작 =====
+        async function startCamera() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: {
+                        width: { ideal: 320 },
+                        height: { ideal: 240 },
+                        frameRate: { ideal: FPS, max: FPS }
+                    },
+                    audio: false
+                });
+                
+                video.srcObject = stream;
+
+                video.addEventListener('loadedmetadata', () => {
+                    canvas.width = video.videoWidth || 320;
+                    canvas.height = video.videoHeight || 240;
+                });
+            } catch (err) {
+                errorElement.textContent = '카메라 접근 실패: ' + err.message;
+            }
+        }
+
+        // ===== 카메라 중지 =====
+        function stopCamera() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+            }
+            video.srcObject = null;
+            stopCapture();
+        }
+
+        // ===== 현재 세그먼트 정보 =====
+        function getCurrentGroup() {
+            const g = barGroups[currentGroupIndex];
+            return { start: g.startTime, end: g.endTime, seg: currentGroupIndex + 1 };
+        }
+
+        // ===== 캡처 시작 (개선됨) =====
+        function startCapture() {
+            if (isCapturing || captureIntervalId) return;
+            if (!video.srcObject) {
+                errorElement.textContent = '카메라가 켜져 있지 않습니다.';
+                return;
+            }
+
+            const g = getCurrentGroup();
+            const now = audio.currentTime;
+
+            if (now > g.end - LATE_GUARD) {
+                console.warn(`⏭ skip start seg=${g.seg} (late t=${now.toFixed(2)} > end=${g.end.toFixed(2)})`);
+                return;
+            }
+
+            isCapturing = true;
+            frameBuffer = [];
+            expectedFrames = Math.ceil((g.end - Math.max(now, g.start)) * FPS) + 2;
+            captureStartTime = performance.now(); // ✅ 고정밀 타이머 시작
+            let frameCount = 0;
+
+            statusElement.textContent = `📹 세그먼트 ${g.seg} 캡처 중... (0/${expectedFrames})`;
+
+            // ✅ requestAnimationFrame 기반 캡처 (더 정확함)
+            const captureFrame = () => {
+                if (!isCapturing) return;
+
+                const elapsed = performance.now() - captureStartTime;
+                const targetFrame = Math.floor(elapsed / FRAME_MS);
+
+                // 다음 프레임 시간까지 대기
+                if (frameCount < targetFrame && !encoding && video.readyState >= 2) {
+                    encoding = true;
+                    frameCount++;
+
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                    canvas.toBlob((blob) => {
+                        if (!isCapturing) {
+                            encoding = false;
+                            return;
+                        }
+
+                        frameBuffer.push({ 
+                            img: blob, 
+                            musicTime: audio.currentTime,
+                            captureTime: elapsed // ✅ 디버깅용
+                        });
+
+                        statusElement.textContent = `📹 세그먼트 ${g.seg} 캡처 중... (${frameBuffer.length}/${expectedFrames})`;
+
+                        // 안전 컷
+                        if (frameBuffer.length >= expectedFrames) {
+                            stopCapture();
+                        }
+
+                        encoding = false;
+                    }, 'image/jpeg', 0.8);
+                }
+
+                if (isCapturing) {
+                    requestAnimationFrame(captureFrame);
+                }
+            };
+
+            captureFrame();
+            console.log(`📹 캡처 시작 (segment ${g.seg})`);
+        }
+
+        // ===== 캡처 중지 (개선됨) =====
+        function stopCapture() {
+            if (!isCapturing) return;
+
+            isCapturing = false;
+            const segIndex = currentGroupIndex;
+            const framesToSend = frameBuffer.slice();
+            frameBuffer = [];
+
+            console.log(`⏹ 캡처 종료 (segment ${segIndex + 1}, ${framesToSend.length} frames)`);
+            statusElement.textContent = `⏸ 대기 중...`;
+
+            setTimeout(() => {
+                if (framesToSend.length === 0) {
+                    console.warn(`🚫 seg=${segIndex + 1} has 0 frames → upload skipped`);
+                    return;
+                }
+                queueSegmentUpload(segIndex, framesToSend);
+            }, 0);
+        }
+
+        // ===== 업로드 큐 =====
+        function queueSegmentUpload(index, frames) {
+            uploadQueue.push({ index, frames });
+            console.log(`📦 세그먼트 ${index + 1} 준비 완료 (${frames.length} frames)`);
+            processUploadQueue();
+        }
+
+        // ===== 업로드 처리 (개선됨) =====
+        async function processUploadQueue() {
+            if (isUploading || uploadQueue.length === 0) return;
+            isUploading = true;
+
+            const segment = uploadQueue.shift();
+            const segNum = segment.index + 1;
+            statusElement.textContent = `📤 세그먼트 ${segNum} 업로드 중... (${segment.frames.length} frames)`;
+            console.log(`📤 세그먼트 ${segNum} 업로드 시작...`);
+
+            try {
+                const formData = new FormData();
+                
+                // ✅ 메타데이터 먼저 추가
+                formData.append("segmentIndex", segNum);
+                formData.append("musicTitle", "당돌한 여자");
+                formData.append("fps", FPS);
+                formData.append("frameCount", segment.frames.length);
+                formData.append("musicTimeStart", segment.frames[0]?.musicTime.toFixed(3) || 0);
+                formData.append("musicTimeEnd", segment.frames.at(-1)?.musicTime.toFixed(3) || 0);
+
+                // ✅ 프레임을 순서대로 추가 (파일명에 segmentIndex 포함)
+                segment.frames.forEach((frame, i) => {
+                    const blob = frame.img instanceof Blob ? frame.img : dataURItoBlob(frame.img);
+                    formData.append("frames", blob, `seg${String(segNum).padStart(2, '0')}_frame_${i}.jpg`);
+                });
+
+                const response = await fetch("/upload", {
+                    method: "POST",
+                    body: formData,
+                });
+
+                if (!response.ok) {
+                    throw new Error(`서버 응답 실패: ${response.status}`);
+                }
+
+                const result = await response.json();
+                console.log(`✅ 세그먼트 ${segNum} 업로드 완료`, result);
+                statusElement.textContent = `✅ 세그먼트 ${segNum} 업로드 완료`;
+                
+                // ✅ 재시도 카운터 초기화
+                retryMap.delete(segment.index);
+
+            } catch (err) {
+                console.error("업로드 중 오류 발생:", err);
+                
+                const count = retryMap.get(segment.index) || 0;
+                if (count < MAX_RETRIES) {
+                    retryMap.set(segment.index, count + 1);
+                    console.warn(`⚠️  세그먼트 ${segNum} 재시도 (${count + 1}/${MAX_RETRIES})`);
+                    uploadQueue.push(segment);
+                } else {
+                    console.error(`🚫 세그먼트 ${segNum} 재시도 횟수 초과, 건너뜀`);
+                    statusElement.textContent = `❌ 세그먼트 ${segNum} 업로드 실패`;
+                }
+            } finally {
+                isUploading = false;
+                if (uploadQueue.length > 0) {
+                    setTimeout(processUploadQueue, 100); // ✅ 약간의 딜레이
+                }
+            }
+        }
+
+        // ===== 유틸리티 함수 =====
+        function dataURItoBlob(dataURI) {
+            const byteString = atob(dataURI.split(",")[1]);
+            const mimeString = dataURI.split(",")[0].split(":")[1].split(";")[0];
+            const ab = new ArrayBuffer(byteString.length);
+            const ia = new Uint8Array(ab);
+            for (let i = 0; i < byteString.length; i++) ia[i] = byteString.charCodeAt(i);
+            return new Blob([ab], { type: mimeString });
+        }
+
+        // ===== 모니터링 시작 =====
+        function startMonitoring() {
+            if (!barGroups || barGroups.length === 0) {
+                console.warn("barGroups가 비어 있습니다.");
+                return;
+            }
+
+            monitoring = true;
+            currentGroupIndex = 0;
+
+            const check = () => {
+                if (!monitoring) return;
+                const t = audio.currentTime;
+                const group = barGroups[currentGroupIndex];
+
+                if (!group) {
+                    console.log("🎉 모든 세그먼트 완료");
+                    monitoring = false;
+                    stopCapture();
+                    statusElement.textContent = "🎉 녹화 완료!";
+                    return;
+                }
+
+                if (!isCapturing && t >= group.startTime - EPS && t < group.endTime - EPS) {
+                    startCapture();
+                }
+                
+                if (isCapturing && t >= group.endTime - EPS) {
+                    stopCapture();
+                    currentGroupIndex++;
+                }
+
+                requestAnimationFrame(check);
+            };
+
+            requestAnimationFrame(check);
+        }
+
+        // ===== 이벤트 리스너 =====
+        audio.addEventListener('play', () => {
+            console.log('🎵 음악 재생 시작');
+            startMonitoring();
+        });
+
+        audio.addEventListener('pause', () => {
+            console.log('⏸ 음악 일시정지');
+            stopCapture();
+        });
+
+        stopBtn.addEventListener('click', stopCamera);
+        window.addEventListener('beforeunload', stopCamera);
+
+        // ===== 초기화 =====
+        startCamera();
+    </script>
+</body>
+</html>

@@ -39,9 +39,10 @@ public class SecurityConfig {
                         .requestMatchers("/media/test", "/media/test/**").permitAll()
                         .requestMatchers("/ws/**").permitAll()
 
-                        // Voice & Emergency & Commands (Public - 웹앱에서 직접 호출)
-                        .requestMatchers("/voice/**").permitAll()
-                        .requestMatchers("/commands/**").permitAll()
+                        // Voice & Commands - JWT 인증 필요 (보안 강화)
+                        .requestMatchers("/commands/**").authenticated()
+
+                        // Emergency (Public - 응급 상황은 인증 없이 허용)
                         .requestMatchers("/emergency").permitAll()
                         .requestMatchers("/emergency/*/cancel").permitAll()
                         .requestMatchers("/emergency/*/confirm").permitAll()
