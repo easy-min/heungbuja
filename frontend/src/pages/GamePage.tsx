@@ -96,8 +96,9 @@ function GamePage() {
 
   // 가사
   const [lyrics, setLyrics] = useState<LyricLine[]>([]);
-  const { current: currentLyric, next: nextLyric } =
-  useLyricsSync(audioRef, lyrics /*, { prerollSec: 0.04 }*/);
+  const { current: currentLyric, next: nextLyric, isInstrumental } =
+  useLyricsSync(audioRef, lyrics, { prerollSec: 0.04 });
+
 
   // 카메라 훅
   const { stream, isReady, error, startCamera, stopCamera } = useCamera();
@@ -418,10 +419,14 @@ function GamePage() {
           {/* === 가사 표시 === */}
           <div className="lyrics-display">
             <div className="lyrics-current">
-              {currentLyric?.text ?? '\u00A0'}
+              {isInstrumental
+                ? '(간주 중)'
+                : currentLyric?.text ?? '\u00A0'}
             </div>
             <div className="lyrics-next">
-              {nextLyric?.text ?? '\u00A0'}
+              {!isInstrumental
+              ? nextLyric?.text ?? '\u00A0'
+              : '\u00A0'}
             </div>
           </div>
         </div>       

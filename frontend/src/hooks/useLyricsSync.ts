@@ -4,16 +4,18 @@ import type { LyricLine } from '@/types';
 export function useLyricsSync(
   audioRef: React.RefObject<HTMLAudioElement | null>,
   lyrics: LyricLine[],
-  options?: { prerollSec?: number } // 필요시 선행 보정
+  options?: { prerollSec?: number }
 ) {
-  const prerollSec = options?.prerollSec ?? 0; // 기본 0
+  const prerollSec = options?.prerollSec ?? 0;
   const [index, setIndex] = useState<number>(-1);
+  const [isInstrumental, setIsInstrumental] = useState<boolean>(true);
   const lastTRef = useRef<number>(0);
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || lyrics.length === 0) {
       setIndex(-1);
+      setIsInstrumental(true);
       return;
     }
 
@@ -23,15 +25,15 @@ export function useLyricsSync(
       raf = requestAnimationFrame(tick);
 
       const t = audio.currentTime - prerollSec;
-      // 불필요한 계산 줄이기(아주 미세한 변화는 패스)
-      // (선택) if (Math.abs(t - lastTRef.current) < 0.008) return;
       lastTRef.current = t;
 
-      // 빠른 경로: 현재 라인이면 유지
       const cur = index >= 0 ? lyrics[index] : undefined;
-      if (cur && t >= cur.start && t <= cur.end) return;
+      if (cur && t >= cur.start && t <= cur.end) {
+        if (isInstrumental) setIsInstrumental(false);
+        return;
+      }
 
-      // 대부분 앞으로 전진
+      // 다음 라인 탐색
       let i = Math.max(index, 0);
       while (i < lyrics.length && t > lyrics[i].end) i++;
       while (i > 0 && t < lyrics[i].start) i--;
@@ -41,16 +43,19 @@ export function useLyricsSync(
         nextIdx = i;
       }
 
-      if (nextIdx !== index) setIndex(nextIdx);
+      // 변경 감지
+      if (nextIdx !== index) {
+        setIndex(nextIdx);
+        setIsInstrumental(nextIdx === -1);
+      }
     };
 
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [audioRef, lyrics]); // index는 내부에서 관리
+  }, [audioRef, lyrics, index, isInstrumental, prerollSec]);
 
   const current = index >= 0 ? lyrics[index] : undefined;
   const next = index + 1 < lyrics.length ? lyrics[index + 1] : undefined;
 
-  return { index, current, next };
+  return { index, current, next, isInstrumental };
 }
