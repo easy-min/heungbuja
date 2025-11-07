@@ -404,6 +404,7 @@ function GamePage() {
             playsInline
             src="/break.mp4"
             className="motion-video"
+            style={{width: '800px'}}
           />
         </div>
         {/* 아래쪽: 가사 자리 */}
@@ -413,7 +414,7 @@ function GamePage() {
             controls
             ref={audioRef}
             src="/당돌한여자.mp3"
-            style={{ display: testMode ? 'block' : 'none', width: '20%' }}
+            style={{ display: testMode ? 'block' : 'none', width: '40%', height: '20%' }}
           />
 
           {/* === 가사 표시 === */}

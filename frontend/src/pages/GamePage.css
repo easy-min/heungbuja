@@ -54,7 +54,7 @@
 /* 현재 가사: 크게/진하게 */
 .lyrics-current {
   margin-top: 15px;
-  font-size: 3rem;
+  font-size: 2rem;
   font-weight: 700;
   line-height: 1.4;
   opacity: 1;
@@ -65,12 +65,11 @@
 /* 다음 가사: 작게/연하게 */
 .lyrics-next {
   margin-top: 6px;
-  font-size: 1.8rem;
+  font-size: 1.4rem;
   opacity: 0.45;
   line-height: 1.35;
   word-break: keep-all;
 }
-
 
 
 /*오른쪽: 카메라 컨테이너(30%) */
