@@ -100,3 +100,8 @@ test-output/
 .jacoco/
 jacoco.exec
 surefire-reports/
+
+# === allow gradle wrapper ===
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+!gradlew

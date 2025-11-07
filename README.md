@@ -13,10 +13,10 @@
 ## 프로젝트 구조
 ```
 S13P31A103/
+├── docker-compose.yml                # Docker Compose 설정 (프로젝트 루트)
+├── .env                              # 환경 변수 (로컬, git 제외)
+├── .env.example                      # 환경 변수 예시 파일
 ├── backend/
-│   ├── docker-compose.spring.yml    # Docker Compose 설정
-│   ├── .env                          # 환경 변수 (로컬, git 제외)
-│   ├── .env.example                  # 환경 변수 예시 파일
 │   └── spring-server/                # Spring Boot 프로젝트
 │       ├── src/
 │       │   ├── main/
@@ -33,11 +33,10 @@ S13P31A103/
 ## 환경 설정
 
 ### 1. 환경 변수 파일 생성
-프로젝트 루트의 `backend/` 디렉토리에 `.env` 파일을 생성하세요.
+프로젝트 루트에 `.env` 파일을 생성하세요.
 `.env.example`을 참고하여 필요한 환경 변수를 설정합니다.
 
 ```bash
-cd backend
 cp .env.example .env
 # .env 파일을 편집하여 실제 값 입력
 ```
@@ -57,8 +56,7 @@ SERVER_PORT=8080
 
 ### 2. Docker Compose로 서비스 실행
 ```bash
-cd backend
-docker-compose -f docker-compose.spring.yml up -d
+docker-compose up -d
 ```
 
 ### 3. 서비스 확인
@@ -88,11 +86,10 @@ cd backend/spring-server
 ## 빌드 및 배포
 ```bash
 # Docker 이미지 빌드
-cd backend
-docker-compose -f docker-compose.spring.yml build
+docker-compose build
 
 # 로그 확인
-docker-compose -f docker-compose.spring.yml logs -f spring
+docker-compose logs -f spring
 ```
 
 ## 문제 해결
@@ -100,13 +97,13 @@ docker-compose -f docker-compose.spring.yml logs -f spring
 ### Docker 컨테이너가 시작되지 않는 경우
 ```bash
 # 로그 확인
-docker-compose -f docker-compose.spring.yml logs
+docker-compose logs
 
 # 컨테이너 상태 확인
-docker-compose -f docker-compose.spring.yml ps
+docker-compose ps
 
 # 컨테이너 재시작
-docker-compose -f docker-compose.spring.yml restart spring
+docker-compose restart spring
 ```
 
 ## 개발자
