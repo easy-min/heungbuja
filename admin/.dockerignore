@@ -11,5 +11,3 @@ dist
 
 # Docker artifacts
 Dockerfile
-nginx.conf
-
