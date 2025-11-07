@@ -24,7 +24,7 @@ FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
 
 # 타임존 적용(Alpine은 tzdata 필요)
-RUN apk add --no-cache tzdata \
+RUN apk add --no-cache tzdata curl \
     && ln -snf /usr/share/zoneinfo/Asia/Seoul /etc/localtime \
     && echo "Asia/Seoul" > /etc/timezone
 
