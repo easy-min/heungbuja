@@ -27,9 +27,8 @@
 <body>
   <h1>Video 재생 테스트</h1>
 
-  <video id="motion" width="800" controls loop preload="auto" muted playsinline>
-    <source src="level3.mp4" type="video/mp4" />
-  </video>
+  <!-- src는 JS에서 섹션에 맞게 바꿔 끼움 -->
+  <video id="motion" width="600" controls loop preload="auto" muted playsinline></video>
 
   <!-- === 가사 패널 === -->
   <section class="lyrics-wrap" aria-live="polite">
@@ -44,23 +43,13 @@
   <div style="margin:8px 0;">
     <label for="musicSelect">음원 선택: </label>
     <select id="musicSelect">
-      <option value="장윤정_어머나.mp3">장윤정_어머나.mp3</option>
-      <option value="어머나_베이스.mp3">어머나_베이스.mp3</option>
       <option value="내건강이어때서.mp3">내건강이어때서.mp3</option>
-      <option value="송가인_오늘같이 좋은 날.mp3">송가인_오늘같이 좋은 날.mp3</option>
-      <option value="송가인_베이스.mp3">송가인_베이스.mp3</option>
-      <option value="심수봉_남자는 배 여자는 항구.mp3">심수봉_남자는 배 여자는 항구.mp3</option>
-      <option value="영탁_누나가 딱이야.mp3">영탁_누나가 딱이야.mp3</option>
       <option value="당돌한여자.mp3" selected>당돌한여자.mp3</option>
-      <option value="영탁_베이스.mp3">영탁_베이스.mp3</option>
-      <option value="태진아_동반자.mp3">태진아_동반자.mp3</option>
-      <option value="동반자_베이스.mp3">동반자_베이스.mp3</option>
-      <option value="남배여항.mp3">남배여항.mp3</option>
     </select>
   </div>
 
   <audio id="music" controls preload="auto">
-    <source src="장윤정_어머나.mp3" type="audio/mpeg" />
+    <source src="당돌한여자.mp3" type="audio/mpeg" />
   </audio>
 
   <div style="margin-top:12px;">
@@ -70,7 +59,6 @@
     <button id="btnBeat4">4) 네 번째 박자</button>
     <button id="btnBar2Beat1">5) 두 번째 마디 시작(1박)</button>
   </div>
-
 
   <script type="module" src="main.js"></script>
 </body>

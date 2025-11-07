@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>흥부자 통합 API 대시보드</title>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:'Malgun Gothic',sans-serif; background:linear-gradient(135deg,#eef1f6 0%,#f8f9fb 100%); color:#333; padding:30px; }
+        .container { max-width:1200px; margin:0 auto; }
+        .header { background: linear-gradient(135deg,#667eea 0%,#764ba2 100%); color:white; padding:25px; border-radius:12px; text-align:center; box-shadow:0 4px 20px rgba(0,0,0,0.1); margin-bottom:30px; }
+        .header h1 { font-size:30px; font-weight:bold; margin-bottom:5px; }
+        .auth-switch { display:flex; justify-content:center; gap:15px; margin-bottom:25px; }
+        .auth-switch button { padding:12px 28px; border:none; border-radius:8px; font-weight:bold; font-size:15px; cursor:pointer; transition:all 0.3s; background:white; color:#667eea; box-shadow:0 3px 8px rgba(0,0,0,0.05); }
+        .auth-switch button.active { background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); color:white; box-shadow:0 4px 12px rgba(102,126,234,0.4); transform:translateY(-1px); }
+        .section { background:white; border-radius:12px; padding:25px; margin-bottom:25px; box-shadow:0 3px 10px rgba(0,0,0,0.05); transition:all 0.2s; }
+        .section.hidden { display:none; }
+        .section-title { font-size:20px; font-weight:bold; color:#444; margin-bottom:20px; border-bottom:2px solid #667eea; padding-bottom:10px; }
+        input, select, textarea { width:100%; padding:10px; margin-bottom:10px; border:1px solid #ccc; border-radius:6px; font-size:14px; }
+        textarea { resize:vertical; min-height:80px; }
+        .btn { padding:10px 20px; border:none; border-radius:6px; font-weight:bold; cursor:pointer; transition:0.2s; }
+        .btn-primary { background:#667eea; color:white; }
+        .btn-primary:hover { background:#5568d3; }
+        .btn-success { background:#2ecc71; color:white; }
+        .btn-success:hover { background:#27ae60; }
+        .response-box { margin-top:15px; padding:15px; border-radius:6px; display:none; font-family:'Courier New',monospace; font-size:13px; }
+        .response-box.show { display:block; }
+        .response-box.success { background:#d4edda; border-left:4px solid #28a745; }
+        .response-box.error { background:#f8d7da; border-left:4px solid #dc3545; }
+
+        /* 신고 카드 리스트 */
+        .emergency-list { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:15px; margin-top:10px; }
+        .emergency-card { background:#fff; border-radius:10px; padding:15px; box-shadow:0 3px 8px rgba(0,0,0,0.08); transition:transform 0.2s ease, box-shadow 0.2s ease; }
+        .emergency-card:hover { transform:translateY(-3px); box-shadow:0 6px 16px rgba(0,0,0,0.12); }
+        .emergency-card .card-header { display:flex; justify-content:space-between; margin-bottom:10px; font-weight:bold; }
+        .emergency-card .report-id { color:#667eea; }
+        .emergency-card .status { padding:3px 8px; border-radius:5px; font-size:12px; color:white; }
+        .emergency-card.pending .status { background:#f39c12; }
+        .emergency-card.confirmed .status { background:#e74c3c; }
+        .emergency-card.resolved .status { background:#2ecc71; }
+        .emergency-card.false_alarm .status { background:#95a5a6; }
+        .emergency-card .ok { color:#2ecc71; font-weight:bold; }
+        .emergency-card .no { color:#e74c3c; font-weight:bold; }
+        .emergency-card .resolve-btn { width:100%; margin-top:10px; padding:8px; border:none; border-radius:6px; background:#2ecc71; color:white; font-weight:bold; cursor:pointer; }
+        .emergency-card .resolved-label { margin-top:10px; background:#2ecc71; color:white; text-align:center; border-radius:6px; padding:8px 0; font-weight:bold; }
+
+        /* 어르신 카드 */
+        .users-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:20px; margin-top:20px; }
+        .user-card { background:white; border-radius:12px; padding:20px; box-shadow:0 2px 8px rgba(0,0,0,0.05); transition:all 0.3s; border-left:4px solid #ddd; }
+        .user-card.status-active { border-left-color:#2ecc71; }
+        .user-card.status-warning { border-left-color:#ffa502; }
+        .user-card.status-emergency { border-left-color:#ff4757; animation:shake 0.4s infinite; }
+        @keyframes shake { 0%,100%{transform:translateX(0);}25%{transform:translateX(-5px);}75%{transform:translateX(5px);} }
+        .user-header { display:flex; align-items:center; gap:10px; margin-bottom:15px; }
+        .user-status-icon { font-size:24px; }
+        .user-name { font-size:18px; font-weight:bold; }
+        .user-room { color:#666; font-size:14px; }
+        .user-activity { margin:15px 0; padding:12px; background:#f8f9fa; border-radius:8px; font-size:14px; }
+        .user-activity .activity-type { font-weight:bold; margin-bottom:5px; }
+        .user-activity .activity-detail { color:#666; }
+
+        /* 활동 피드 */
+        .activity-feed { background:white; border-radius:12px; padding:25px; box-shadow:0 2px 8px rgba(0,0,0,0.05); margin-top:30px; }
+        .activity-item { padding:15px; margin-bottom:10px; background:#f8f9fa; border-left:4px solid #ddd; border-radius:6px; display:flex; justify-content:space-between; align-items:center; }
+        .activity-item.emergency { border-left-color:#ff4757; background:#fff5f5; }
+        .activity-item.warning { border-left-color:#ffa502; background:#fffaf2; }
+        .activity-time { font-size:12px; color:#999; }
+
+        /* 모달 */
+        .emergency-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:1000; }
+        .emergency-modal.show { display:flex; }
+        .modal-content { background:white; padding:40px; border-radius:16px; max-width:450px; width:90%; text-align:center; animation:modalPop 0.3s; }
+        @keyframes modalPop { 0%{transform:scale(0.8);opacity:0;}100%{transform:scale(1);opacity:1;} }
+        .modal-icon { font-size:80px; margin-bottom:20px; }
+        .modal-title { font-size:24px; font-weight:bold; margin-bottom:10px; color:#ff4757; }
+        .modal-detail { color:#666; margin-bottom:30px; line-height:1.6; }
+        .modal-actions { display:flex; gap:10px; }
+
+        /* WebSocket 상태 표시 */
+        .ws-status { position:fixed; bottom:20px; right:20px; padding:10px 20px; background:white; border-radius:20px; box-shadow:0 2px 8px rgba(0,0,0,0.1); font-size:12px; display:flex; align-items:center; gap:8px; }
+        .ws-indicator { width:8px; height:8px; border-radius:50%; background:#2ecc71; animation:blink 2s infinite; }
+        @keyframes blink { 0%,100%{opacity:1;}50%{opacity:0.3;} }
+        .hidden { display:none; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>🎵 흥부자 관리자 대시보드</h1>
+        <p>신고 / 어르신 상태 통합 모니터링</p>
+    </div>
+
+    <!-- 로그인 화면 -->
+    <div id="login-screen" class="section">
+        <div class="section-title">🔐 관리자 로그인</div>
+        <input id="username" type="text" placeholder="아이디" value="admin_ssafy">
+        <input id="password" type="password" placeholder="비밀번호" value="password123">
+        <button class="btn btn-primary" onclick="login()">로그인</button>
+        <div id="login-error" class="response-box error"></div>
+    </div>
+
+    <!-- 대시보드 화면 -->
+    <div id="dashboard-screen" class="hidden">
+        <div class="header">
+            <h1>🏥 관리자 페이지</h1>
+            <div class="notification" onclick="clearBadge();">
+                🔔<span id="notification-badge" class="notification-badge" style="display:none;">0</span>
+            </div>
+        </div>
+
+        <!-- 등록 버튼 -->
+        <div class="section">
+            <button class="btn btn-primary" onclick="openDeviceModal()" style="margin-right:10px;">📱 기기 등록</button>
+            <button class="btn btn-success" onclick="openUserModal()">👴 어르신 등록</button>
+        </div>
+
+        <div class="dashboard">
+            <div class="section-title">📊 실시간 신고 리스트</div>
+            <div id="res-emg-list" class="response-box"></div>
+
+            <div class="section-title">🧑‍🦳 담당 어르신 현황</div>
+            <div id="users-grid" class="users-grid"></div>
+
+            <div class="section-title">📝 활동 피드</div>
+            <div class="activity-feed">
+                <div id="activity-list"><div style="color:#999;text-align:center;">활동 내역이 없습니다</div></div>
+            </div>
+        </div>
+
+        <div class="ws-status"><div class="ws-indicator"></div>실시간 연결됨</div>
+    </div>
+
+    <!-- 신고 모달 -->
+    <div id="emergency-modal" class="emergency-modal">
+        <div class="modal-content">
+            <div class="modal-icon">🚨</div>
+            <div class="modal-title">긴급 신고 발생!</div>
+            <div id="modal-detail" class="modal-detail"></div>
+            <div class="modal-actions">
+                <button class="btn btn-success" onclick="acknowledgeReport()">처리 확인</button>
+                <button class="btn btn-primary" onclick="closeModal()">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 기기 등록 모달 -->
+    <div id="device-modal" class="emergency-modal">
+        <div class="modal-content" style="max-width:500px;">
+            <div class="modal-icon">📱</div>
+            <div class="modal-title" style="color:#667eea;">기기 등록</div>
+            <div style="text-align:left; margin-top:20px;">
+                <input id="device-serial" type="text" placeholder="기기 일련번호 (필수)" style="margin-bottom:15px;">
+                <input id="device-location" type="text" placeholder="설치 위치 (선택, 예: 101호)" style="margin-bottom:15px;">
+                <div id="device-register-response" class="response-box"></div>
+            </div>
+            <div class="modal-actions" style="margin-top:20px;">
+                <button class="btn btn-success" onclick="registerDevice()">등록</button>
+                <button class="btn btn-primary" onclick="closeDeviceModal()">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 어르신 등록 모달 -->
+    <div id="user-modal" class="emergency-modal">
+        <div class="modal-content" style="max-width:500px;">
+            <div class="modal-icon">👴</div>
+            <div class="modal-title" style="color:#2ecc71;">어르신 등록</div>
+            <div style="text-align:left; margin-top:20px;">
+                <input id="user-name" type="text" placeholder="이름 (필수)" style="margin-bottom:15px;">
+                <input id="user-birthdate" type="date" placeholder="생년월일 (선택)" style="margin-bottom:15px;">
+                <select id="user-gender" style="margin-bottom:15px;">
+                    <option value="">성별 선택 (선택)</option>
+                    <option value="MALE">남성</option>
+                    <option value="FEMALE">여성</option>
+                </select>
+                <input id="user-contact" type="text" placeholder="비상 연락처 (선택)" style="margin-bottom:15px;">
+                <select id="user-device" style="margin-bottom:15px;">
+                    <option value="">연결할 기기 선택 (필수)</option>
+                </select>
+                <textarea id="user-medical-notes" placeholder="의료 메모 (선택, 지병, 복용약 등)"></textarea>
+                <div id="user-register-response" class="response-box"></div>
+            </div>
+            <div class="modal-actions" style="margin-top:20px;">
+                <button class="btn btn-success" onclick="registerUser()">등록</button>
+                <button class="btn btn-primary" onclick="closeUserModal()">닫기</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 오디오 알림
+    const alertAudio = new Audio('https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg');
+
+    // API 베이스
+    const API_BASE = 'http://localhost:8080/api';
+    let accessToken = null;
+    let adminId = null;
+    let stompClient = null;
+
+    // 신고 카드 데이터 저장
+    let emergencyList = [];
+
+    // 로그인
+    async function login(){
+        const user = document.getElementById('username').value;
+        const pwd  = document.getElementById('password').value;
+        try {
+            const res = await fetch(`${API_BASE}/admins/login`, {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({username:user, password:pwd})
+            });
+            if(!res.ok) throw new Error('로그인 실패');
+            const data = await res.json();
+            accessToken = data.accessToken;
+            adminId     = data.userId;
+
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('dashboard-screen').classList.remove('hidden');
+
+            // 초기 로드
+            loadDashboardData();
+            connectWebSocket();
+        } catch(e) {
+            const errEl = document.getElementById('login-error');
+            errEl.style.display='block';
+            errEl.textContent = e.message;
+        }
+    }
+
+    // 데이터 로드 – 담당 어르신 & 기존 신고
+    async function loadDashboardData(){
+        try {
+            // 어르신 목록
+            const resUsers = await fetch(`${API_BASE}/admins/users`, {
+                headers: {Authorization: `Bearer ${accessToken}`}
+            });
+            if(resUsers.ok) {
+                const users = await resUsers.json();
+                renderUsers(users);
+            }
+            // 기존 신고 목록
+            const resEmg = await fetch(`${API_BASE}/emergency/admins/reports`, {
+                headers: {Authorization: `Bearer ${accessToken}`}
+            });
+            if(resEmg.ok) {
+                const list = await resEmg.json();
+                emergencyList = list; // 서버에서 이미 최신순으로 정렬됨
+                renderEmergencyCards(emergencyList);
+                // PENDING + CONFIRMED만 배지에 표시
+                const pendingCount = emergencyList.filter(i=>i.status==='PENDING' || i.status==='CONFIRMED').length;
+                updateBadge(pendingCount);
+            }
+        } catch(e) {
+            console.error('데이터 로드 실패:', e);
+        }
+    }
+
+    // 어르신 카드 렌더링
+    function renderUsers(users){
+        const grid = document.getElementById('users-grid');
+        grid.innerHTML = '';
+        users.forEach(u => {
+            let cls = 'status-active';
+            let icon = '🟢';
+            if (u.healthStatus === 'EMERGENCY') { cls = 'status-emergency'; icon = '🚨'; }
+            else if (!u.isActive)         { cls = 'status-warning';  icon = '🟡'; }
+
+            // 최근 활동 렌더링
+            let activitiesHtml = '';
+            if (u.recentActivities && u.recentActivities.length > 0) {
+                activitiesHtml = '<div style="margin-top:12px; padding-top:12px; border-top:1px solid #eee;">' +
+                    '<div style="font-size:12px; color:#999; margin-bottom:8px;">최근 활동</div>';
+                u.recentActivities.forEach(a => {
+                    activitiesHtml += `<div style="font-size:13px; color:#666; margin-bottom:4px;">${a.icon} ${a.description} <span style="color:#999; font-size:11px;">(${a.timeAgo})</span></div>`;
+                });
+                activitiesHtml += '</div>';
+            } else {
+                activitiesHtml = '<div style="margin-top:12px; padding-top:12px; border-top:1px solid #eee; font-size:12px; color:#999;">최근 활동 없음</div>';
+            }
+
+            const div = document.createElement('div');
+            div.className = `user-card ${cls}`;
+            div.setAttribute('data-user-id', u.id);  // userId 추적용
+            div.innerHTML = `
+            <div class="user-header"><span class="user-status-icon">${icon}</span>
+                <div>
+                  <div class="user-name">${u.name}</div>
+                  <div class="user-room">${u.emergencyContact||''}</div>
+                </div>
+            </div>
+            <div class="user-activity">
+              <div class="activity-type">${u.healthStatus||'정상'} 상태</div>
+              <div class="activity-detail">${u.medicalNotes||'특이사항 없음'}</div>
+            </div>
+            ${activitiesHtml}
+        `;
+            grid.appendChild(div);
+        });
+    }
+
+    // 신고 카드 렌더링
+    function renderEmergencyCards(list){
+        const container = document.getElementById('res-emg-list');
+        if (!Array.isArray(list) || list.length === 0) {
+            container.className = 'response-box show success';
+            container.innerHTML = '<p style="padding:10px;">신고 내역이 없습니다.</p>';
+            return;
+        }
+
+        container.className = 'response-box show success';
+
+        // 상태 한글 변환
+        const statusText = {
+            'PENDING': '대기중',
+            'CONFIRMED': '확정됨',
+            'RESOLVED': '처리완료',
+            'FALSE_ALARM': '오탐'
+        };
+
+        container.innerHTML = `
+      <div class="emergency-list">
+        ${list.map(item => `
+          <div class="emergency-card ${item.status.toLowerCase()}">
+            <div class="card-header">
+              <span class="report-id">#${item.reportId}</span>
+              <span class="status">${statusText[item.status] || item.status}</span>
+            </div>
+            <div class="card-body">
+              <p><strong>신고자:</strong> ${item.userName} (${item.userId})</p>
+              <p><strong>발화 내용:</strong> "${item.fullText || item.triggerWord}"</p>
+              <p><strong>트리거 단어:</strong> ${item.triggerWord}</p>
+              <p><strong>확인여부:</strong>
+                <span class="${item.isConfirmed?'ok':'no'}">
+                  ${item.isConfirmed?'확인됨':'미확인'}
+                </span>
+              </p>
+              <p><strong>발생시간:</strong> ${new Date(item.reportedAt).toLocaleString('ko-KR')}</p>
+              ${item.message?`<p><strong>메시지:</strong> ${item.message}</p>`:''}
+            </div>
+            ${item.status==='PENDING' || item.status==='CONFIRMED'
+            ? `<button class="resolve-btn" onclick="handleEmergencyResolve(${item.reportId})">✅ 처리</button>`
+            : `<div class="resolved-label">✔ 처리 완료</div>`
+        }
+          </div>
+        `).join('')}
+      </div>
+    `;
+    }
+
+    // 신고 처리 버튼
+    async function handleEmergencyResolve(id){
+        if (!accessToken) { alert('먼저 로그인해주세요!'); return; }
+        const notes = '관리자 확인 완료';
+        try {
+            const res = await fetch(`${API_BASE}/emergency/admins/reports/${id}?notes=${encodeURIComponent(notes)}`, {
+                method:'PUT',
+                headers:{Authorization:`Bearer ${accessToken}`}
+            });
+            if (res.ok) {
+                alert(`#${id} 신고가 처리되었습니다.`);
+
+                // 🔥 해당 신고의 userId 찾기
+                const report = emergencyList.find(item => item.reportId === id);
+                if (report) {
+                    // 어르신 카드를 정상 상태로 복구
+                    resetUserCardToNormal(report.userId);
+                }
+
+                // 상태 변경 반영
+                emergencyList = emergencyList.map(item => item.reportId===id ? {...item, status:'RESOLVED'} : item);
+                renderEmergencyCards(emergencyList);
+                updateBadge(emergencyList.filter(i=>i.status==='PENDING' || i.status==='CONFIRMED').length);
+            } else {
+                const err = await res.json();
+                alert('처리 실패: '+(err.message||res.statusText));
+            }
+        } catch(e){
+            alert('에러 발생: '+e.message);
+        }
+    }
+
+    // WebSocket 연결
+    function connectWebSocket(){
+        const socket = new SockJS(`${API_BASE}/ws`);
+        stompClient = Stomp.over(socket);
+        stompClient.connect({}, () => {
+            console.log('✅ WebSocket 연결 성공!');
+            console.log('👤 현재 adminId:', adminId);
+            const subscribePath = `/topic/admin/${adminId}/emergency`;
+            console.log('🔔 구독 경로:', subscribePath);
+
+            stompClient.subscribe(subscribePath, msg => {
+                console.log('📩 WebSocket 메시지 수신!', msg.body);
+                const alertData = JSON.parse(msg.body);
+                alertAudio.play();
+
+                // Null-safe 처리
+                const userName = alertData.userName || '알 수 없음';
+                const triggerWord = alertData.triggerWord || '미상';
+                const fullText = alertData.fullText || triggerWord;  // 전체 발화 텍스트
+
+                addActivity('emergency', userName, `신고: "${fullText}"`);
+
+                // 🔥 해당 어르신 카드를 즉시 긴급 상태로 변경
+                updateUserCardToEmergency(alertData.userId, userName);
+
+                // 🔥 렌더링 가능한 형태로 변환해서 리스트에 추가
+                const emergencyItem = {
+                    reportId: alertData.reportId,
+                    userId: alertData.userId,
+                    userName: userName,
+                    triggerWord: triggerWord,
+                    fullText: fullText,  // 전체 발화 텍스트 추가
+                    reportedAt: alertData.reportedAt,
+                    status: 'CONFIRMED',      // WebSocket으로 온 건 이미 confirm된 상태
+                    isConfirmed: true,
+                    message: null
+                };
+
+                // 리스트 최상단에 추가
+                emergencyList.unshift(emergencyItem);
+                renderEmergencyCards(emergencyList);
+                updateBadge(emergencyList.filter(i=>i.status==='PENDING' || i.status==='CONFIRMED').length);
+
+                // 모달 팝업
+                document.getElementById('modal-detail').innerHTML =
+                    `<b>${userName}</b> 어르신이 긴급 신고하셨습니다.<br>
+               발화 내용: "<strong>${fullText}</strong>"<br>
+               트리거 단어: "<strong>${triggerWord}</strong>"<br>
+               발생시간: ${new Date(alertData.reportedAt).toLocaleString('ko-KR')}`;
+                document.getElementById('emergency-modal').classList.add('show');
+            });
+            stompClient.subscribe(`/topic/admin/${adminId}/user-status`, msg => {
+                const statusData = JSON.parse(msg.body);
+                addActivity(statusData.status==='EMERGENCY'?'emergency':'warning',
+                    statusData.userName, statusData.message);
+                loadDashboardData(); // 어르신 카드 상태 갱신
+            });
+        });
+    }
+
+    // 🔥 어르신 카드를 긴급 상태로 즉시 업데이트
+    function updateUserCardToEmergency(userId, userName) {
+        const card = document.querySelector(`.user-card[data-user-id="${userId}"]`);
+        if (!card) {
+            console.warn(`User card not found for userId: ${userId}`);
+            return;
+        }
+
+        // 기존 status 클래스 제거 후 emergency 추가
+        card.classList.remove('status-active', 'status-warning');
+        card.classList.add('status-emergency');
+
+        // 아이콘 변경
+        const icon = card.querySelector('.user-status-icon');
+        if (icon) icon.textContent = '🚨';
+
+        // 상태 텍스트 변경
+        const activityType = card.querySelector('.activity-type');
+        if (activityType) activityType.textContent = 'EMERGENCY 상태';
+
+        console.log(`✅ User card updated to EMERGENCY for userId: ${userId}, name: ${userName}`);
+    }
+
+    // 🔥 어르신 카드를 정상 상태로 복구
+    function resetUserCardToNormal(userId) {
+        const card = document.querySelector(`.user-card[data-user-id="${userId}"]`);
+        if (!card) {
+            console.warn(`User card not found for userId: ${userId}`);
+            return;
+        }
+
+        // emergency 클래스 제거, active 추가
+        card.classList.remove('status-emergency', 'status-warning');
+        card.classList.add('status-active');
+
+        // 아이콘을 정상으로 변경
+        const icon = card.querySelector('.user-status-icon');
+        if (icon) icon.textContent = '🟢';
+
+        // 상태 텍스트 변경
+        const activityType = card.querySelector('.activity-type');
+        if (activityType) activityType.textContent = '정상 상태';
+
+        console.log(`✅ User card reset to NORMAL for userId: ${userId}`);
+    }
+
+    // 활동 피드
+    function addActivity(type,userName,detail){
+        const list = document.getElementById('activity-list');
+        if(list.children.length===1 && list.children[0].textContent.includes('활동 내역')) {
+            list.innerHTML='';
+        }
+        const item = document.createElement('div');
+        item.className=`activity-item ${type}`;
+        item.innerHTML=`<div>${type==='emergency'?'🚨':'⚠️'} <strong>${userName}</strong> - ${detail}</div>
+                     <div class="activity-time">${new Date().toLocaleTimeString('ko-KR')}</div>`;
+        list.prepend(item);
+        while(list.children.length>10) list.removeChild(list.lastChild);
+    }
+
+    // 배지 업데이트
+    function updateBadge(count){
+        const badge = document.getElementById('notification-badge');
+        if(count>0) {
+            badge.style.display='flex';
+            badge.textContent = count;
+        } else {
+            badge.style.display='none';
+        }
+    }
+    function clearBadge(){
+        updateBadge(0);
+    }
+
+    // 모달 닫기
+    function closeModal(){
+        document.getElementById('emergency-modal').classList.remove('show');
+    }
+    function acknowledgeReport(){
+        // 모달에서 처리 버튼 누르면 모달만 닫고 리스트는 카드 버튼으로 처리
+        closeModal();
+    }
+
+    // 기기 등록 모달 열기/닫기
+    function openDeviceModal(){
+        document.getElementById('device-modal').classList.add('show');
+        // 입력 필드 초기화
+        document.getElementById('device-serial').value = '';
+        document.getElementById('device-location').value = '';
+        document.getElementById('device-register-response').className = 'response-box';
+    }
+    function closeDeviceModal(){
+        document.getElementById('device-modal').classList.remove('show');
+    }
+
+    // 기기 등록
+    async function registerDevice(){
+        const serial = document.getElementById('device-serial').value.trim();
+        const location = document.getElementById('device-location').value.trim();
+        const responseBox = document.getElementById('device-register-response');
+
+        if(!serial){
+            responseBox.className = 'response-box show error';
+            responseBox.textContent = '기기 일련번호는 필수 입력 항목입니다.';
+            return;
+        }
+
+        try {
+            const res = await fetch(`${API_BASE}/admins/devices`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${accessToken}`
+                },
+                body: JSON.stringify({
+                    serialNumber: serial,
+                    location: location || null
+                })
+            });
+
+            if(res.ok){
+                const data = await res.json();
+                responseBox.className = 'response-box show success';
+                responseBox.textContent = `기기가 성공적으로 등록되었습니다! (ID: ${data.id})`;
+
+                // 2초 후 모달 닫기
+                setTimeout(() => {
+                    closeDeviceModal();
+                }, 2000);
+            } else {
+                const error = await res.json();
+                responseBox.className = 'response-box show error';
+                responseBox.textContent = `등록 실패: ${error.message || res.statusText}`;
+            }
+        } catch(e){
+            responseBox.className = 'response-box show error';
+            responseBox.textContent = `에러 발생: ${e.message}`;
+        }
+    }
+
+    // 어르신 등록 모달 열기/닫기
+    async function openUserModal(){
+        document.getElementById('user-modal').classList.add('show');
+        // 입력 필드 초기화
+        document.getElementById('user-name').value = '';
+        document.getElementById('user-birthdate').value = '';
+        document.getElementById('user-gender').value = '';
+        document.getElementById('user-contact').value = '';
+        document.getElementById('user-device').value = '';
+        document.getElementById('user-medical-notes').value = '';
+        document.getElementById('user-register-response').className = 'response-box';
+
+        // 기기 목록 로드
+        await loadDevicesForSelect();
+    }
+    function closeUserModal(){
+        document.getElementById('user-modal').classList.remove('show');
+    }
+
+    // 기기 목록을 셀렉트박스에 로드 (연결 가능한 기기만)
+    async function loadDevicesForSelect(){
+        try {
+            // availableOnly=true 파라미터로 연결 안된 기기만 요청
+            const res = await fetch(`${API_BASE}/admins/devices?availableOnly=true`, {
+                headers: {Authorization: `Bearer ${accessToken}`}
+            });
+            if(res.ok){
+                const devices = await res.json();
+
+                const select = document.getElementById('user-device');
+                select.innerHTML = '<option value="">연결할 기기 선택 (필수)</option>';
+
+                if(devices.length === 0) {
+                    const option = document.createElement('option');
+                    option.value = '';
+                    option.textContent = '사용 가능한 기기가 없습니다. 먼저 기기를 등록해주세요.';
+                    option.disabled = true;
+                    select.appendChild(option);
+                } else {
+                    devices.forEach(d => {
+                        const option = document.createElement('option');
+                        option.value = d.id;
+                        option.textContent = `${d.serialNumber} ${d.location ? '('+d.location+')' : ''}`;
+                        select.appendChild(option);
+                    });
+                }
+            }
+        } catch(e){
+            console.error('기기 목록 로드 실패:', e);
+        }
+    }
+
+    // 어르신 등록
+    async function registerUser(){
+        const name = document.getElementById('user-name').value.trim();
+        const birthDate = document.getElementById('user-birthdate').value;
+        const gender = document.getElementById('user-gender').value;
+        const contact = document.getElementById('user-contact').value.trim();
+        const deviceId = document.getElementById('user-device').value;
+        const medicalNotes = document.getElementById('user-medical-notes').value.trim();
+        const responseBox = document.getElementById('user-register-response');
+
+        if(!name){
+            responseBox.className = 'response-box show error';
+            responseBox.textContent = '이름은 필수 입력 항목입니다.';
+            return;
+        }
+
+        if(!deviceId){
+            responseBox.className = 'response-box show error';
+            responseBox.textContent = '연결할 기기를 선택해주세요.';
+            return;
+        }
+
+        try {
+            const requestBody = {
+                name: name,
+                deviceId: parseInt(deviceId)
+            };
+
+            // 선택 필드들 추가
+            if(birthDate) requestBody.birthDate = birthDate;
+            if(gender) requestBody.gender = gender;
+            if(contact) requestBody.emergencyContact = contact;
+            if(medicalNotes) requestBody.medicalNotes = medicalNotes;
+
+            const res = await fetch(`${API_BASE}/admins/users`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${accessToken}`
+                },
+                body: JSON.stringify(requestBody)
+            });
+
+            if(res.ok){
+                const data = await res.json();
+                responseBox.className = 'response-box show success';
+                responseBox.textContent = `어르신이 성공적으로 등록되었습니다! (ID: ${data.id})`;
+
+                // 2초 후 모달 닫기 및 대시보드 새로고침
+                setTimeout(() => {
+                    closeUserModal();
+                    loadDashboardData();
+                }, 2000);
+            } else {
+                const error = await res.json();
+                responseBox.className = 'response-box show error';
+                responseBox.textContent = `등록 실패: ${error.message || res.statusText}`;
+            }
+        } catch(e){
+            responseBox.className = 'response-box show error';
+            responseBox.textContent = `에러 발생: ${e.message}`;
+        }
+    }
+</script>
+</body>
+</html>

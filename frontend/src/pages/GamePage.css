@@ -1,7 +1,7 @@
 /* 전체 레이아웃 */
 .game-page {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   height: 100vh;
   width: 100vw;
   background-color: #000;
@@ -9,22 +9,21 @@
   overflow: hidden;
 }
 
-/* 상단: 비디오 컨테이너 (80%) */
+/* 좌측: 비디오 컨테이너 (80%) */
 .video-container {
-  flex: 8;
+  flex: 7;
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   gap: 0;
 }
 
-/* 왼쪽: 캐릭터 (50%) */
+/* 위쪽: 캐릭터 (80%) */
 .character-section {
-  flex: 1;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  flex: 8;
+  background: var(--color-primary);
   display: flex;
   align-items: center;
   justify-content: center;
-  border-right: 2px solid #fff;
 }
 
 .character-section .placeholder {
@@ -41,9 +40,49 @@
   font-size: 1.2rem;
 }
 
-/* 오른쪽: 카메라 (50%) */
+/* 아래쪽: 가사 (20%) */
+.lyrics-container {
+  flex: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  background-color: var(--color-primary);
+}
+
+/* 현재 가사: 크게/진하게 */
+.lyrics-current {
+  margin-top: 15px;
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.4;
+  opacity: 1;
+  transition: opacity 150ms ease, transform 150ms ease;
+  word-break: keep-all;
+}
+
+/* 다음 가사: 작게/연하게 */
+.lyrics-next {
+  margin-top: 6px;
+  font-size: 1.4rem;
+  opacity: 0.45;
+  line-height: 1.35;
+  word-break: keep-all;
+}
+
+
+/*오른쪽: 카메라 컨테이너(30%) */
+.camera-container {
+  flex: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* 위쪽: 카메라 (80%) */
 .camera-section {
-  flex: 1;
+  flex: 8;
   position: relative;
   background-color: #1a1a1a;
   display: flex;
@@ -118,36 +157,18 @@
   border: 2px solid #44ff44;
 }
 
-/* 하단: 가사 (20%) */
-.lyrics-container {
+/* 하단: 피드백 (20%) */
+.feedback-section {
   flex: 2;
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  position: relative;
+  background-color: var(--color-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
-  border-top: 2px solid #fff;
-}
-
-.lyrics-container .placeholder {
-  text-align: center;
-  opacity: 0.7;
-}
-
-.lyrics-container .placeholder h3 {
-  font-size: 1.5rem;
-  margin-bottom: 5px;
-}
-
-.lyrics-container .placeholder p {
-  font-size: 1rem;
 }
 
 /* 테스트 컨트롤 */
 .test-controls {
-  position: fixed;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
   background: rgba(0, 0, 0, 0.9);
   padding: 20px;
   border-radius: 15px;
