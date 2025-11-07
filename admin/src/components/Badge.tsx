@@ -1,6 +1,6 @@
 import '../styles/badge.css';
-import type { EmergencyStatus } from '../types/emergency';
-import type { UserStatus } from '../types/user';
+import { type EmergencyStatus } from '../types/emergency';
+import { type UserStatus } from '../types/user';
 
 interface BadgeProps {
   status: EmergencyStatus | UserStatus;
@@ -8,6 +8,9 @@ interface BadgeProps {
 }
 
 const Badge = ({ status, text }: BadgeProps) => {
+  // status가 없으면 기본값 설정
+  const safeStatus = status || 'ACTIVE';
+  
   const getStatusText = () => {
     if (text) return text;
     
@@ -21,7 +24,7 @@ const Badge = ({ status, text }: BadgeProps) => {
       EMERGENCY: '긴급',
     };
     
-    return statusMap[status] || status;
+    return statusMap[safeStatus] || safeStatus;
   };
 
   const getStatusClass = () => {
@@ -35,7 +38,7 @@ const Badge = ({ status, text }: BadgeProps) => {
       EMERGENCY: 'badge-danger',
     };
     
-    return classMap[status] || 'badge-secondary';
+    return classMap[safeStatus] || 'badge-secondary';
   };
 
   return (

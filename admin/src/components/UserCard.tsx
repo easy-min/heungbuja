@@ -1,4 +1,4 @@
-import type { User } from '../types/user';
+import { type User } from '../types/user';
 import Badge from './Badge';
 import '../styles/user-card.css';
 
@@ -8,7 +8,8 @@ interface UserCardProps {
 
 const UserCard = ({ user }: UserCardProps) => {
   const getStatusIcon = () => {
-    switch (user.status) {
+    const status = user.status || 'ACTIVE'; // 기본값 설정
+    switch (status) {
       case 'ACTIVE':
         return '✓';
       case 'WARNING':
@@ -32,7 +33,7 @@ const UserCard = ({ user }: UserCardProps) => {
   };
 
   return (
-    <div className={`user-card status-${user.status.toLowerCase()}`}>
+    <div className={`user-card status-${user.status?.toLowerCase() || 'active'}`}>
       <div className="user-header">
         <span className="user-status-icon">{getStatusIcon()}</span>
         <div className="user-info">
