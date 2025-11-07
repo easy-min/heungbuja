@@ -3,9 +3,10 @@ import { useParams } from 'react-router-dom';
 import { useCamera } from '@/hooks/useCamera';
 import { useFrameCapture } from '@/hooks/useFrameCapture';
 import { useMusicMonitor } from '@/hooks/useMusicMonitor';
+import { useLyricsSync } from '@/hooks/useLyricsSync';
 import { useSegmentUpload } from '@/hooks/useSegmentUpload';
 import { generateSessionId } from '@/utils/gameHelpers';
-import { type UploadResponse } from '@/types';
+import { type UploadResponse, type LyricLine } from '@/types';
 import './GamePage.css';
 
 function GamePage() {
@@ -92,6 +93,11 @@ function GamePage() {
   const [currentSegment, setCurrentSegment] = useState(0);
   const [sessionId] = useState(() => generateSessionId());
   const [testMode] = useState(true);  // ✅ testMode 설정
+
+  // 가사
+  const [lyrics, setLyrics] = useState<LyricLine[]>([]);
+  const { current: currentLyric, next: nextLyric } =
+  useLyricsSync(audioRef, lyrics /*, { prerollSec: 0.04 }*/);
 
   // 카메라 훅
   const { stream, isReady, error, startCamera, stopCamera } = useCamera();
@@ -204,6 +210,21 @@ function GamePage() {
   useEffect(() => {
     setCurrentSegment(currentSegmentIndex + 1);
   }, [currentSegmentIndex]);
+
+  // 가사 업데이트
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/당돌한여자_가사.json');
+        const data: { lines: LyricLine[] } = await res.json();
+        if (!cancelled) setLyrics(data.lines ?? []);
+      } catch (e) {
+        console.warn('가사 로드 실패', e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // 오디오 끝날 때 영상 정지
   useEffect(() => {
@@ -391,12 +412,19 @@ function GamePage() {
             controls
             ref={audioRef}
             src="/당돌한여자.mp3"
-            style={{ display: testMode ? 'block' : 'none', width: '30%' }}
+            style={{ display: testMode ? 'block' : 'none', width: '20%' }}
           />
-          <div className="placeholder">
-            <h3>가사</h3>
+
+          {/* === 가사 표시 === */}
+          <div className="lyrics-display">
+            <div className="lyrics-current">
+              {currentLyric?.text ?? '\u00A0'}
+            </div>
+            <div className="lyrics-next">
+              {nextLyric?.text ?? '\u00A0'}
+            </div>
           </div>
-        </div>        
+        </div>       
       </div>
 
       {/* 우측: 카메라 촬영 및 피드백 */}

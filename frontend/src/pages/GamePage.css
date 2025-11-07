@@ -48,12 +48,28 @@
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  font-size: 3rem;
+  text-align: center;
   background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
 }
 
-.lyrics-container .placeholder {
-  padding: 20px;
+/* 현재 가사: 크게/진하게 */
+.lyrics-current {
+  margin-top: 15px;
+  font-size: 3rem;
+  font-weight: 700;
+  line-height: 1.4;
+  opacity: 1;
+  transition: opacity 150ms ease, transform 150ms ease;
+  word-break: keep-all;
+}
+
+/* 다음 가사: 작게/연하게 */
+.lyrics-next {
+  margin-top: 6px;
+  font-size: 1.8rem;
+  opacity: 0.45;
+  line-height: 1.35;
+  word-break: keep-all;
 }
 
 
