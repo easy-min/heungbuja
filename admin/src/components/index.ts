@@ -6,7 +6,7 @@ export { default as Textarea } from './Textarea';
 export { default as Badge } from './Badge';
 export { default as Modal } from './Modal';
 export { default as Loading } from './Loading';
-export { default as WebSocketStatus } from './Websocketstatus';
+export { default as WebSocketStatus } from './WebSocketStatus';
 
 // 중간 크기 컴포넌트들
 export { default as EmergencyCard } from './EmergencyCard';

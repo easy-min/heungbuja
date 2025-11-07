@@ -78,6 +78,9 @@ export const useWebSocket = (options?: UseWebSocketOptions) => {
             handleUserStatusUpdate(message);
           });
 
+          // Keep reference so TS doesn't prune the handler (future topic)
+          void handleEmergencyResolved;
+
         },
         onDisconnect: () => {
           console.log('❌ WebSocket Disconnected');
