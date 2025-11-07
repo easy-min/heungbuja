@@ -2817,9 +2817,9 @@
     {
       "label": "part2",
       "lineRange": [20, 38],
-      "startBeat": 293,
+      "startBeat": 289,
       "endBeat": 460,
-      "startBar" : 74,
+      "startBar" : 73,
       "endBar" : 115
     }
   ]

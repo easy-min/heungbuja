@@ -1,10 +1,11 @@
 import { useRef, useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useCamera } from '@/hooks/useCamera';
 import { useFrameCapture } from '@/hooks/useFrameCapture';
 import { useMusicMonitor } from '@/hooks/useMusicMonitor';
 import { useSegmentUpload } from '@/hooks/useSegmentUpload';
 import { generateSessionId } from '@/utils/gameHelpers';
+import { type UploadResponse } from '@/types';
 import './GamePage.css';
 
 function GamePage() {
@@ -29,19 +30,15 @@ function GamePage() {
 
     // 메타 로드 후 배속 반영 + 재생
     const applyAndPlay = async () => {
-      try {
         // 오디오 BPM 대비 영상 배속
         const songBpm = songBpmRef.current || 120;
         mv.playbackRate = songBpm / videoBpm;
 
-        // (선택) 오디오 진행과 대략 맞추고 싶으면 0으로 두세요.
-        // mv.currentTime = 0;
-        try { mv.currentTime = LOOP_RESTART; } catch {}
+        mv.currentTime = LOOP_RESTART;
 
         if (shouldPlay || (au && !au.paused)) {
           await mv.play().catch(() => {});
         }
-      } catch {}
     };
 
     if (mv.readyState < 2) {
@@ -59,7 +56,7 @@ function GamePage() {
   const VIDEO_META = {
     intro: { src: '/break.mp4', bpm: 100, loopBeats: 8 },
     break: { src: '/break.mp4', bpm: 100, loopBeats: 8 },
-    part1: { src: '/part1.mp4', bpm: 99, loopBeats: 16 },
+    part1: { src: '/part1.mp4', bpm: 98.5, loopBeats: 16 },
     part2: { src: '/part2.mp4', bpm: 99, loopBeats: 16 },
   } as const;
 
@@ -105,7 +102,7 @@ function GamePage() {
     currentSegmentIndex,
     isMonitoring,
     songBpm,
-    sectionTimes,
+    // sectionTimes,
     loadSongData,
     startMonitoring,
     stopMonitoring,
@@ -244,14 +241,14 @@ function GamePage() {
       const loopEnd = Math.min(nominal, dur);
 
       if (mv.currentTime >= loopEnd - LOOP_EPS) {
-        try { mv.currentTime = LOOP_RESTART; } catch {}
+        mv.currentTime = LOOP_RESTART;
         if (mv.paused) { mv.play().catch(() => {}); }
       }
     };
 
     // 혹시 duration이 더 짧아 실제로 ended가 발생해도 복구
     const onEnded = () => {
-      try { mv.currentTime = LOOP_RESTART; } catch {}
+      mv.currentTime = LOOP_RESTART;
       mv.play().catch(() => {});
     };
 
@@ -287,7 +284,7 @@ function GamePage() {
           mv.addEventListener('loadedmetadata', onMeta, { once: true });
         });
       }
-      try { mv.currentTime = 0; } catch {}
+      mv.currentTime = 0;
       mv.playbackRate = songBpm / sectionVideoBpm;
       await mv.play().catch(e => console.warn('video play err', e));
     } else {
@@ -331,7 +328,7 @@ function GamePage() {
     }, delayMs);
   }
 
-  function handleSegmentEnd(segmentIndex: number, frames: any[]) {
+  function handleSegmentEnd(segmentIndex: number) {
       console.log(`⏹ 세그먼트 ${segmentIndex + 1} 종료`);
       if (startTimerRef.current !== null) {
         clearTimeout(startTimerRef.current);
@@ -361,7 +358,7 @@ function GamePage() {
     // navigate('/result');
   }
 
-  function handleUploadSuccess(segmentIndex: number, response?: any) {
+  function handleUploadSuccess(segmentIndex: number, response?: UploadResponse) {
     console.log(`✅ 세그먼트 ${segmentIndex} 업로드 성공`, response);
   }
 
@@ -389,9 +386,6 @@ function GamePage() {
         </div>
         {/* 아래쪽: 가사 자리 */}
         <div className="lyrics-container">
-          <div className="placeholder">
-            <h3>가사</h3>
-          </div>
           {/* 오디오 (항상 렌더링, testMode일 때만 보임) */}
           <audio
             controls
@@ -399,6 +393,9 @@ function GamePage() {
             src="/당돌한여자.mp3"
             style={{ display: testMode ? 'block' : 'none', width: '30%' }}
           />
+          <div className="placeholder">
+            <h3>가사</h3>
+          </div>
         </div>        
       </div>
 
