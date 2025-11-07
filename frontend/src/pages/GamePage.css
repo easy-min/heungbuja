@@ -20,11 +20,10 @@
 /* 위쪽: 캐릭터 (80%) */
 .character-section {
   flex: 8;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--color-primary);
   display: flex;
   align-items: center;
   justify-content: center;
-  border-right: 2px solid #fff;
 }
 
 .character-section .placeholder {
@@ -49,7 +48,7 @@
   justify-content: center;
   align-items: center;
   text-align: center;
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  background-color: var(--color-primary);
 }
 
 /* 현재 가사: 크게/진하게 */
@@ -163,7 +162,7 @@
 .feedback-section {
   flex: 2;
   position: relative;
-  background-color: white;
+  background-color: var(--color-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
