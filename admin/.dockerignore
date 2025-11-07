@@ -1,0 +1,15 @@
+# dependencies
+node_modules
+
+# build output
+dist
+
+# VCS / OS
+.git
+.gitignore
+.DS_Store
+
+# Docker artifacts
+Dockerfile
+nginx.conf
+
