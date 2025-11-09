@@ -96,7 +96,6 @@ function GamePage() {
   // 상태
   const [isGameStarted, setIsGameStarted] = useState(false);
   const [currentSegment, setCurrentSegment] = useState(0);
-  const [testMode] = useState(true);  // ✅ testMode 설정
   const { setAll, sessionId: storeSessionId } = useGameStore();
   
   // 가사
@@ -112,7 +111,7 @@ function GamePage() {
   const {
     barGroups,
     currentSegmentIndex,
-    isMonitoring,
+    // isMonitoring,
     songBpm,
     loadFromGameStart,
     startMonitoring,
@@ -146,7 +145,7 @@ function GamePage() {
 
   // 세그먼트 업로드 훅
   const {
-    uploadQueue,
+    // uploadQueue,
     isUploading,
     queueSegmentUpload,
   } = useSegmentUpload({
@@ -154,7 +153,6 @@ function GamePage() {
     songId: songId || 'test-song',
     musicTitle: (useGameStore.getState().songInfo?.title) ?? 'unknown',
     verse: 1,
-    testMode,  // ✅ testMode state 사용
     onUploadSuccess: handleUploadSuccess,
     onUploadError: handleUploadError,
   });
@@ -380,20 +378,20 @@ function GamePage() {
     setIsGameStarted(true);
   }
 
-  function handleTestStop() {
-    console.log('⏹ 테스트 중지');
-    if (audioRef.current) {
-      audioRef.current.pause();
-    }
-    stopMonitoring();
-    setIsGameStarted(false);
+  // function handleTestStop() {
+  //   console.log('⏹ 테스트 중지');
+  //   if (audioRef.current) {
+  //     audioRef.current.pause();
+  //   }
+  //   stopMonitoring();
+  //   setIsGameStarted(false);
 
-    if (countdownTimerRef.current !== null) {
-      clearInterval(countdownTimerRef.current);
-      countdownTimerRef.current = null;
-    }
-    setIsCounting(false);
-  }
+  //   if (countdownTimerRef.current !== null) {
+  //     clearInterval(countdownTimerRef.current);
+  //     countdownTimerRef.current = null;
+  //   }
+  //   setIsCounting(false);
+  // }
 
   // ✅ 수정: 오디오 현재시간 기준으로 예약 호출
   function handleSegmentStart(segmentIndex: number) {
@@ -481,11 +479,10 @@ function GamePage() {
         </div>
         {/* 아래쪽: 가사 자리 */}
         <div className="lyrics-container">
-          {/* 오디오 (항상 렌더링, testMode일 때만 보임) */}
           <audio
             controls
             ref={audioRef}
-            style={{ display: testMode ? 'block' : 'none', width: '40%', height: '20%' }}
+            style={{ display: 'block', width: '40%', height: '20%' }}
           />
 
           {/* === 가사 표시 === */}
@@ -548,7 +545,7 @@ function GamePage() {
         {/* 아래쪽: 피드백 */}
         <div className="feedback-section">
           {/* 테스트용 컨트롤 */}
-          {testMode && (
+          {/* {testMode && (
             <div className="test-controls">
               <div className="button-group">
                 <button
@@ -568,7 +565,7 @@ function GamePage() {
                 <div>업로드 큐: {uploadQueue.length}개</div>
               </div>
             </div>
-          )}
+          )} */}
           </div>
         </div>
       </div>

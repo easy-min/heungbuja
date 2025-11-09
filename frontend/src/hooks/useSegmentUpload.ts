@@ -26,7 +26,7 @@ export const useSegmentUpload = ({
   musicTitle,
   verse,
   difficulty,
-  testMode = false,  // ✅ 기본값 false
+  testMode = true,  // ✅ 기본값 true
   onUploadSuccess,
   onUploadError,
 }: UseSegmentUploadProps): UseSegmentUploadReturn => {
