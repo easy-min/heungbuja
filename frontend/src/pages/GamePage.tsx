@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useCamera } from '@/hooks/useCamera';
 import { useFrameCapture } from '@/hooks/useFrameCapture';
 import { useMusicMonitor } from '@/hooks/useMusicMonitor';
@@ -79,7 +79,7 @@ function GamePage() {
 
   // URL 파라미터
   const { songId } = useParams<{ songId: string }>();
-  // const navigate = useNavigate();
+  const navigate = useNavigate();
 
   // Refs
   const motionVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -90,6 +90,7 @@ function GamePage() {
   const [isCounting, setIsCounting] = useState(false);
   const [count, setCount] = useState(5);
   const countdownTimerRef = useRef<number | null>(null);
+  const hasNavigatedRef = useRef(false);
 
   // 상태
   const [isGameStarted, setIsGameStarted] = useState(false);
@@ -242,7 +243,7 @@ function GamePage() {
     return () => { cancelled = true; };
   }, []);
 
-  // 오디오 끝날 때 영상 정지
+  // 오디오 끝나면 게임 종료
   useEffect(() => {
     const audio = audioRef.current;
     const mv = motionVideoRef.current;
@@ -250,9 +251,9 @@ function GamePage() {
 
     const handleEnded = () => {
       console.log('🎵 노래 재생 완료 → 영상 정지');
-      mv.pause();              // 영상 멈춤
-      mv.currentTime = 0;      // (선택) 처음으로 돌리기
-      setIsGameStarted(false); // 상태도 초기화
+      mv.pause();
+      mv.currentTime = 0;
+      goToResultOnce();
     };
 
     audio.addEventListener('ended', handleEnded);
@@ -320,6 +321,21 @@ function GamePage() {
         return next;
       });
     }, 1000);
+  }
+
+  // 게임 마무리하고 결과 페이지로 이동
+  function goToResultOnce() {
+    if (hasNavigatedRef.current) return;
+    hasNavigatedRef.current = true;
+
+    try {
+      stopMonitoring();
+      if (audioRef.current) audioRef.current.pause();
+      stopCamera();
+      setIsGameStarted(false);
+    } finally {
+      navigate('/result');
+    }
   }
 
   // 이벤트 핸들러
@@ -418,11 +434,8 @@ function GamePage() {
   }
 
   function handleAllComplete() {
-    console.log('🎉 모든 세그먼트 완료!');
-    setIsGameStarted(false);
-    
-    // 나중에 결과 페이지로 이동
-    // navigate('/result');
+    console.log('🎉 모든 세그먼트 완료!');    
+    navigate('/result');
   }
 
   function handleUploadSuccess(segmentIndex: number, response?: UploadResponse) {
