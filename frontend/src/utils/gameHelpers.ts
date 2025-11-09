@@ -37,7 +37,7 @@ export const calculateBarGroups = (
   });
 
   // 2. part1 시작 마디 찾기 (1절 시작점)
-  const part1 = sections.find((s) => s.label === 'part1');
+  const part1 = sections.find((s) => s.label === 'verse1');
   if (!part1) {
     throw new Error('part1 섹션을 찾을 수 없습니다.');
   }

@@ -1,10 +1,18 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { type BarGroup, type SongData, type Frame, type Beat, type Section } from '@/types';
+import type { SongTimeline } from '@/types/song';
 import { calculateBarGroups } from '@/utils';
 import { GAME_CONFIG } from '@/utils/constants';
 
+type LoadFromGameStartArgs = {
+  bpm: number;
+  duration: number;
+  timeline: SongTimeline;
+  beatsPerBar?: number;
+};
+
 interface SectionTime {
-  label: 'intro' | 'break' | 'part1' | 'part2';
+  label: 'intro' | 'break' | 'verse1' | 'verse2';
   startTime: number;
   endTime: number;
 }
@@ -26,6 +34,12 @@ interface UseMusicMonitorReturn {
   loadSongData: (jsonPath: string) => Promise<void>;
   startMonitoring: () => void;
   stopMonitoring: () => void;
+  loadFromGameStart: (args: {
+    bpm: number;
+    duration: number;
+    timeline: SongTimeline;
+    beatsPerBar?: number;
+  }) => Promise<void>;
 }
 
 function buildSectionTimes(beats: Beat[], sections: Section[]): SectionTime[] {
@@ -246,6 +260,67 @@ export const useMusicMonitor = ({
     };
   }, [stopMonitoring]);
 
+  function buildSongDataFromTimeline({
+    bpm, duration, timeline, beatsPerBar = 4,
+  }: LoadFromGameStartArgs) {
+    const beatLen = 60 / bpm;
+
+    // beats 생성
+    const beats: Beat[] = [];
+    let t = 0, bar = 1, beatInBar = 1;
+    while (t <= duration + 1e-3) {
+      beats.push({ t: Number(t.toFixed(6)), bar, beat: beatInBar });
+      beatInBar++;
+      if (beatInBar > beatsPerBar) { beatInBar = 1; bar++; }
+      t += beatLen;
+    }
+
+    // 첫박 기준 bar-시각 map
+    const firstBeatOfBar = new Map<number, number>();
+    for (const b of beats) {
+      if (b.beat === 1 && !firstBeatOfBar.has(b.bar)) firstBeatOfBar.set(b.bar, b.t);
+    }
+    const timeToNearestBar = (sec: number) => {
+      let bestBar = 1, best = Infinity;
+      for (const [br, bt] of firstBeatOfBar) {
+        const d = Math.abs(bt - sec);
+        if (d < best) { best = d; bestBar = br; }
+      }
+      return bestBar;
+    };
+
+    // sections 생성
+    const pts = [
+      { label: 'intro' as const, startTime: timeline.introStartTime },
+      { label: 'break' as const, startTime: timeline.breakStartTime },
+      { label: 'verse1' as const, startTime: timeline.verse1StartTime },
+      { label: 'verse2' as const, startTime: timeline.verse2StartTime },
+    ].sort((a, b) => a.startTime - b.startTime);
+
+    const sections: Section[] = pts.map((s, i) => {
+      const startBar = timeToNearestBar(s.startTime);
+      const nextStart = pts[i + 1]?.startTime ?? duration;
+      const endBar = Math.max(startBar, timeToNearestBar(nextStart) - 1);
+      return { label: s.label, startBar, endBar };
+    });
+
+    // 기존 calculateBarGroups/sectionTimes 계산 경로에 맞춤
+    return { beats, sections, tempoMap: [{ bpm }] } as SongData;
+  }
+
+  // (신규) 응답 데이터 기반 로더
+  const loadFromGameStart = useCallback(async (args: LoadFromGameStartArgs) => {
+    const obj = buildSongDataFromTimeline(args);
+    // 기존 경로를 재사용하기 위해 Blob → ObjectURL 기법 사용
+    const blob = new Blob([JSON.stringify(obj)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    try {
+      await loadSongData(url);
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }, [loadSongData]);
+
   return {
     barGroups,
     currentSegmentIndex,
@@ -255,7 +330,7 @@ export const useMusicMonitor = ({
     loadSongData,
     startMonitoring,
     stopMonitoring,
+    loadFromGameStart,
   };
 
-  
 };

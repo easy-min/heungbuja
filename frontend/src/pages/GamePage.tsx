@@ -5,8 +5,10 @@ import { useFrameCapture } from '@/hooks/useFrameCapture';
 import { useMusicMonitor } from '@/hooks/useMusicMonitor';
 import { useLyricsSync } from '@/hooks/useLyricsSync';
 import { useSegmentUpload } from '@/hooks/useSegmentUpload';
-import { generateSessionId } from '@/utils/gameHelpers';
-import { type UploadResponse, type LyricLine } from '@/types';
+import { type UploadResponse } from '@/types';
+import { type LyricLine } from '@/types/song';
+import { gameStartApi } from '@/api/game';
+import { useGameStore } from '@/store/gameStore';
 import './GamePage.css';
 
 function GamePage() {
@@ -57,10 +59,9 @@ function GamePage() {
   const VIDEO_META = {
     intro: { src: '/break.mp4', bpm: 100, loopBeats: 8 },
     break: { src: '/break.mp4', bpm: 100, loopBeats: 8 },
-    part1: { src: '/part1.mp4', bpm: 98.5, loopBeats: 16 },
-    part2: { src: '/part2.mp4', bpm: 99, loopBeats: 16 },
+    verse1: { src: '/part1.mp4', bpm: 98.5, loopBeats: 16 },
+    verse2: { src: '/part2.mp4', bpm: 99, loopBeats: 16 },
   } as const;
-
   type SectionKey = keyof typeof VIDEO_META;
 
   // === BPM, 싱크 상태 Ref ===
@@ -95,15 +96,15 @@ function GamePage() {
   // 상태
   const [isGameStarted, setIsGameStarted] = useState(false);
   const [currentSegment, setCurrentSegment] = useState(0);
-  const [sessionId] = useState(() => generateSessionId());
   const [testMode] = useState(true);  // ✅ testMode 설정
-
+  const { setAll, sessionId: storeSessionId } = useGameStore();
+  
   // 가사
   const [lyrics, setLyrics] = useState<LyricLine[]>([]);
   const { current: currentLyric, next: nextLyric, isInstrumental } =
   useLyricsSync(audioRef, lyrics, { prerollSec: 0.04 });
-
-
+  
+  
   // 카메라 훅
   const { stream, isReady, error, startCamera, stopCamera } = useCamera();
 
@@ -113,8 +114,7 @@ function GamePage() {
     currentSegmentIndex,
     isMonitoring,
     songBpm,
-    // sectionTimes,
-    loadSongData,
+    loadFromGameStart,
     startMonitoring,
     stopMonitoring,
   } = useMusicMonitor({
@@ -126,8 +126,8 @@ function GamePage() {
       const map: Record<string, SectionKey> = {
         intro: 'break',
         break: 'break',
-        part1: 'part1',
-        part2: 'part2',
+        verse1: 'verse1',
+        verse2: 'verse2',
       };
       switchSectionVideo(map[label] ?? 'break');
     },
@@ -150,51 +150,72 @@ function GamePage() {
     isUploading,
     queueSegmentUpload,
   } = useSegmentUpload({
-    sessionId,
+    sessionId: storeSessionId || 'pending-session',
     songId: songId || 'test-song',
-    musicTitle: '당돌한 여자',
+    musicTitle: (useGameStore.getState().songInfo?.title) ?? 'unknown',
     verse: 1,
     testMode,  // ✅ testMode state 사용
     onUploadSuccess: handleUploadSuccess,
     onUploadError: handleUploadError,
   });
 
+  const readyToStart = !!(isReady && audioRef.current?.src && barGroups.length > 0);
+
   // 자동 카운트다운
   useEffect(() => {
-    if (isReady && !isGameStarted && !isCounting) {
+    if (readyToStart && !isGameStarted && !isCounting && !countdownTimerRef.current) {
       startCountdown();
     }
-  }, [isReady]);
+  }, [readyToStart, isGameStarted, isCounting]);
 
-  // 컴포넌트 마운트
+  // 마운트 초기화: 백엔드에서 세션/곡/타임라인/가사 로드
   useEffect(() => {
-    console.log('🎮 GamePage 마운트');
-    console.log('📋 Session ID:', sessionId);
-    console.log('🎵 Song ID:', songId);
+    let cancelled = false;
 
-    // 카메라 시작
-    startCamera();
+    (async () => {
+      try {
+        startCamera();
 
-    // JSON 로드
-    loadSongData('/당돌한여자.json');
+        const id = Number(songId) || 1;
+        const res = await gameStartApi(id);
+        if (cancelled) return;
 
-    // ✅ 수정: 언마운트/정리 useEffect 내
-    return () => {
-      console.log('🎮 GamePage 언마운트');
-      if (startTimerRef.current !== null) {
-        clearTimeout(startTimerRef.current);
-        startTimerRef.current = null;
+        const { sessionId, songInfo, timeline, lyrics, videoUrls } = res.data;
+
+        // store 저장
+        setAll({ sessionId, songInfo, timeline, lyrics, videoUrls });
+
+        // 오디오 연결
+        if (audioRef.current) {
+          audioRef.current.src = songInfo.audioUrl;
+          audioRef.current.load();
+        }
+
+        // 가사 반영
+        setLyrics(lyrics ?? []);
+
+        // 모니터링 훅 초기화
+        await loadFromGameStart({
+          bpm: songInfo.bpm,
+          duration: songInfo.duration,
+          timeline,
+        });
+        songBpmRef.current = songInfo.bpm;
+      } catch (e) {
+        console.error('게임 시작 초기화 실패:', e);
       }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (startTimerRef.current !== null) { clearTimeout(startTimerRef.current); startTimerRef.current = null; }
       stopCamera();
       stopMonitoring();
       if (audioRef.current) audioRef.current.pause();
-
-      if (countdownTimerRef.current !== null) {
-        clearInterval(countdownTimerRef.current);
-        countdownTimerRef.current = null;
-      }
+      if (countdownTimerRef.current !== null) { clearInterval(countdownTimerRef.current); countdownTimerRef.current = null; }
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [songId]);
 
   // 카메라 스트림 연결
   useEffect(() => {
@@ -227,21 +248,6 @@ function GamePage() {
   useEffect(() => {
     setCurrentSegment(currentSegmentIndex + 1);
   }, [currentSegmentIndex]);
-
-  // 가사 업데이트
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('/당돌한여자_가사.json');
-        const data: { lines: LyricLine[] } = await res.json();
-        if (!cancelled) setLyrics(data.lines ?? []);
-      } catch (e) {
-        console.warn('가사 로드 실패', e);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
 
   // 오디오 끝나면 게임 종료
   useEffect(() => {
@@ -315,6 +321,8 @@ function GamePage() {
             countdownTimerRef.current = null;
           }
           setIsCounting(false);
+          setIsGameStarted(true);
+
           void beginGame(); // 카운트다운이 끝나면 실제 시작
           return 0;
         }
@@ -362,7 +370,7 @@ function GamePage() {
         });
       }
       mv.currentTime = 0;
-      mv.playbackRate = songBpm / sectionVideoBpm;
+      mv.playbackRate = (songBpmRef.current || 120) / sectionVideoBpm;
       await mv.play().catch(e => console.warn('video play err', e));
     } else {
       console.warn('⚠️ motionVideoRef 없음');
@@ -434,8 +442,7 @@ function GamePage() {
   }
 
   function handleAllComplete() {
-    console.log('🎉 모든 세그먼트 완료!');    
-    navigate('/result');
+    console.log('🎉 모든 세그먼트 완료!');
   }
 
   function handleUploadSuccess(segmentIndex: number, response?: UploadResponse) {
@@ -478,7 +485,6 @@ function GamePage() {
           <audio
             controls
             ref={audioRef}
-            src="/당돌한여자.mp3"
             style={{ display: testMode ? 'block' : 'none', width: '40%', height: '20%' }}
           />
 
