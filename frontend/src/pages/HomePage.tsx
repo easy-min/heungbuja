@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import './HomePage.css';
+import VoiceButton from '@/components/VoiceButton';
 
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
@@ -10,7 +11,7 @@ const HomePage: React.FC = () => {
   };
 
   const handleExerciseClick = () => {
-    navigate('/game');
+    navigate('/game/1'); // 추후 노래 목록 페이지로 이동 고민
   };
 
   return (
@@ -46,7 +47,8 @@ const HomePage: React.FC = () => {
           </button>
         </div>
       </div>
-
+         {/* 음성인식 버튼 */}
+      <VoiceButton />
     </div>
   );
 };
