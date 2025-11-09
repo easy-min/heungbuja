@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useCamera } from '@/hooks/useCamera';
 import { useFrameCapture } from '@/hooks/useFrameCapture';
 import { useMusicMonitor } from '@/hooks/useMusicMonitor';
@@ -79,7 +79,7 @@ function GamePage() {
 
   // URL 파라미터
   const { songId } = useParams<{ songId: string }>();
-  // const navigate = useNavigate();
+  const navigate = useNavigate();
 
   // Refs
   const motionVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -87,6 +87,10 @@ function GamePage() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const startTimerRef = useRef<number | null>(null);
+  const [isCounting, setIsCounting] = useState(false);
+  const [count, setCount] = useState(5);
+  const countdownTimerRef = useRef<number | null>(null);
+  const hasNavigatedRef = useRef(false);
 
   // 상태
   const [isGameStarted, setIsGameStarted] = useState(false);
@@ -155,6 +159,13 @@ function GamePage() {
     onUploadError: handleUploadError,
   });
 
+  // 자동 카운트다운
+  useEffect(() => {
+    if (isReady && !isGameStarted && !isCounting) {
+      startCountdown();
+    }
+  }, [isReady]);
+
   // 컴포넌트 마운트
   useEffect(() => {
     console.log('🎮 GamePage 마운트');
@@ -177,6 +188,11 @@ function GamePage() {
       stopCamera();
       stopMonitoring();
       if (audioRef.current) audioRef.current.pause();
+
+      if (countdownTimerRef.current !== null) {
+        clearInterval(countdownTimerRef.current);
+        countdownTimerRef.current = null;
+      }
     };
   }, []);
 
@@ -227,7 +243,7 @@ function GamePage() {
     return () => { cancelled = true; };
   }, []);
 
-  // 오디오 끝날 때 영상 정지
+  // 오디오 끝나면 게임 종료
   useEffect(() => {
     const audio = audioRef.current;
     const mv = motionVideoRef.current;
@@ -235,9 +251,9 @@ function GamePage() {
 
     const handleEnded = () => {
       console.log('🎵 노래 재생 완료 → 영상 정지');
-      mv.pause();              // 영상 멈춤
-      mv.currentTime = 0;      // (선택) 처음으로 돌리기
-      setIsGameStarted(false); // 상태도 초기화
+      mv.pause();
+      mv.currentTime = 0;
+      goToResultOnce();
     };
 
     audio.addEventListener('ended', handleEnded);
@@ -283,8 +299,47 @@ function GamePage() {
     };
   }, []);
 
+  // 카운트 다운
+  function startCountdown() {
+    if (isGameStarted || isCounting) return;
+
+    setIsCounting(true);
+    setCount(5);
+
+    countdownTimerRef.current = window.setInterval(() => {
+      setCount((prev) => {
+        const next = prev - 1;
+        if (next <= 0) {
+          if (countdownTimerRef.current !== null) {
+            clearInterval(countdownTimerRef.current);
+            countdownTimerRef.current = null;
+          }
+          setIsCounting(false);
+          void beginGame(); // 카운트다운이 끝나면 실제 시작
+          return 0;
+        }
+        return next;
+      });
+    }, 1000);
+  }
+
+  // 게임 마무리하고 결과 페이지로 이동
+  function goToResultOnce() {
+    if (hasNavigatedRef.current) return;
+    hasNavigatedRef.current = true;
+
+    try {
+      stopMonitoring();
+      if (audioRef.current) audioRef.current.pause();
+      stopCamera();
+      setIsGameStarted(false);
+    } finally {
+      navigate('/result');
+    }
+  }
+
   // 이벤트 핸들러
-  async function handleTestStart() {
+  async function beginGame() {
     if (!audioRef.current || !isReady) {
       console.warn('⚠️  카메라 또는 오디오가 준비되지 않았습니다');
       return;
@@ -324,6 +379,12 @@ function GamePage() {
     }
     stopMonitoring();
     setIsGameStarted(false);
+
+    if (countdownTimerRef.current !== null) {
+      clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+    setIsCounting(false);
   }
 
   // ✅ 수정: 오디오 현재시간 기준으로 예약 호출
@@ -373,11 +434,8 @@ function GamePage() {
   }
 
   function handleAllComplete() {
-    console.log('🎉 모든 세그먼트 완료!');
-    setIsGameStarted(false);
-    
-    // 나중에 결과 페이지로 이동
-    // navigate('/result');
+    console.log('🎉 모든 세그먼트 완료!');    
+    navigate('/result');
   }
 
   function handleUploadSuccess(segmentIndex: number, response?: UploadResponse) {
@@ -389,8 +447,15 @@ function GamePage() {
   }
 
   return (
+    <>
+    {isCounting && (
+      <div className="countdown-overlay">
+        <div className="countdown-bubble">
+          {count > 0 ? count : 'Go!'}
+        </div>
+      </div>
+    )}
     <div className="game-page">
-
       {/* 좌측: 동작 시연 및 가사 */}
       <div className="video-container">
         {/* 위쪽: 캐릭터 영상 자리 */}
@@ -481,13 +546,6 @@ function GamePage() {
             <div className="test-controls">
               <div className="button-group">
                 <button
-                  onClick={handleTestStart}
-                  disabled={isGameStarted || !isReady}
-                  className="btn-start"
-                >
-                  🎬 테스트 시작
-                </button>
-                <button
                   onClick={handleTestStop}
                   disabled={!isGameStarted}
                   className="btn-stop"
@@ -508,8 +566,7 @@ function GamePage() {
           </div>
         </div>
       </div>
-
-
+    </>
   );
 }
 
