@@ -43,7 +43,7 @@ function GamePage() {
     useLyricsSync(audioRef, lyrics, { prerollSec: 0.04 });
 
   // === 모니터링 (섹션 감지 → 영상 전환) ===
-  const { loadFromGameStart, startMonitoring, stopMonitoring } = useMusicMonitor({
+  const { loadFromGameStart, stopMonitoring } = useMusicMonitor({
     audioRef,
     onSectionEnter: (label) => {
       const map = { intro: 'break', break: 'break', verse1: 'verse1', verse2: 'verse2' } as const;
@@ -169,22 +169,9 @@ function GamePage() {
   async function beginGame() {
     if (!audioRef.current || !isReady) return;
 
-    // 섹션: break로 세팅(내부에서 canplay 대기/배속/되감기/재생 수행)
-    switchSectionVideo('break');
-
     // 오디오 먼저 재생
     await audioRef.current.play().catch(e => console.warn('audio play err', e));
 
-    // (선택) 비디오 메타 준비 보장
-    const mv = motionVideoRef.current;
-    if (mv && mv.readyState < 2) {
-      await new Promise<void>(resolve => {
-        const onCanPlay = () => { mv.removeEventListener('canplay', onCanPlay); resolve(); };
-        mv.addEventListener('canplay', onCanPlay, { once: true });
-      });
-    }
-
-    startMonitoring();       // 섹션 감지 시작
     scheduleRangeCaptures(); // 구간 캡처/스트리밍 시작
     setIsGameStarted(true);
   }
