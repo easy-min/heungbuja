@@ -393,7 +393,7 @@ public class CommandServiceImpl implements CommandService {
                 .fullText(intentResult.getRawText())  // 전체 발화 텍스트
                 .build();
 
-        emergencyService.detectEmergency(emergencyRequest);
+        emergencyService.detectEmergencyWithSchedule(emergencyRequest);
 
         String responseText = responseGenerator.generateResponse(Intent.EMERGENCY);
         String ttsUrl = ttsService.synthesize(responseText, "urgent"); // 긴급 음성 타입

@@ -63,10 +63,21 @@ public class EmergencyService {
         log.info("응급 신고 감지: reportId={}, userId={}, 10초 후 자동 확정 스케줄",
                 savedReport.getId(), user.getId());
 
-        // 10초 후 자동 confirm 스케줄
-        scheduleAutoConfirm(savedReport.getId(), 10);
-
         return EmergencyResponse.from(savedReport, message);
+    }
+
+    /**
+     * 긴급 신고 감지 (트랜잭션 없는 래퍼 메서드)
+     * 트랜잭션 커밋 후 스케줄을 등록하기 위해 사용
+     */
+    public EmergencyResponse detectEmergencyWithSchedule(EmergencyRequest request) {
+        // 1. 트랜잭션 안에서 저장
+        EmergencyResponse response = detectEmergency(request);
+
+        // 2. 트랜잭션 커밋 완료 후 스케줄 등록
+        scheduleAutoConfirm(response.getReportId(), 10);
+
+        return response;
     }
 
     /**
@@ -149,6 +160,13 @@ public class EmergencyService {
      * WebSocket으로 긴급 알림 전송
      */
     private void sendEmergencyAlert(EmergencyReport report) {
+        // Admin이 연결되어 있는지 확인
+        if (report.getUser().getAdmin() == null) {
+            log.error("❌ WebSocket 알림 전송 실패: User(id={})에 Admin이 연결되어 있지 않습니다",
+                    report.getUser().getId());
+            return;
+        }
+
         Long adminId = report.getUser().getAdmin().getId();
 
         // Null-safe 처리: 혹시 모를 null 값을 기본값으로 대체
