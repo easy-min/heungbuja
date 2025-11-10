@@ -9,7 +9,7 @@ import './index.css';
 
 function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/user">
       <div className="app">
         <Routes>
           <Route path="/" element={<UserLoginPage />} />
