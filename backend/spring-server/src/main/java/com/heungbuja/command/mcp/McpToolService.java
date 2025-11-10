@@ -59,6 +59,8 @@ public class McpToolService {
                 case "add_to_queue" -> addToQueue(toolCall);
                 case "get_current_context" -> getCurrentContext(toolCall);
                 case "handle_emergency" -> handleEmergency(toolCall);
+                case "cancel_emergency" -> cancelEmergency(toolCall);
+                case "confirm_emergency" -> confirmEmergency(toolCall);
                 case "change_mode" -> changeMode(toolCall);
                 case "start_game" -> startGame(toolCall);
                 default -> McpToolResult.failure(
@@ -259,6 +261,38 @@ public class McpToolService {
         emergencyService.detectEmergencyWithSchedule(request);
 
         String message = "괜찮으세요? 대답해주세요!";
+
+        return McpToolResult.success(toolCall.getId(), toolCall.getName(), message);
+    }
+
+    /**
+     * Tool: cancel_emergency
+     * 응급 신고 취소 (사용자가 괜찮다고 응답)
+     */
+    private McpToolResult cancelEmergency(McpToolCall toolCall) {
+        Map<String, Object> args = toolCall.getArguments();
+
+        Long userId = getLongArg(args, "userId");
+
+        emergencyService.cancelRecentReport(userId);
+
+        String message = "괜찮으시군요. 신고를 취소했습니다";
+
+        return McpToolResult.success(toolCall.getId(), toolCall.getName(), message);
+    }
+
+    /**
+     * Tool: confirm_emergency
+     * 응급 신고 즉시 확정 (사용자가 "안 괜찮아", "빨리 신고해" 등으로 응답)
+     */
+    private McpToolResult confirmEmergency(McpToolCall toolCall) {
+        Map<String, Object> args = toolCall.getArguments();
+
+        Long userId = getLongArg(args, "userId");
+
+        emergencyService.confirmRecentReport(userId);
+
+        String message = "알겠습니다. 지금 바로 신고하겠습니다";
 
         return McpToolResult.success(toolCall.getId(), toolCall.getName(), message);
     }

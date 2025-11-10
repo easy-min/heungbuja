@@ -208,13 +208,23 @@ public class McpCommandServiceImpl implements CommandService {
                      * keyword (필수): 응급 키워드
                      * fullText (필수): 전체 발화 텍스트
 
-                6. change_mode
+                6. cancel_emergency
+                   - 설명: 응급 신고 취소 (사용자가 "괜찮아", "괜찮아요" 등으로 응답할 때)
+                   - 파라미터:
+                     * userId (필수): 사용자 ID
+
+                7. confirm_emergency
+                   - 설명: 응급 신고 즉시 확정 (사용자가 "안 괜찮아", "빨리 신고해" 등으로 응답할 때)
+                   - 파라미터:
+                     * userId (필수): 사용자 ID
+
+                8. change_mode
                    - 설명: 모드 변경 (홈, 감상, 체조)
                    - 파라미터:
                      * userId (필수): 사용자 ID
                      * mode (필수): HOME, LISTENING, EXERCISE 중 하나
 
-                7. start_game
+                9. start_game
                    - 설명: 게임(체조)을 시작합니다. 노래에 맞춰 동작을 따라하는 3-5분 게임입니다.
                    - 파라미터:
                      * userId (필수): 사용자 ID
@@ -354,7 +364,7 @@ public class McpCommandServiceImpl implements CommandService {
             if ("search_song".equals(result.getToolName()) && result.getSongInfo() != null) {
                 return CommandResponse.builder()
                         .success(true)
-                        .intent(Intent.UNKNOWN)
+                        .intent(Intent.SELECT_BY_ARTIST)  // ✅ 노래 검색 Intent
                         .responseText(responseText)
                         .ttsAudioUrl(null)  // TTS는 Controller에서 처리
                         .songInfo(result.getSongInfo())
@@ -376,7 +386,7 @@ public class McpCommandServiceImpl implements CommandService {
 
                 return CommandResponse.builder()
                         .success(true)
-                        .intent(Intent.UNKNOWN)
+                        .intent(Intent.MODE_EXERCISE)  // ✅ 게임 시작 Intent
                         .responseText(responseText)
                         .ttsAudioUrl(null)  // TTS는 Controller에서 처리
                         .screenTransition(CommandResponse.ScreenTransition.builder()
@@ -387,10 +397,57 @@ public class McpCommandServiceImpl implements CommandService {
                         .build();
             }
 
-            // change_mode: 명시적 모드 전환
+            // control_playback: 재생 제어
+            if ("control_playback".equals(result.getToolName())) {
+                Intent playbackIntent = mapPlaybackActionToIntent(result.getData());
+                return CommandResponse.builder()
+                        .success(true)
+                        .intent(playbackIntent)  // ✅ MUSIC_PAUSE, MUSIC_RESUME 등
+                        .responseText(responseText)
+                        .ttsAudioUrl(null)
+                        .build();
+            }
+
+            // handle_emergency: 응급 상황
+            if ("handle_emergency".equals(result.getToolName())) {
+                return CommandResponse.builder()
+                        .success(true)
+                        .intent(Intent.EMERGENCY)  // ✅ 응급 Intent
+                        .responseText(responseText)
+                        .ttsAudioUrl(null)
+                        .build();
+            }
+
+            // cancel_emergency: 응급 취소
+            if ("cancel_emergency".equals(result.getToolName())) {
+                return CommandResponse.builder()
+                        .success(true)
+                        .intent(Intent.EMERGENCY_CANCEL)  // ✅ 응급 취소 Intent
+                        .responseText(responseText)
+                        .ttsAudioUrl(null)
+                        .build();
+            }
+
+            // confirm_emergency: 응급 즉시 확정
+            if ("confirm_emergency".equals(result.getToolName())) {
+                return CommandResponse.builder()
+                        .success(true)
+                        .intent(Intent.EMERGENCY_CONFIRM)  // ✅ 응급 확정 Intent
+                        .responseText(responseText)
+                        .ttsAudioUrl(null)
+                        .build();
+            }
+
+            // change_mode: 모드 전환
             if ("change_mode".equals(result.getToolName())) {
-                // TODO: change_mode에서 어떤 모드로 전환할지 정보 가져오기
-                // 현재는 일반 응답으로 처리
+                Intent modeIntent = mapModeToIntent(result.getData());
+                return CommandResponse.builder()
+                        .success(true)
+                        .intent(modeIntent)  // ✅ MODE_HOME, MODE_LISTENING, MODE_EXERCISE
+                        .responseText(responseText)
+                        .ttsAudioUrl(null)
+                        .screenTransition(buildModeTransition(modeIntent))
+                        .build();
             }
         }
 
@@ -401,6 +458,67 @@ public class McpCommandServiceImpl implements CommandService {
                 .responseText(responseText)
                 .ttsAudioUrl(null)  // TTS는 Controller에서 처리
                 .build();
+    }
+
+    /**
+     * Playback action을 Intent로 매핑
+     */
+    private Intent mapPlaybackActionToIntent(Object data) {
+        if (data instanceof Map) {
+            String action = (String) ((Map<?, ?>) data).get("action");
+            if (action != null) {
+                return switch (action.toUpperCase()) {
+                    case "PAUSE" -> Intent.MUSIC_PAUSE;
+                    case "RESUME" -> Intent.MUSIC_RESUME;
+                    case "NEXT" -> Intent.MUSIC_NEXT;
+                    case "STOP" -> Intent.MUSIC_STOP;
+                    default -> Intent.UNKNOWN;
+                };
+            }
+        }
+        return Intent.UNKNOWN;
+    }
+
+    /**
+     * Mode를 Intent로 매핑
+     */
+    private Intent mapModeToIntent(Object data) {
+        if (data instanceof Map) {
+            String mode = (String) ((Map<?, ?>) data).get("mode");
+            if (mode != null) {
+                return switch (mode.toUpperCase()) {
+                    case "HOME" -> Intent.MODE_HOME;
+                    case "LISTENING" -> Intent.MODE_LISTENING;
+                    case "EXERCISE" -> Intent.MODE_EXERCISE;
+                    default -> Intent.UNKNOWN;
+                };
+            }
+        }
+        return Intent.UNKNOWN;
+    }
+
+    /**
+     * Mode에 따른 화면 전환 생성
+     */
+    private CommandResponse.ScreenTransition buildModeTransition(Intent modeIntent) {
+        return switch (modeIntent) {
+            case MODE_HOME -> CommandResponse.ScreenTransition.builder()
+                    .targetScreen("/home")
+                    .action("GO_HOME")
+                    .data(Map.of())
+                    .build();
+            case MODE_LISTENING -> CommandResponse.ScreenTransition.builder()
+                    .targetScreen("/listening")
+                    .action("GO_LISTENING")
+                    .data(Map.of())
+                    .build();
+            case MODE_EXERCISE -> CommandResponse.ScreenTransition.builder()
+                    .targetScreen("/exercise")
+                    .action("GO_EXERCISE")
+                    .data(Map.of())
+                    .build();
+            default -> null;
+        };
     }
 
     /**
