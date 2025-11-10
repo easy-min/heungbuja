@@ -41,9 +41,16 @@ public class EmergencyController {
     // 관리자용 API
     @GetMapping("/admins/reports")
     public ResponseEntity<List<EmergencyResponse>> getConfirmedReports(Authentication authentication) {
-        // TODO: 관리자 권한 확인
-        List<EmergencyResponse> responses = emergencyService.getConfirmedReports();
-        return ResponseEntity.ok(responses);
+        try {
+            // TODO: 관리자 권한 확인
+            List<EmergencyResponse> responses = emergencyService.getConfirmedReports();
+            return ResponseEntity.ok(responses);
+        } catch (Exception e) {
+            // 명시적 로깅
+            System.err.println("❌ getConfirmedReports 실패: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
+        }
     }
 
     @PutMapping("/admins/reports/{id}")
