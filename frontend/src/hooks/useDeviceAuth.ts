@@ -29,7 +29,7 @@ export const useDeviceAuth = () => {
         localStorage.setItem('userRefreshToken', response.refreshToken);
         localStorage.setItem('userId', response.userId);
 
-        // 음성 인터페이스 페이지로 이동
+        // 홈 페이지로 이동
         navigate('/home');
       }
     } catch (err) {
