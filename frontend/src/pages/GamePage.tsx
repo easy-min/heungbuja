@@ -8,6 +8,7 @@ import { useSegmentUpload } from '@/hooks/useSegmentUpload';
 import { generateSessionId } from '@/utils/gameHelpers';
 import { type UploadResponse, type LyricLine } from '@/types';
 import './GamePage.css';
+const BASE_URL = import.meta.env.BASE_URL;
 
 function GamePage() {
 
@@ -55,10 +56,10 @@ function GamePage() {
 
   // === 섹션별 메타 (영상 BPM/루프 박자 수) ===
   const VIDEO_META = {
-    intro: { src: '/break.mp4', bpm: 100, loopBeats: 8 },
-    break: { src: '/break.mp4', bpm: 100, loopBeats: 8 },
-    part1: { src: '/part1.mp4', bpm: 98.5, loopBeats: 16 },
-    part2: { src: '/part2.mp4', bpm: 99, loopBeats: 16 },
+    intro: { src: `${BASE_URL}break.mp4`, bpm: 100, loopBeats: 8 },
+    break: { src: `${BASE_URL}break.mp4`, bpm: 100, loopBeats: 8 },
+    part1: { src: `${BASE_URL}part1.mp4`, bpm: 98.5, loopBeats: 16 },
+    part2: { src: `${BASE_URL}part2.mp4`, bpm: 99, loopBeats: 16 },
   } as const;
 
   type SectionKey = keyof typeof VIDEO_META;
