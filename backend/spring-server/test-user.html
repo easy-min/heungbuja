@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>흥부자 사용자 페이지</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:'Malgun Gothic',sans-serif; background:#f5f6fa; padding:30px; }
+        .container { max-width:800px; margin:0 auto; }
+        h1 { text-align:center; margin-bottom:20px; color:#333; }
+        .section { background:white; border-radius:12px; padding:20px; margin-bottom:25px; box-shadow:0 3px 10px rgba(0,0,0,0.05); }
+        input, select, textarea { width:100%; padding:10px; margin-bottom:10px; border:1px solid #ccc; border-radius:6px; font-size:14px; }
+        textarea { resize: vertical; min-height:80px; }
+        .btn { padding:10px 20px; border:none; border-radius:6px; font-weight:bold; cursor:pointer; transition:0.2s; margin-right:5px; margin-bottom:5px; }
+        .btn-primary { background:#667eea; color:white; }
+        .btn-primary:hover { background:#5568d3; }
+        .btn-success { background:#2ecc71; color:white; }
+        .btn-success:hover { background:#27ae60; }
+        .btn-danger { background:#e74c3c; color:white; }
+        .btn-danger:hover { background:#c0392b; }
+        .btn-warning { background:#f39c12; color:white; }
+        .btn-warning:hover { background:#e67e22; }
+        .btn:disabled { opacity:0.5; cursor:not-allowed; }
+        .recording { animation: pulse 1.5s infinite; }
+        @keyframes pulse {
+            0%, 100% { background:#e74c3c; }
+            50% { background:#c0392b; }
+        }
+        .music-player { background:#f8f9fa; border-radius:8px; padding:15px; margin-top:15px; }
+        .music-info { margin-bottom:10px; }
+        .music-info div { margin-bottom:5px; }
+        .control-buttons { display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; }
+        .audio-visualizer { height:50px; background:#ecf0f1; border-radius:6px; margin-bottom:10px; display:flex; align-items:center; justify-content:center; color:#7f8c8d; }
+        .response-box { margin-top:15px; padding:15px; border-radius:6px; display:none; font-family:'Courier New',monospace; font-size:13px; }
+        .response-box.show { display:block; }
+        .response-box.success { background:#d4edda; border-left:4px solid #28a745; }
+        .response-box.error { background:#f8d7da; border-left:4px solid #dc3545; }
+        .emergency-list { display:grid; grid-template-columns:1fr; gap:15px; margin-top:10px; }
+        .emergency-card { background:#fff; border-radius:10px; padding:15px; box-shadow:0 3px 8px rgba(0,0,0,0.08); transition:transform 0.2s ease,box-shadow 0.2s ease; }
+        .emergency-card.new { border-left:4px solid #f39c12; }
+        .emergency-card.resolved { border-left:4px solid #2ecc71; }
+        .emergency-card.rejected { border-left:4px solid #e74c3c; }
+        .emergency-card:hover { transform:translateY(-3px); box-shadow:0 6px 16px rgba(0,0,0,0.12); }
+        .status { font-weight:bold; }
+        .ok { color:#2ecc71; font-weight:bold; }
+        .no { color:#e74c3c; font-weight:bold; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>👴 흥부자 사용자 페이지 (v1.1 - JWT 인증)</h1>
+
+    <!-- 로그인 -->
+    <div class="section" id="login-section">
+        <div><strong>🔐 기기 로그인 (JWT 인증)</strong></div>
+        <div style="background:#fff3cd; padding:10px; border-radius:6px; margin-bottom:10px; font-size:13px;">
+            ⚠️ <strong>보안 강화 (v1.1.0)</strong><br>
+            - 모든 음성 명령 API는 JWT 인증 필수<br>
+            - userId는 JWT 토큰에서 자동 추출 (파라미터 전달 불필요)<br>
+            - 테스트용: userId=1 고정
+        </div>
+        <input type="text" id="device-serial" placeholder="DEVICE001" value="DEVICE001"/>
+        <button class="btn btn-primary" onclick="deviceLogin()">로그인</button>
+        <div id="res-device-login" class="response-box"></div>
+    </div>
+
+    <!-- 음성 명령 -->
+    <div class="section" id="voice-section" style="display:none;">
+        <div><strong>🎤 음성 명령</strong></div>
+
+        <!-- 음성 녹음 -->
+        <div style="margin-bottom:20px;">
+            <h4>음성 녹음 및 전송</h4>
+            <div style="margin-bottom:10px;">
+                <button id="btn-record" class="btn btn-danger" onclick="startRecording()">🎙️ 녹음 시작 (5초)</button>
+                <button id="btn-stop" class="btn btn-warning" onclick="stopRecording()" disabled>⏹️ 녹음 중지</button>
+                <button id="btn-send" class="btn btn-success" onclick="sendVoiceCommand()" disabled>📤 음성 전송</button>
+            </div>
+            <div class="audio-visualizer" id="record-status">녹음 대기 중...</div>
+        </div>
+
+        <!-- 텍스트 명령 (테스트용) -->
+        <div style="margin-bottom:20px;">
+            <h4>텍스트 명령 (디버깅용)</h4>
+            <input type="text" id="voice-text" placeholder="예: 태진아 노래 틀어줘" value="태진아 노래 틀어줘"/>
+            <button class="btn btn-primary" onclick="sendTextCommand()">텍스트 전송</button>
+        </div>
+
+        <!-- 응답 표시 -->
+        <div id="res-voice-command" class="response-box"></div>
+
+        <!-- 음악 재생기 -->
+        <div id="music-player" class="music-player" style="display:none;">
+            <h4>🎵 현재 재생 중</h4>
+            <div class="music-info">
+                <div><strong>곡명:</strong> <span id="song-title">-</span></div>
+                <div><strong>가수:</strong> <span id="song-artist">-</span></div>
+                <div><strong>모드:</strong> <span id="song-mode">-</span></div>
+            </div>
+            <audio id="song-audio" controls style="width:100%; margin-bottom:10px;"></audio>
+            <audio id="tts-audio" style="display:none;"></audio>
+            <div class="control-buttons">
+                <button class="btn btn-warning" onclick="sendControlCommand('잠깐')">⏸️ 일시정지</button>
+                <button class="btn btn-success" onclick="sendControlCommand('다시 틀어줘')">▶️ 재생</button>
+                <button class="btn btn-primary" onclick="sendControlCommand('다음')">⏭️ 다음곡</button>
+                <button class="btn btn-danger" onclick="sendControlCommand('그만')">⏹️ 정지</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 신고 -->
+    <div class="section" id="emergency-section" style="display:none;">
+        <div><strong>🚨 긴급 신고</strong></div>
+        <input type="text" id="emg-trigger" placeholder="트리거 단어 (예: 도와줘, 살려줘)" value="도와줘"/>
+        <input type="text" id="emg-fulltext" placeholder="전체 발화 텍스트 (예: 흥부야 도와줘)" value="흥부야 도와줘"/>
+        <select id="emg-type">
+            <option value="FALL">낙상</option>
+            <option value="MEDICAL">의료 응급</option>
+            <option value="FIRE">화재</option>
+            <option value="CRIME">범죄</option>
+            <option value="OTHER">기타</option>
+        </select>
+        <input type="text" id="emg-location" placeholder="위치 입력"/>
+        <textarea id="emg-details" placeholder="상세 설명"></textarea>
+        <button class="btn btn-primary" onclick="createEmergency()">신고하기</button>
+        <div id="res-emg-create" class="response-box"></div>
+        <div id="emg-alerts" class="emergency-list"></div>
+    </div>
+</div>
+
+<script>
+    const API_BASE = 'http://localhost:8080/api';
+    let userToken = null;
+    let userId = null;
+
+    function showResponse(id,data,isError=false){
+        const el = document.getElementById(id);
+        el.className = `response-box show ${isError?'error':'success'}`;
+        el.innerHTML = `<pre>${JSON.stringify(data,null,2)}</pre>`;
+    }
+
+    async function deviceLogin(){
+        const deviceNumber = document.getElementById('device-serial').value;
+        // ⚠️ 실제로는 사용자 선택 UI를 만들어야 하지만, 테스트를 위해 userId=1 고정
+        const testUserId = 1;
+
+        try{
+            const res = await fetch(`${API_BASE}/auth/device`,{
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({
+                    serialNumber: deviceNumber,  // ← API는 serialNumber를 받음
+                    userId: testUserId
+                })
+            });
+            const data = await res.json();
+            showResponse('res-device-login', data, !res.ok);
+            if(res.ok){
+                userToken = data.accessToken;
+                userId = testUserId; // JWT에서 추출될 userId
+                document.getElementById('login-section').style.display='none';
+                document.getElementById('voice-section').style.display='block';
+                document.getElementById('emergency-section').style.display='block';
+                alert(`✅ 로그인 성공! (userId: ${userId})`);
+            }
+        }catch(e){showResponse('res-device-login',{error:e.message},true);}
+    }
+
+    async function createEmergency(){
+        if(!userToken) return alert('로그인 필요!');
+        const body = {
+            userId: userId,
+            triggerWord: document.getElementById('emg-trigger').value || '도와줘',
+            fullText: document.getElementById('emg-fulltext').value || null,
+            emergencyType: document.getElementById('emg-type').value,
+            location: document.getElementById('emg-location').value,
+            details: document.getElementById('emg-details').value
+        };
+        try{
+            const res = await fetch(`${API_BASE}/emergency`,{
+                method:'POST',
+                headers:{'Content-Type':'application/json','Authorization':`Bearer ${userToken}`},
+                body: JSON.stringify(body)
+            });
+            const data = await res.json();
+            showResponse('res-emg-create', data, !res.ok);
+            if(res.ok) renderEmergencyAlert(data);
+        }catch(e){showResponse('res-emg-create',{error:e.message},true);}
+    }
+
+    function renderEmergencyAlert(item){
+        const container = document.getElementById('emg-alerts');
+        const card = document.createElement('div');
+        card.className='emergency-card new';
+        card.innerHTML=`
+    <div><strong>신고 #${item.reportId}</strong> - <span class="status">${item.status || 'NEW'}</span></div>
+    <div><strong>유저 ID:</strong> ${item.userId}</div>
+    <div><strong>유저 이름:</strong> ${item.userName}</div>
+    <div><strong>발화 내용:</strong> ${item.fullText || item.triggerWord}</div>
+    <div><strong>트리거 단어:</strong> ${item.triggerWord}</div>
+    <div><strong>확인 여부:</strong> ${item.isConfirmed ? '✔' : '❌'}</div>
+    <div><strong>신고 시간:</strong> ${new Date(item.reportedAt).toLocaleString()}</div>
+    <div><strong>메시지:</strong> ${item.message}</div>
+    `;
+        container.prepend(card);
+
+        // 🔊 알림 소리
+        const audio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
+        audio.play();
+    }
+
+    // ===== 음성 인터페이스 기능 =====
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let recordedBlob = null;
+
+    // 음성 녹음 시작
+    async function startRecording(){
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+            audioChunks = [];
+
+            mediaRecorder.ondataavailable = (event) => {
+                audioChunks.push(event.data);
+            };
+
+            mediaRecorder.onstop = () => {
+                recordedBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                document.getElementById('btn-send').disabled = false;
+                document.getElementById('record-status').textContent = '녹음 완료! 전송 버튼을 눌러주세요.';
+                document.getElementById('btn-record').disabled = false;
+                document.getElementById('btn-stop').disabled = true;
+                document.getElementById('btn-record').classList.remove('recording');
+            };
+
+            mediaRecorder.start();
+            document.getElementById('btn-record').disabled = true;
+            document.getElementById('btn-stop').disabled = false;
+            document.getElementById('btn-record').classList.add('recording');
+            document.getElementById('record-status').textContent = '🔴 녹음 중... (5초 후 자동 중지)';
+
+            // 5초 후 자동 중지
+            setTimeout(() => {
+                if (mediaRecorder && mediaRecorder.state === 'recording') {
+                    stopRecording();
+                }
+            }, 5000);
+
+        } catch(e) {
+            alert('마이크 접근 권한이 필요합니다: ' + e.message);
+        }
+    }
+
+    // 음성 녹음 중지
+    function stopRecording(){
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+            mediaRecorder.stop();
+            mediaRecorder.stream.getTracks().forEach(track => track.stop());
+        }
+    }
+
+    // 음성 파일 전송 (음성 직접 응답)
+    async function sendVoiceCommand(){
+        if(!userToken) return alert('로그인이 필요합니다!');
+        if(!recordedBlob) return alert('녹음된 파일이 없습니다!');
+
+        const formData = new FormData();
+        // ⚠️ userId는 제거! JWT 토큰에서 자동 추출됨
+        formData.append('audioFile', recordedBlob, 'voice.webm');
+
+        try{
+            document.getElementById('record-status').textContent = '⏳ 음성 인식 중...';
+            const res = await fetch(`${API_BASE}/commands/process`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${userToken}`
+                    // ⚠️ Content-Type은 설정하지 마세요! (자동 설정됨)
+                },
+                body: formData
+            });
+
+            // JSON 응답 파싱
+            const data = await res.json();
+
+            console.log('📥 JSON 응답:');
+            console.log('  HTTP Status:', res.status, res.statusText);
+            console.log('  success:', data.success);
+            console.log('  intent:', data.intent);
+            console.log('  responseText:', data.responseText);
+            console.log('  songInfo:', data.songInfo);
+            console.log('  screenTransition:', data.screenTransition);
+            console.log('  ttsAudioUrl:', data.ttsAudioUrl);
+
+            // 응답 정보 표시
+            const responseData = {
+                httpStatus: res.status,
+                success: data.success,
+                intent: data.intent,
+                responseText: data.responseText,
+                songInfo: data.songInfo,
+                screenTransition: data.screenTransition
+            };
+            showResponse('res-voice-command', responseData, !data.success);
+
+            // 음성/화면 전환 처리
+            handleVoiceResponse(data);
+
+            document.getElementById('btn-send').disabled = true;
+            document.getElementById('record-status').textContent = '녹음 대기 중...';
+            recordedBlob = null;
+
+        }catch(e){
+            console.error('❌ 예외 발생:', e);
+            showResponse('res-voice-command',{error:e.message},true);
+            document.getElementById('record-status').textContent = '오류 발생!';
+        }
+    }
+
+    // 텍스트 명령 전송
+    async function sendTextCommand(){
+        if(!userToken) return alert('로그인이 필요합니다!');
+
+        const text = document.getElementById('voice-text').value;
+        try{
+            const res = await fetch(`${API_BASE}/commands/text`,{
+                method:'POST',
+                headers:{
+                    'Content-Type':'application/json',
+                    'Authorization': `Bearer ${userToken}` // ⭐ JWT 토큰 추가
+                },
+                body:JSON.stringify({userId: userId, text: text})
+            });
+            const data = await res.json();
+            showResponse('res-voice-command', data, !res.ok);
+
+            if(res.ok && data.success){
+                handleVoiceResponse(data);
+            }
+        }catch(e){showResponse('res-voice-command',{error:e.message},true);}
+    }
+
+    // 재생 제어 명령
+    async function sendControlCommand(command){
+        document.getElementById('voice-text').value = command;
+        await sendTextCommand();
+    }
+
+    // 음성 응답 처리
+    async function handleVoiceResponse(data){
+        console.log('📥 응답 처리:', data);
+
+        // 1. Intent 기반 통합 액션 처리
+        handleIntentActions(data);
+
+        // 2. TTS 음성 재생
+        const ttsAudio = document.getElementById('tts-audio');
+        if(data.ttsAudioUrl){
+            console.log('🔊 TTS 재생:', data.ttsAudioUrl.substring(0, 50) + '...');
+            ttsAudio.src = data.ttsAudioUrl.startsWith('data:')
+                ? data.ttsAudioUrl
+                : API_BASE + data.ttsAudioUrl;
+            ttsAudio.play()
+                .then(() => console.log('✅ TTS 재생 시작'))
+                .catch(err => console.error('❌ TTS 재생 실패:', err));
+        }
+
+        // 3. 노래 정보 표시
+        if(data.songInfo){
+            const player = document.getElementById('music-player');
+            player.style.display = 'block';
+
+            document.getElementById('song-title').textContent = data.songInfo.title || '-';
+            document.getElementById('song-artist').textContent = data.songInfo.artist || '-';
+            document.getElementById('song-mode').textContent = data.songInfo.mode || 'LISTENING';
+
+            if(data.songInfo.audioUrl){
+                const songAudio = document.getElementById('song-audio');
+                songAudio.src = data.songInfo.audioUrl;
+
+                // TTS 재생 후 노래 재생
+                ttsAudio.onended = () => {
+                    songAudio.play();
+                    console.log('🎵 노래 재생 시작');
+                };
+            }
+        }
+
+        // 4. 화면 전환 처리
+        if(data.screenTransition){
+            handleScreenTransition(data.screenTransition);
+        }
+    }
+
+    /**
+     * Intent 기반 통합 액션 처리
+     */
+    function handleIntentActions(data){
+        const songAudio = document.getElementById('song-audio');
+        const ttsAudio = document.getElementById('tts-audio');
+
+        console.log('🎯 Intent 처리:', data.intent);
+
+        switch(data.intent){
+            // === 음악 재생 제어 ===
+            case 'MUSIC_PAUSE':
+                songAudio.pause();
+                console.log('⏸️ 음악 일시정지');
+                break;
+
+            case 'MUSIC_RESUME':
+                songAudio.play();
+                console.log('▶️ 음악 재생');
+                break;
+
+            case 'MUSIC_NEXT':
+                songAudio.currentTime = 0;
+                songAudio.play();
+                console.log('⏭️ 다음 곡 (처음으로)');
+                break;
+
+            case 'MUSIC_STOP':
+                songAudio.pause();
+                songAudio.currentTime = 0;
+                document.getElementById('music-player').style.display = 'none';
+                console.log('⏹️ 음악 정지');
+                break;
+
+            // === 모드 전환 ===
+            case 'MODE_HOME':
+                stopAllMedia();
+                document.getElementById('music-player').style.display = 'none';
+                console.log('🏠 홈 모드로 전환');
+                break;
+
+            case 'MODE_LISTENING':
+                console.log('🎧 감상 모드로 전환');
+                break;
+
+            case 'MODE_EXERCISE':
+                console.log('💪 게임 모드로 전환');
+                break;
+
+            case 'MODE_EXERCISE_END':
+                console.log('🏁 게임 종료');
+                break;
+
+            // === 응급 상황 ===
+            case 'EMERGENCY':
+                stopAllMedia();
+                document.getElementById('music-player').style.display = 'none';
+                alert('🚨 응급 상황이 감지되었습니다!');
+                console.log('🚨 응급 상황 처리 완료');
+                break;
+
+            case 'EMERGENCY_CANCEL':
+                console.log('✅ 응급 상황 취소됨');
+                break;
+
+            // === 기타 ===
+            case 'UNKNOWN':
+                console.log('❓ 인식되지 않은 명령');
+                break;
+
+            default:
+                // 노래 검색 등 기타 intent는 songInfo로 처리
+                break;
+        }
+    }
+
+    /**
+     * 화면 전환 처리
+     */
+    function handleScreenTransition(transition){
+        console.log('🎯 화면 전환:', transition.targetScreen, '/', transition.action);
+
+        switch(transition.action){
+            case 'START_GAME':
+                console.log('🎮 게임 시작:', transition.data);
+                // TODO: 실제 라우터로 /game 이동
+                break;
+
+            case 'END_GAME':
+                console.log('🏠 게임 종료, 홈으로 이동');
+                // TODO: 실제 라우터로 /home 이동
+                break;
+
+            case 'PLAY_SONG':
+                console.log('🎵 음악 재생 화면으로:', transition.data);
+                // TODO: 실제 라우터로 /listening 이동
+                break;
+
+            default:
+                console.log('❓ 알 수 없는 화면 전환:', transition.action);
+        }
+    }
+
+    /**
+     * 모든 미디어 중단
+     */
+    function stopAllMedia(){
+        const songAudio = document.getElementById('song-audio');
+        const ttsAudio = document.getElementById('tts-audio');
+
+        if(songAudio){
+            songAudio.pause();
+            songAudio.currentTime = 0;
+        }
+        if(ttsAudio){
+            ttsAudio.pause();
+            ttsAudio.currentTime = 0;
+        }
+
+        console.log('🛑 모든 미디어 중단');
+    }
+
+</script>
+</body>
+</html>
