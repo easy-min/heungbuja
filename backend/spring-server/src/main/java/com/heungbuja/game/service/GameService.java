@@ -25,6 +25,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.beans.factory.annotation.Value;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
@@ -48,6 +49,9 @@ public class GameService {
     /** Redis 세션 만료 시간 (분) */
     private static final int SESSION_TIMEOUT_MINUTES = 30;
     private static final int JUDGMENT_PERFECT = 3;
+    // --- application.yml에서 서버 기본 주소 읽어오기 ---
+    @Value("${app.base-url:http://localhost:8080/api}") // 기본값은 로컬
+    private String baseUrl;
 
     // --- 의존성 주입 ---
     private final UserRepository userRepository;
@@ -58,7 +62,7 @@ public class GameService {
     private final RedisTemplate<String, GameState> gameStateRedisTemplate;
     private final WebClient webClient;
     private final GameResultRepository gameResultRepository;
-    private final MediaUrlService mediaUrlService;
+//    private final MediaUrlService mediaUrlService;
     private final SimpMessagingTemplate messagingTemplate;
 //    private final ScoringStrategyFactory scoringStrategyFactory;
 
@@ -124,20 +128,18 @@ public class GameService {
         log.info("새로운 게임 세션 시작: userId={}, sessionId={}", user.getId(), sessionId);
 
         // 1-5. Presigned URL 생성 (1절 영상 URL 등도 여기서 생성해야 함)
-        String audioUrl = mediaUrlService.issueUrlById(song.getMedia().getId());
-        // --- ▼ 모든 시범 영상 URL들을 Map으로 관리 ▼ ---
+//        String audioUrl = mediaUrlService.issueUrlById(song.getMedia().getId());
+
+        // WebClient를 사용하여 MediaController의 테스트 엔드포인트를 호출합니다.
+        // 이 호출들은 동기적으로(순서대로) 작동하여 결과를 받아옵니다.
+        String audioUrl = getTestUrl("/media/test");
+
         Map<String, String> videoUrls = new HashMap<>();
-
-        // TODO: 인트로 시범 영상에 대한 Media ID를 찾아서 URL을 생성하는 로직 필요
-        videoUrls.put("intro", "https://example.com/video_intro.mp4"); // 임시 URL
-
-        // TODO: 1절 시범 영상에 대한 Media ID를 찾아서 URL을 생성하는 로직 필요
-        videoUrls.put("verse1", "https://example.com/video_v1.mp4"); // 임시 URL
-
-        // TODO: 2절 레벨 1, 2, 3 영상 Media ID를 찾아 URL을 생성하는 로직 필요
-        //       (미리 모두 생성해서 보내주면, 프론트가 1절 종료 후 바로 영상을 교체할 수 있음)
-        videoUrls.put("verse2_level1", "https://example.com/video_v2_level1.mp4"); // 임시 URL
-        videoUrls.put("verse2_level2", "https://example.com/video_v2_level2.mp4"); // 임시 URL
+        videoUrls.put("intro", getTestUrl("/media/test/video/break"));
+        videoUrls.put("verse1", getTestUrl("/media/test/video/part1"));
+        videoUrls.put("verse2_level1", getTestUrl("/media/test/video/part2_1"));
+        videoUrls.put("verse2_level2", getTestUrl("/media/test/video/part2_2"));
+        // TODO: 2절 3단계 영상 URL을 위한 테스트 엔드포인트가 필요합니다.
         videoUrls.put("verse2_level3", "https://example.com/video_v2_level3.mp4"); // 임시 URL
         // --- ▲ ---------------------------------------------------- ▲ ---
 
@@ -151,6 +153,25 @@ public class GameService {
                 .sectionInfo(sectionInfo) // 가공된 데이터 전달
                 .lyricsInfo(lyricsInfo)     // 가사 정보는 그대로 전달
                 .build();
+    }
+
+    // --- ▼ (신규) 테스트용 URL을 받아오는 헬퍼 메소드 추가 ▼ ---
+    private String getTestUrl(String path) {
+        try {
+            // WebClient를 동기적으로 사용하여 GET 요청을 보내고 결과를 바로 받습니다.
+            Map<String, String> response = webClient.get()
+                    .uri(baseUrl + path)
+                    .retrieve()
+                    .bodyToMono(Map.class) // 응답 본문을 Map으로 변환
+                    .block(); // 비동기 작업이 끝날 때까지 기다림
+
+            if (response != null && response.containsKey("url")) {
+                return response.get("url");
+            }
+        } catch (Exception e) {
+            log.error("테스트 URL({})을 가져오는 데 실패했습니다: {}", path, e.getMessage());
+        }
+        return "https://example.com/error.mp4"; // 실패 시 반환할 기본 URL
     }
 
     /**

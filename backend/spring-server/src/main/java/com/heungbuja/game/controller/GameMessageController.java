@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.stereotype.Controller;
+import java.util.Map;
 
 @Slf4j
 @Controller // STOMP 메시지 처리는 @RestController가 아닌 @Controller를 사용합니다.
