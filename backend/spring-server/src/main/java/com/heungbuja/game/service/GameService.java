@@ -105,18 +105,44 @@ public class GameService {
                         section -> barStartTimes.getOrDefault(section.getStartBar(), 0.0)
                 ));
 
-        // 3. part1, part2의 16비트(4마디) 묶음별 시작 시간 리스트 계산
-        List<Double> verse1SegmentTimes = calculateSegmentStartTimes(songBeat, barStartTimes, "verse1");
-        List<Double> verse2SegmentTimes = calculateSegmentStartTimes(songBeat, barStartTimes, "verse2");
+        // --- ▼ (핵심 수정) verse1cam, verse2cam 시간 계산 로직 추가 ▼ ---
 
-        // 4. 프론트에 전달할 SectionInfo 객체 생성
+        // A. 비트 번호(i)를 키로, 비트 시간(t)을 값으로 갖는 Map을 미리 생성 (시간 조회 성능 향상)
+        Map<Integer, Double> beatNumToTimeMap = songBeat.getBeats().stream()
+                .collect(Collectors.toMap(SongBeat.Beat::getI, SongBeat.Beat::getT));
+
+        // B. verse1, verse2 섹션 객체를 찾습니다.
+        SongBeat.Section verse1Section = findSectionByLabel(songBeat, "verse1");
+        SongBeat.Section verse2Section = findSectionByLabel(songBeat, "verse2");
+
+        // C. verse1cam의 시작/종료 시간 계산
+        // 시작: 1절 시작 비트 + 16 비트
+        int verse1CamStartBeat = verse1Section.getStartBeat() + 16;
+        // 종료: 1절 시작 비트 + 16 비트 + (16 * 6) 비트
+        int verse1CamEndBeat = verse1CamStartBeat + (16 * 6);
+
+        SectionInfo.VerseInfo verse1CamInfo = SectionInfo.VerseInfo.builder()
+                .startTime(beatNumToTimeMap.getOrDefault(verse1CamStartBeat, 0.0))
+                .endTime(beatNumToTimeMap.getOrDefault(verse1CamEndBeat, 0.0))
+                .build();
+
+        // D. verse2cam의 시작/종료 시간 계산 (1절과 동일한 로직)
+        int verse2CamStartBeat = verse2Section.getStartBeat() + 16;
+        int verse2CamEndBeat = verse2CamStartBeat + (16 * 6);
+
+        SectionInfo.VerseInfo verse2CamInfo = SectionInfo.VerseInfo.builder()
+                .startTime(beatNumToTimeMap.getOrDefault(verse2CamStartBeat, 0.0))
+                .endTime(beatNumToTimeMap.getOrDefault(verse2CamEndBeat, 0.0))
+                .build();
+
+        // E. 최종 SectionInfo 객체를 생성합니다.
         SectionInfo sectionInfo = SectionInfo.builder()
                 .introStartTime(sectionStartTimes.getOrDefault("intro", 0.0))
                 .verse1StartTime(sectionStartTimes.getOrDefault("verse1", 0.0))
                 .breakStartTime(sectionStartTimes.getOrDefault("break", 0.0))
                 .verse2StartTime(sectionStartTimes.getOrDefault("verse2", 0.0))
-                .verse1SegmentStartTimes(verse1SegmentTimes)
-                .verse2SegmentStartTimes(verse2SegmentTimes)
+                .verse1cam(verse1CamInfo)
+                .verse2cam(verse2CamInfo)
                 .build();
 
         // --- ▲ 데이터 가공 로직 종료 ▲ ---
@@ -146,6 +172,9 @@ public class GameService {
         // 1-6. 최종 응답 생성
         return GameStartResponse.builder()
                 .sessionId(sessionId)
+                .songId(song.getId())
+                .songTitle(song.getTitle())
+                .songArtist(song.getArtist())
                 .audioUrl(audioUrl)
                 .videoUrls(videoUrls)
                 .bpm(songBeat.getTempoMap().get(0).getBpm()) // 첫 번째 BPM 값 사용
@@ -154,6 +183,25 @@ public class GameService {
                 .lyricsInfo(lyricsInfo)     // 가사 정보는 그대로 전달
                 .build();
     }
+
+    /**
+     * SongBeat 데이터에서 레이블(label)로 특정 섹션 정보를 찾는 헬퍼 메소드
+     * @param songBeat 비트 정보 전체가 담긴 객체
+     * @param sectionLabel 찾고 싶은 섹션의 이름 (예: "intro", "verse1", "break")
+     * @return 찾아낸 Section 객체. 없으면 예외 발생.
+     */
+    private SongBeat.Section findSectionByLabel(SongBeat songBeat, String sectionLabel) {
+        return songBeat.getSections().stream()
+                .filter(s -> sectionLabel.equals(s.getLabel()))
+                .findFirst()
+                .orElseThrow(() -> {
+                    // 에러 로그를 남겨서 디버깅이 용이하도록 함
+                    log.error("'{}' 섹션을 찾을 수 없습니다. (songId: {})", sectionLabel, songBeat.getSongId());
+                    // 프론트엔드에 전달될 명확한 에러 메시지
+                    return new CustomException(ErrorCode.GAME_METADATA_NOT_FOUND, "'" + sectionLabel + "' 섹션 정보가 누락되었습니다.");
+                });
+    }
+
 
     // --- ▼ (신규) 테스트용 URL을 받아오는 헬퍼 메소드 추가 ▼ ---
     private String getTestUrl(String path) {
