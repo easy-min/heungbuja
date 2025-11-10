@@ -435,7 +435,6 @@ function GamePage() {
 
   function handleAllComplete() {
     console.log('🎉 모든 세그먼트 완료!');    
-    navigate('/result');
   }
 
   function handleUploadSuccess(segmentIndex: number, response?: UploadResponse) {
