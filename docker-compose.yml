@@ -133,6 +133,22 @@ services:
     restart: unless-stopped
     networks: [app-net]
 
+  admin:
+    container_name: heungbuja-admin
+    build:
+      context: ./admin
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: "/api"
+    depends_on:
+      spring:
+        condition: service_started
+    # Optional host port for direct access during debugging
+    ports:
+      - "3001:80"
+    restart: unless-stopped
+    networks: [app-net]
+
   nginx:
     image: nginx:1.27-alpine
     container_name: heungbuja-nginx
@@ -172,10 +188,10 @@ services:
     entrypoint: >
       sh -c "certbot certonly --webroot \
       --webroot-path=/var/www/certbot \
-      --email your@email.com \
+      --email leeduddn98@gmail.com \
       --agree-tos \
       --no-eff-email \
-      -d k13a103.p.ssafy.io"
+      -d heungbuja.site -d www.heungbuja.site"
     networks: [app-net]
 
 networks:

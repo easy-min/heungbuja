@@ -1,15 +1,14 @@
 package com.heungbuja.game.dto;
-import com.heungbuja.song.domain.SongBeat;
-import com.heungbuja.song.domain.SongChoreography;
+
 import com.heungbuja.song.domain.SongLyrics;
 import lombok.Builder;
 import lombok.Getter;
+import java.util.List;
+import java.util.Map;
+
 @Getter
 @Builder
 public class GameStartResponse {
-    /**
-     * 이 게임 세션을 식별하는 고유 ID
-     */
     private String sessionId;
 
     /**
@@ -33,17 +32,19 @@ public class GameStartResponse {
     private String audioUrl;
 
     /**
-     * 노래의 모든 비트 및 섹션 정보
+     * 영상 URL 맵 (intro, verse1, verse2_level1, verse2_level2, verse2_level3)
      */
-    private SongBeat beatInfo;
+    private Map<String, String> videoUrls;
 
-    /**
-     * 노래의 모든 가사 정보
-     */
+    /** 노래의 BPM (Beats Per Minute) */
+    private double bpm;
+
+    /** 노래 전체 길이 (초) */
+    private double duration;
+
+    /** 노래의 주요 섹션별 시작 시간 정보 */
+    private SectionInfo sectionInfo;
+
+    /** 가사 정보 (원본 JSON 그대로 전달) */
     private SongLyrics lyricsInfo;
-
-    /**
-     * 노래의 모든 안무 정보 (1, 2, 3단계 포함)
-     */
-    private SongChoreography choreographyInfo;
 }

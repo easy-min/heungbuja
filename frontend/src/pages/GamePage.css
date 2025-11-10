@@ -1,0 +1,241 @@
+/* 전체 레이아웃 */
+.game-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  background-color: #000;
+  color: #fff;
+  overflow: hidden;
+}
+
+/* 상단: 비디오 컨테이너 (80%) */
+.video-container {
+  flex: 8;
+  display: flex;
+  flex-direction: row;
+  gap: 0;
+}
+
+/* 왼쪽: 캐릭터 (50%) */
+.character-section {
+  flex: 1;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-right: 2px solid #fff;
+}
+
+.character-section .placeholder {
+  text-align: center;
+  opacity: 0.7;
+}
+
+.character-section .placeholder h2 {
+  font-size: 2rem;
+  margin-bottom: 10px;
+}
+
+.character-section .placeholder p {
+  font-size: 1.2rem;
+}
+
+/* 오른쪽: 카메라 (50%) */
+.camera-section {
+  flex: 1;
+  position: relative;
+  background-color: #1a1a1a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.camera-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1); /* 거울 효과 */
+}
+
+.capture-canvas {
+  display: none;
+}
+
+/* 세그먼트 정보 */
+.segment-info {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 10px 20px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.segment-number {
+  font-size: 1.5rem;
+  font-weight: bold;
+}
+
+.capturing-badge,
+.uploading-badge {
+  font-size: 1rem;
+  padding: 5px 10px;
+  border-radius: 5px;
+  background-color: #ff4444;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* 에러/로딩 메시지 */
+.error-message,
+.loading-message {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.9);
+  padding: 20px 40px;
+  border-radius: 10px;
+  font-size: 1.2rem;
+  text-align: center;
+}
+
+.error-message {
+  color: #ff4444;
+  border: 2px solid #ff4444;
+}
+
+.loading-message {
+  color: #44ff44;
+  border: 2px solid #44ff44;
+}
+
+/* 하단: 가사 (20%) */
+.lyrics-container {
+  flex: 2;
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-top: 2px solid #fff;
+}
+
+.lyrics-container .placeholder {
+  text-align: center;
+  opacity: 0.7;
+}
+
+.lyrics-container .placeholder h3 {
+  font-size: 1.5rem;
+  margin-bottom: 5px;
+}
+
+.lyrics-container .placeholder p {
+  font-size: 1rem;
+}
+
+/* 테스트 컨트롤 */
+.test-controls {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.9);
+  padding: 20px;
+  border-radius: 15px;
+  border: 2px solid #fff;
+  z-index: 1000;
+  min-width: 500px;
+}
+
+.audio-container {
+  margin-bottom: 15px;
+}
+
+.audio-container audio {
+  width: 100%;
+}
+
+.button-group {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.button-group button {
+  flex: 1;
+  padding: 12px 20px;
+  font-size: 1rem;
+  font-weight: bold;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.btn-start {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+}
+
+.btn-start:hover:not(:disabled) {
+  transform: scale(1.05);
+  box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+}
+
+.btn-stop {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: #fff;
+}
+
+.btn-stop:hover:not(:disabled) {
+  transform: scale(1.05);
+  box-shadow: 0 5px 15px rgba(245, 87, 108, 0.4);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 디버그 정보 */
+.debug-info {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-family: 'Courier New', monospace;
+}
+
+.debug-info div {
+  margin: 5px 0;
+}
+
+/* 반응형 (옵션) */
+@media (max-width: 1024px) {
+  .video-container {
+    flex-direction: column;
+  }
+
+  .character-section,
+  .camera-section {
+    flex: 1;
+    border: none;
+  }
+
+  .character-section {
+    border-bottom: 2px solid #fff;
+  }
+
+  .test-controls {
+    min-width: 90%;
+  }
+}

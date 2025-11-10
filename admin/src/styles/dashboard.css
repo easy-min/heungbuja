@@ -1,0 +1,30 @@
+/* 대시보드 페이지 스타일 */
+.dashboard-container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #eef1f6 0%, #f8f9fb 100%);
+  padding: 30px;
+}
+
+.dashboard-content {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* 반응형 */
+@media (max-width: 768px) {
+  .dashboard-container {
+    padding: 20px;
+  }
+
+  .dashboard-header h1 {
+    font-size: 22px;
+  }
+
+  .section {
+    padding: 20px;
+  }
+
+  .section-title {
+    font-size: 18px;
+  }
+}

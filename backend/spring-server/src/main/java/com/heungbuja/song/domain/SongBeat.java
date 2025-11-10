@@ -15,10 +15,13 @@ public class SongBeat {
 
     @Id
     private String id; // MongoDB의 고유 ID인 "_id"와 매핑됩니다.
-
+    private Long songId;  // Mysql의 song.id 와 연결될 필드
+    
     private Audio audio;
     private List<Beat> beats;
     private List<Section> sections;
+
+    private List<Tempo> tempoMap;
 
     // JSON 내부의 객체들은 내부 클래스로 표현하면 편리합니다.
     @Getter
@@ -42,5 +45,11 @@ public class SongBeat {
         private int endBeat;
         private int startBar;
         private int endBar;
+    }
+
+    @Getter
+    public static class Tempo {
+        private double t;
+        private double bpm;
     }
 }

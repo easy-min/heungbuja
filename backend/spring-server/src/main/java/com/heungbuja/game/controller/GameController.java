@@ -4,8 +4,6 @@ import com.heungbuja.common.exception.CustomException;
 import com.heungbuja.common.exception.ErrorCode;
 import org.springframework.http.HttpStatus;
 
-import com.heungbuja.game.dto.FrameBatchRequest;
-import com.heungbuja.game.dto.FrameBatchResponse;
 import com.heungbuja.game.dto.GameStartRequest;
 import com.heungbuja.game.dto.GameStartResponse;
 import com.heungbuja.game.service.GameService;
@@ -45,16 +43,6 @@ public class GameController {
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * 프레임 묶음 분석 요청 API
-     * @param request (sessionId, images, isLastBatchOfVerse1)
-     * @return 분석 상태 및 (1절 종료 시) 다음 레벨 정보
-     */
-    @PostMapping("/frame")
-    public ResponseEntity<FrameBatchResponse> analyzeFrames(@RequestBody FrameBatchRequest request) {
-        FrameBatchResponse response = gameService.analyzeFrameBatch(request);
-        return ResponseEntity.ok(response);
-    }
     /**
      * 게임 종료 API
      * @param sessionId 종료할 게임 세션 ID

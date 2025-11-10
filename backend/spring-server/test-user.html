@@ -366,8 +366,10 @@
                 console.log('  songTitle:', data.screenTransition.data.songTitle);
                 console.log('  songArtist:', data.screenTransition.data.songArtist);
                 console.log('  audioUrl:', data.screenTransition.data.audioUrl);
-                console.log('  beatInfo:', data.screenTransition.data.beatInfo);
-                console.log('  choreographyInfo:', data.screenTransition.data.choreographyInfo);
+                console.log('  videoUrls:', data.screenTransition.data.videoUrls);
+                console.log('  bpm:', data.screenTransition.data.bpm);
+                console.log('  duration:', data.screenTransition.data.duration);
+                console.log('  sectionInfo:', data.screenTransition.data.sectionInfo);
                 console.log('  lyricsInfo:', data.screenTransition.data.lyricsInfo);
             }
         }
@@ -376,7 +378,10 @@
         const ttsAudio = document.getElementById('tts-audio');
         if(data.ttsAudioUrl){
             console.log('🔊 ttsAudioUrl 사용:', data.ttsAudioUrl);
-            ttsAudio.src = API_BASE + data.ttsAudioUrl;
+            // Data URI는 그대로 사용, 일반 URL은 API_BASE 추가
+            ttsAudio.src = data.ttsAudioUrl.startsWith('data:')
+                ? data.ttsAudioUrl
+                : API_BASE + data.ttsAudioUrl;
             ttsAudio.play()
                 .then(() => console.log('✅ 음성 재생 시작'))
                 .catch(err => console.error('❌ 음성 재생 실패:', err));

@@ -1,0 +1,78 @@
+/* 신고 카드 스타일 */
+.emergency-card {
+  background: #fff;
+  border-radius: 10px;
+  padding: 15px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.08);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.emergency-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+}
+
+.emergency-card .card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #eee;
+}
+
+.emergency-card .report-id {
+  color: #667eea;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.emergency-card .card-body {
+  margin-bottom: 15px;
+}
+
+.emergency-card .card-row {
+  margin-bottom: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.emergency-card .card-row strong {
+  color: #555;
+  margin-right: 5px;
+}
+
+.emergency-card .resolved-info {
+  color: #2ecc71;
+  font-weight: 500;
+}
+
+.emergency-card .resolved-label {
+  margin-top: 10px;
+  background: #2ecc71;
+  color: white;
+  text-align: center;
+  border-radius: 6px;
+  padding: 10px 0;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+/* 상태별 스타일 */
+.emergency-card.pending {
+  border-left: 4px solid #f39c12;
+}
+
+.emergency-card.confirmed {
+  border-left: 4px solid #e74c3c;
+}
+
+.emergency-card.resolved {
+  border-left: 4px solid #2ecc71;
+  opacity: 0.8;
+}
+
+.emergency-card.false_alarm {
+  border-left: 4px solid #95a5a6;
+  opacity: 0.7;
+}

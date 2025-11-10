@@ -61,7 +61,7 @@ public class MediaUrlService {
 
 
     public String testPresignedUrl() {
-        String s3Key = "song/장윤정_어머나.mp3";  // S3에 실제 있는 파일 경로
+        String s3Key = "song/당돌한여자.mp3";  // S3에 실제 있는 파일 경로
 
         GetObjectRequest getObjectRequest = GetObjectRequest.builder()
                 .bucket(bucket)

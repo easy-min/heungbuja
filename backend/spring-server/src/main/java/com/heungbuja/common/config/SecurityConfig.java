@@ -39,8 +39,9 @@ public class SecurityConfig {
                         .requestMatchers("/media/test", "/media/test/**").permitAll()
                         .requestMatchers("/ws/**").permitAll()
 
-                        // Voice & Commands - JWT 인증 필요 (보안 강화)
-                        .requestMatchers("/commands/**").authenticated()
+                        // Voice & Commands
+                        .requestMatchers("/commands/tts/**").permitAll()  // TTS 다운로드는 인증 불필요
+                        .requestMatchers("/commands/**").authenticated()  // 명령 처리는 JWT 필요
 
                         // Emergency (Public - 응급 상황은 인증 없이 허용)
                         .requestMatchers("/emergency").permitAll()
@@ -55,6 +56,8 @@ public class SecurityConfig {
                         .requestMatchers("/admins/users/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPER_ADMIN", "ROLE_USER")
                         .requestMatchers("/emergency/admins/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPER_ADMIN")
 
+                        .requestMatchers("/api/game/**").permitAll()  // ---- 우선 game 요청 허용
+                        
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

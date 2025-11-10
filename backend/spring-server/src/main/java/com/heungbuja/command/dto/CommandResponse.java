@@ -57,7 +57,7 @@ public class CommandResponse {
     }
 
     /**
-     * 노래 정보 + 화면 전환과 함께 응답 생성 (JSON 응답용)
+     * 노래 정보 + 화면 전환과 함께 응답 생성 (ttsAudioUrl 없음)
      */
     public static CommandResponse withSongAndScreen(Intent intent, String responseText,
                                                      SongInfoDto songInfo,
@@ -66,7 +66,7 @@ public class CommandResponse {
                 .success(true)
                 .intent(intent)
                 .responseText(responseText)
-                .ttsAudioUrl(null)  // JSON 응답 시에는 별도 TTS URL 불필요
+                .ttsAudioUrl(null)  // 음성은 별도로 처리하지 않음
                 .songInfo(songInfo)
                 .screenTransition(screenTransition)
                 .build();

@@ -310,9 +310,10 @@ public class CommandServiceImpl implements CommandService {
                 selectedSong = songService.searchByArtist(""); // 임시: 아무 노래나 선택
             }
         } catch (Exception e) {
-            log.error("게임용 노래 선택 실패: {} - {}", e.getClass().getSimpleName(), e.getMessage());
+            log.error("게임용 노래 선택 실패: userId={}", user.getId(), e);
             String errorText = "게임을 시작할 노래를 찾을 수 없습니다";
-            return CommandResponse.failure(Intent.MODE_EXERCISE, errorText, null);
+            String ttsUrl = ttsService.synthesize(errorText);
+            return CommandResponse.failure(Intent.MODE_EXERCISE, errorText, "/commands/tts/" + ttsUrl);
         }
 
         // 2. 게임 시작
@@ -337,8 +338,10 @@ public class CommandServiceImpl implements CommandService {
         gameData.put("songTitle", gameResponse.getSongTitle());
         gameData.put("songArtist", gameResponse.getSongArtist());
         gameData.put("audioUrl", gameResponse.getAudioUrl());
-        gameData.put("beatInfo", gameResponse.getBeatInfo());
-        gameData.put("choreographyInfo", gameResponse.getChoreographyInfo());
+        gameData.put("videoUrls", gameResponse.getVideoUrls());
+        gameData.put("bpm", gameResponse.getBpm());
+        gameData.put("duration", gameResponse.getDuration());
+        gameData.put("sectionInfo", gameResponse.getSectionInfo());
         gameData.put("lyricsInfo", gameResponse.getLyricsInfo());
 
         CommandResponse.ScreenTransition screenTransition = CommandResponse.ScreenTransition.builder()
