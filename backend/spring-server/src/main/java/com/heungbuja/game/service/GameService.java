@@ -91,6 +91,9 @@ public class GameService {
         // 1-6. 프론트엔드에 필요한 모든 정보를 담아 응답
         return GameStartResponse.builder()
                 .sessionId(sessionId)
+                .songId(song.getId())
+                .songTitle(song.getTitle())
+                .songArtist(song.getArtist())
                 .audioUrl(presignedUrl)
                 .beatInfo(beatInfo)
                 .lyricsInfo(lyricsInfo)

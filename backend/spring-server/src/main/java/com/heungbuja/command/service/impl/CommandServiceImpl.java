@@ -10,6 +10,8 @@ import com.heungbuja.common.exception.CustomException;
 import com.heungbuja.common.exception.ErrorCode;
 import com.heungbuja.emergency.dto.EmergencyRequest;
 import com.heungbuja.emergency.service.EmergencyService;
+import com.heungbuja.game.dto.GameStartRequest;
+import com.heungbuja.game.dto.GameStartResponse;
 import com.heungbuja.song.dto.SongInfoDto;
 import com.heungbuja.song.entity.Song;
 import com.heungbuja.song.enums.PlaybackMode;
@@ -25,6 +27,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * 통합 명령 처리 서비스 구현체
@@ -52,6 +57,7 @@ public class CommandServiceImpl implements CommandService {
     private final EmergencyService emergencyService;
     private final com.heungbuja.s3.service.MediaUrlService mediaUrlService;
     private final com.heungbuja.context.service.ConversationContextService conversationContextService;
+    private final com.heungbuja.game.service.GameService gameService;
 
     // 기타
     private final VoiceCommandRepository voiceCommandRepository;
@@ -64,7 +70,7 @@ public class CommandServiceImpl implements CommandService {
      * 트랜잭션을 롤백하지 않도록 설정
      */
     @Override
-    @Transactional(noRollbackFor = {CustomException.class, Exception.class})
+    @Transactional(noRollbackFor = CustomException.class)
     public CommandResponse processTextCommand(CommandRequest request) {
         User user = userService.findById(request.getUserId());
         String text = request.getText().trim();
@@ -131,8 +137,8 @@ public class CommandServiceImpl implements CommandService {
             // 모드 관련 (프론트가 관리하므로 TTS 응답만)
             case MODE_HOME -> handleModeChange(user, Intent.MODE_HOME, PlaybackMode.HOME);
             case MODE_LISTENING -> handleModeChange(user, Intent.MODE_LISTENING, PlaybackMode.LISTENING);
-            case MODE_EXERCISE -> handleModeChange(user, Intent.MODE_EXERCISE, PlaybackMode.EXERCISE);
-            case MODE_EXERCISE_END -> handleSimpleResponse(user, Intent.MODE_EXERCISE_END);
+            case MODE_EXERCISE -> handleGameStart(user);
+            case MODE_EXERCISE_END -> handleGameEnd(user);
 
             // 응급 상황
             case EMERGENCY -> handleEmergency(user, intentResult);
@@ -165,13 +171,23 @@ public class CommandServiceImpl implements CommandService {
         String presignedUrl = mediaUrlService.issueUrlById(song.getMedia().getId());
 
         String responseText = responseGenerator.generateResponse(Intent.SELECT_BY_ARTIST, song.getArtist(), song.getTitle());
-        String ttsUrl = ttsService.synthesize(responseText);
 
-        return CommandResponse.withSong(
+        // 화면 전환 정보 생성
+        Map<String, Object> screenData = new HashMap<>();
+        screenData.put("songId", song.getId());
+        screenData.put("autoPlay", true);
+
+        CommandResponse.ScreenTransition screenTransition = CommandResponse.ScreenTransition.builder()
+                .targetScreen("/listening")
+                .action("PLAY_SONG")
+                .data(screenData)
+                .build();
+
+        return CommandResponse.withSongAndScreen(
                 Intent.SELECT_BY_ARTIST,
                 responseText,
-                "/commands/tts/" + ttsUrl,
-                SongInfoDto.from(song, PlaybackMode.LISTENING, presignedUrl)
+                SongInfoDto.from(song, PlaybackMode.LISTENING, presignedUrl),
+                screenTransition
         );
     }
 
@@ -193,13 +209,23 @@ public class CommandServiceImpl implements CommandService {
         String presignedUrl = mediaUrlService.issueUrlById(song.getMedia().getId());
 
         String responseText = responseGenerator.generateResponse(Intent.SELECT_BY_TITLE, song.getArtist(), song.getTitle());
-        String ttsUrl = ttsService.synthesize(responseText);
 
-        return CommandResponse.withSong(
+        // 화면 전환 정보 생성
+        Map<String, Object> screenData = new HashMap<>();
+        screenData.put("songId", song.getId());
+        screenData.put("autoPlay", true);
+
+        CommandResponse.ScreenTransition screenTransition = CommandResponse.ScreenTransition.builder()
+                .targetScreen("/listening")
+                .action("PLAY_SONG")
+                .data(screenData)
+                .build();
+
+        return CommandResponse.withSongAndScreen(
                 Intent.SELECT_BY_TITLE,
                 responseText,
-                "/commands/tts/" + ttsUrl,
-                SongInfoDto.from(song, PlaybackMode.LISTENING, presignedUrl)
+                SongInfoDto.from(song, PlaybackMode.LISTENING, presignedUrl),
+                screenTransition
         );
     }
 
@@ -223,13 +249,23 @@ public class CommandServiceImpl implements CommandService {
         String presignedUrl = mediaUrlService.issueUrlById(song.getMedia().getId());
 
         String responseText = responseGenerator.generateResponse(Intent.SELECT_BY_ARTIST_TITLE, song.getArtist(), song.getTitle());
-        String ttsUrl = ttsService.synthesize(responseText);
 
-        return CommandResponse.withSong(
+        // 화면 전환 정보 생성
+        Map<String, Object> screenData = new HashMap<>();
+        screenData.put("songId", song.getId());
+        screenData.put("autoPlay", true);
+
+        CommandResponse.ScreenTransition screenTransition = CommandResponse.ScreenTransition.builder()
+                .targetScreen("/listening")
+                .action("PLAY_SONG")
+                .data(screenData)
+                .build();
+
+        return CommandResponse.withSongAndScreen(
                 Intent.SELECT_BY_ARTIST_TITLE,
                 responseText,
-                "/commands/tts/" + ttsUrl,
-                SongInfoDto.from(song, PlaybackMode.LISTENING, presignedUrl)
+                SongInfoDto.from(song, PlaybackMode.LISTENING, presignedUrl),
+                screenTransition
         );
     }
 
@@ -256,6 +292,86 @@ public class CommandServiceImpl implements CommandService {
         String ttsUrl = ttsService.synthesize(responseText);
 
         return CommandResponse.success(intent, responseText, "/commands/tts/" + ttsUrl);
+    }
+
+    /**
+     * 게임 시작 처리
+     * 최근 청취한 곡으로 게임 시작, 없으면 랜덤 선택
+     */
+    private CommandResponse handleGameStart(User user) {
+        // 1. 노래 선택 (최근 청취한 곡 or 랜덤)
+        Song selectedSong;
+        try {
+            var recentHistory = listeningHistoryService.getRecentHistory(user, 1);
+            if (!recentHistory.isEmpty()) {
+                selectedSong = recentHistory.get(0).getSong();
+            } else {
+                // 랜덤 노래 선택 (SongService에 랜덤 선택 메서드가 없다면 첫 번째 노래 선택)
+                selectedSong = songService.searchByArtist(""); // 임시: 아무 노래나 선택
+            }
+        } catch (Exception e) {
+            log.error("게임용 노래 선택 실패: userId={}", user.getId(), e);
+            String errorText = "게임을 시작할 노래를 찾을 수 없습니다";
+            String ttsUrl = ttsService.synthesize(errorText);
+            return CommandResponse.failure(Intent.MODE_EXERCISE, errorText, "/commands/tts/" + ttsUrl);
+        }
+
+        // 2. 게임 시작
+        GameStartRequest gameRequest = GameStartRequest.builder()
+                .userId(user.getId())
+                .songId(selectedSong.getId())
+                .build();
+
+        GameStartResponse gameResponse = gameService.startGame(gameRequest);
+
+        // 3. Redis: 모드 변경
+        conversationContextService.changeMode(user.getId(), PlaybackMode.EXERCISE);
+
+        // 4. 응답 생성
+        String responseText = String.format("%s의 %s로 게임을 시작할게요",
+                selectedSong.getArtist(), selectedSong.getTitle());
+
+        // 5. screenTransition 데이터 생성
+        Map<String, Object> gameData = new HashMap<>();
+        gameData.put("sessionId", gameResponse.getSessionId());
+        gameData.put("songId", gameResponse.getSongId());
+        gameData.put("songTitle", gameResponse.getSongTitle());
+        gameData.put("songArtist", gameResponse.getSongArtist());
+        gameData.put("audioUrl", gameResponse.getAudioUrl());
+        gameData.put("beatInfo", gameResponse.getBeatInfo());
+        gameData.put("choreographyInfo", gameResponse.getChoreographyInfo());
+        gameData.put("lyricsInfo", gameResponse.getLyricsInfo());
+
+        CommandResponse.ScreenTransition screenTransition = CommandResponse.ScreenTransition.builder()
+                .targetScreen("/game")
+                .action("START_GAME")
+                .data(gameData)
+                .build();
+
+        return CommandResponse.builder()
+                .success(true)
+                .intent(Intent.MODE_EXERCISE)
+                .responseText(responseText)
+                .ttsAudioUrl(null)
+                .songInfo(null)
+                .screenTransition(screenTransition)
+                .build();
+    }
+
+    /**
+     * 게임 종료 처리
+     */
+    private CommandResponse handleGameEnd(User user) {
+        // Redis에서 현재 게임 세션 ID를 가져와서 게임 종료 처리
+        // TODO: Redis에 저장된 세션 ID를 가져오는 로직 추가
+        // 현재는 간단한 응답만 반환
+
+        String responseText = responseGenerator.generateResponse(Intent.MODE_EXERCISE_END);
+
+        // Redis: 모드 변경 (HOME으로 복귀)
+        conversationContextService.changeMode(user.getId(), PlaybackMode.HOME);
+
+        return CommandResponse.success(Intent.MODE_EXERCISE_END, responseText, null);
     }
 
     /**
@@ -350,13 +466,23 @@ public class CommandServiceImpl implements CommandService {
             String presignedUrl = mediaUrlService.issueUrlById(similarSong.getMedia().getId());
 
             String responseText = responseGenerator.generateResponse(Intent.PLAY_MORE_LIKE_THIS);
-            String ttsUrl = ttsService.synthesize(responseText);
 
-            return CommandResponse.withSong(
+            // 화면 전환 정보 생성
+            Map<String, Object> screenData = new HashMap<>();
+            screenData.put("songId", similarSong.getId());
+            screenData.put("autoPlay", true);
+
+            CommandResponse.ScreenTransition screenTransition = CommandResponse.ScreenTransition.builder()
+                    .targetScreen("/listening")
+                    .action("PLAY_SONG")
+                    .data(screenData)
+                    .build();
+
+            return CommandResponse.withSongAndScreen(
                     Intent.PLAY_MORE_LIKE_THIS,
                     responseText,
-                    "/commands/tts/" + ttsUrl,
-                    SongInfoDto.from(similarSong, PlaybackMode.LISTENING, presignedUrl)
+                    SongInfoDto.from(similarSong, PlaybackMode.LISTENING, presignedUrl),
+                    screenTransition
             );
         } catch (CustomException e) {
             // 같은 가수의 곡을 찾지 못한 경우

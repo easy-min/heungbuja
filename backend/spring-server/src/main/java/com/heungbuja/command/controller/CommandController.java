@@ -61,7 +61,7 @@ public class CommandController {
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
-            log.error("음성 명령 처리 실패");
+            log.error("음성 명령 처리 실패: {} - {}", e.getClass().getSimpleName(), e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(CommandResponse.failure(null, "처리 중 오류가 발생했습니다", null));
         }
