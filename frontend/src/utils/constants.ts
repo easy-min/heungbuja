@@ -12,7 +12,8 @@ export const GAME_CONFIG: GameConfig = {
 };
 
 // ===== API 설정 =====
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+// API base points to reverse-proxied Spring API
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 // ===== 웨이크워드 =====
 export const WAKE_WORD = '흥부야';

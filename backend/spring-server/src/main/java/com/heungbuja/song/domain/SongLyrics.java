@@ -16,9 +16,8 @@ public class SongLyrics {
 
     @Id
     private String id;
+    private Long songId;
 
-    // 중요: 어떤 노래의 가사인지 식별할 필드가 필요합니다.
-    // MongoDB에 데이터를 넣을 때, 이 필드에 노래 제목을 꼭 넣어주세요.
     private String title;
 
     private List<Line> lines;

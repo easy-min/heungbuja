@@ -6,6 +6,5 @@ import java.util.Optional;
 
 public interface SongLyricsRepository extends MongoRepository<SongLyrics, String> {
 
-    // 'title' 필드로 SongLyrics 도큐먼트를 찾는 쿼리 메소드
-    Optional<SongLyrics> findByTitle(String title);
+    Optional<SongLyrics> findBySongId(Long songId);
 }

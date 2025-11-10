@@ -384,18 +384,32 @@
 
     // WebSocket 연결
     function connectWebSocket(){
+        if (!adminId) {
+            console.error('❌ adminId가 없습니다! WebSocket 연결 불가');
+            alert('관리자 ID를 찾을 수 없습니다. 다시 로그인해주세요.');
+            return;
+        }
+
+        console.log('🔌 WebSocket 연결 시도...');
+        console.log('  URL:', `${API_BASE}/ws`);
+        console.log('  adminId:', adminId);
+
         const socket = new SockJS(`${API_BASE}/ws`);
         stompClient = Stomp.over(socket);
-        stompClient.connect({}, () => {
-            console.log('✅ WebSocket 연결 성공!');
-            console.log('👤 현재 adminId:', adminId);
-            const subscribePath = `/topic/admin/${adminId}/emergency`;
-            console.log('🔔 구독 경로:', subscribePath);
 
-            stompClient.subscribe(subscribePath, msg => {
-                console.log('📩 WebSocket 메시지 수신!', msg.body);
-                const alertData = JSON.parse(msg.body);
-                alertAudio.play();
+        stompClient.connect({},
+            // 연결 성공 콜백
+            () => {
+                console.log('✅ WebSocket 연결 성공!');
+                console.log('👤 현재 adminId:', adminId);
+                const subscribePath = `/topic/admin/${adminId}/emergency`;
+                console.log('🔔 구독 경로:', subscribePath);
+
+                try {
+                    const subscription = stompClient.subscribe(subscribePath, msg => {
+                        console.log('📩 WebSocket 메시지 수신!', msg.body);
+                        const alertData = JSON.parse(msg.body);
+                        alertAudio.play();
 
                 // Null-safe 처리
                 const userName = alertData.userName || '알 수 없음';
@@ -432,14 +446,36 @@
                트리거 단어: "<strong>${triggerWord}</strong>"<br>
                발생시간: ${new Date(alertData.reportedAt).toLocaleString('ko-KR')}`;
                 document.getElementById('emergency-modal').classList.add('show');
-            });
-            stompClient.subscribe(`/topic/admin/${adminId}/user-status`, msg => {
-                const statusData = JSON.parse(msg.body);
-                addActivity(statusData.status==='EMERGENCY'?'emergency':'warning',
-                    statusData.userName, statusData.message);
-                loadDashboardData(); // 어르신 카드 상태 갱신
-            });
-        });
+                    });
+
+                    console.log('✅ 응급 알림 구독 성공:', subscribePath);
+                    console.log('  subscription ID:', subscription.id);
+
+                    // 사용자 상태 구독
+                    const statusPath = `/topic/admin/${adminId}/user-status`;
+                    const statusSubscription = stompClient.subscribe(statusPath, msg => {
+                        console.log('📊 사용자 상태 메시지 수신:', msg.body);
+                        const statusData = JSON.parse(msg.body);
+                        addActivity(statusData.status==='EMERGENCY'?'emergency':'warning',
+                            statusData.userName, statusData.message);
+                        loadDashboardData(); // 어르신 카드 상태 갱신
+                    });
+
+                    console.log('✅ 사용자 상태 구독 성공:', statusPath);
+                    console.log('  subscription ID:', statusSubscription.id);
+
+                } catch (subscribeError) {
+                    console.error('❌ 구독 실패:', subscribeError);
+                    alert('WebSocket 구독에 실패했습니다: ' + subscribeError.message);
+                }
+            },
+            // 연결 실패 콜백
+            (error) => {
+                console.error('❌ WebSocket 연결 실패:', error);
+                console.error('  에러 상세:', error);
+                alert('WebSocket 연결에 실패했습니다. 서버 상태를 확인해주세요.');
+            }
+        );
     }
 
     // 🔥 어르신 카드를 긴급 상태로 즉시 업데이트

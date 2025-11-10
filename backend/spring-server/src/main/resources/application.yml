@@ -15,10 +15,10 @@ spring:
   # Mongo db, Redis
   data:
     mongodb:
-      uri: ${SPRING_DATA_MONGODB_URI:mongodb://localhost:27017/heungbuja} # 기본값은 로컬
+      uri: ${SPRING_DATA_MONGODB_URI:mongodb://heungbu:lastdance@heungbuja-mongo:27017/heungbudb?authSource=admin}
     redis:
-      host: ${SPRING_DATA_REDIS_HOST:localhost} # 기본값은 로컬
-      port: ${SPRING_DATA_REDIS_PORT:6379}     # 기본값은 로컬
+      host: ${SPRING_DATA_REDIS_HOST:heungbuja-redis}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
 
   jpa:
     database-platform: org.hibernate.dialect.MySQL8Dialect
@@ -70,6 +70,7 @@ gpt:
   model: gpt-5-nano
 
 app:
+  base-url: ${APP_BASE_URL:http://localhost:8080/api}
   s3:
     bucket: ${APP_S3_BUCKET:heungbuja-bucket}
     region: ${APP_S3_REGION:ap-northeast-2}
