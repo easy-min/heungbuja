@@ -1,4 +1,4 @@
-import { type Beat, type Section, type BarGroup, type Segment, type SegmentMetadata} from '@/types';
+import { type Frame, type Segment, type SegmentMetadata} from '@/types';
 import { GAME_CONFIG } from './constants';
 import JSZip from 'jszip';
 
@@ -18,57 +18,17 @@ export const dataURItoBlob = (dataURI: string): Blob => {
   return new Blob([ab], { type: mimeString });
 };
 
-/**
- * JSON 데이터에서 BarGroup 계산
- */
-export const calculateBarGroups = (
-  beats: Beat[],
-  sections: Section[]
-): BarGroup[] => {
-  // 1. 마디별 시작 시간 매핑
-  const barTimes: Record<number, number> = {};
-  let maxBar = 0;
-
-  beats.forEach((b) => {
-    if (b.beat === 1) {
-      barTimes[b.bar] = b.t;
-      if (b.bar > maxBar) maxBar = b.bar;
-    }
-  });
-
-  // 2. part1 시작 마디 찾기 (1절 시작점)
-  const part1 = sections.find((s) => s.label === 'verse1');
-  if (!part1) {
-    throw new Error('part1 섹션을 찾을 수 없습니다.');
-  }
-
-  // 3. 인트로 4마디 건너뛰고 시작
-  const verseStartBar = part1.startBar + 4;
-
-  // 4. 6개 세그먼트 계산 (4마디씩)
-  const groups: BarGroup[] = [];
-  
-  for (let i = 0; i < GAME_CONFIG.SEGMENT_COUNT; i++) {
-    const startBar = verseStartBar + i * GAME_CONFIG.BARS_PER_SEGMENT;
-    const endBar = startBar + GAME_CONFIG.BARS_PER_SEGMENT - 1;
-    const startTime = barTimes[startBar];
-    const endTime = barTimes[endBar + 1] || beats[beats.length - 1].t;
-
-    if (startTime === undefined) {
-      throw new Error(`마디 ${startBar}의 시작 시간을 찾을 수 없습니다.`);
-    }
-
-    groups.push({
-      segmentIndex: i + 1,
-      startBar,
-      endBar,
-      startTime,
-      endTime,
-    });
-  }
-
-  return groups;
-};
+export interface SegmentZipMeta {
+  section: 'verse1' | 'verse2';
+  segmentIndex: number;
+  startTime: number;
+  endTime: number;
+  bpm: number;
+  fps: number;
+  frameCount: number;
+  createdAt: string;
+  title?: string;
+}
 
 /**
  * 세그먼트 데이터를 FormData로 변환
@@ -154,46 +114,38 @@ export const formatFileSize = (bytes: number): string => {
 /**
  * 세그먼트를 ZIP 파일로 다운로드 (테스트용)
  */
-export const downloadSegmentAsZip = async (
-  segment: Segment,
-  segmentIndex: number
-): Promise<void> => {
+export async function createSegmentZip(
+  frames: Frame[],
+  meta: SegmentZipMeta
+): Promise<Blob> {
   const zip = new JSZip();
-  
-  // 메타데이터
-  const metadata = {
-    segmentIndex: segmentIndex + 1,
-    frameCount: segment.frames.length,
-    musicTimeStart: segment.frames[0]?.musicTime.toFixed(3) || '0.000',
-    musicTimeEnd: segment.frames.at(-1)?.musicTime.toFixed(3) || '0.000',
-    captureTimestamp: new Date().toISOString(),
-  };
-  
-  zip.file('metadata.json', JSON.stringify(metadata, null, 2));
-  
-  // 프레임 이미지들
-  for (let i = 0; i < segment.frames.length; i++) {
-    const filename = `frame_${String(i).padStart(3, '0')}.jpg`;
-    zip.file(filename, segment.frames[i].img);
-  }
-  
-  // ZIP 생성
-  console.log(`🔧 ZIP 파일 생성 중... (${segment.frames.length}개 프레임)`);
-  const blob = await zip.generateAsync({ 
+
+  zip.file(
+    'metadata.json',
+    JSON.stringify(
+      {
+        ...meta,
+        frames: frames.map((f, i) => ({
+          index: i,
+          musicTime: f.musicTime,
+          captureTimeMs: Math.round(f.captureTime),
+        })),
+      },
+      null,
+      2
+    )
+  );
+
+  frames.forEach((f, i) => {
+    const filename = `frame_${String(i + 1).padStart(4, '0')}.jpg`;
+    zip.file(filename, f.img);
+  });
+
+  const blob = await zip.generateAsync({
     type: 'blob',
     compression: 'DEFLATE',
-    compressionOptions: { level: 6 }
+    compressionOptions: { level: 6 },
   });
-  
-  // 다운로드
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `segment_${String(segmentIndex + 1).padStart(2, '0')}.zip`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  
-  console.log(`✅ 세그먼트 ${segmentIndex + 1} ZIP 다운로드 완료`);
-};
+
+  return blob;
+}

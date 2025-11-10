@@ -8,9 +8,12 @@ const timeline: SongTimeline = {
   verse1StartTime: 33.69,
   breakStartTime: 107.56,
   verse2StartTime: 138.95,
-  verse1SegmentStartTimes: [33.69, 41.07, 48.47, 55.85, 63.24, 70.62],
-  verse2SegmentStartTimes: [138.95, 146.33, 153.73, 161.11, 168.50, 175.88],
 };
+
+const segments = {
+  verse1: { "startTime": 41.07, "endTime": 70.62 },
+  verse2: { "startTime": 146.33, "endTime": 175.88 },
+}
 
 const lyrics: LyricLine[] = [
   { text: '일부러 안 웃는거 맞죠', startTime: 33, endTime: 37 },
@@ -70,6 +73,7 @@ export async function mockGameStart(songId: number): Promise<GameStartResponse> 
         duration: 220.35,
       },
       timeline,
+      segments,
       lyrics,
       videoUrls: {
         intro: 'https://example.com/mock/video_intro.mp4',

@@ -8,5 +8,5 @@ export const gameStartApi = (songId: number) => {
   if (USE_MOCK) {
     return mockGameStart(songId);
   }
-  api.post<GameStartResponse>('/game/start', { songId }, true);
+  return api.post<GameStartResponse>('/game/start', { songId }, true);
 }
