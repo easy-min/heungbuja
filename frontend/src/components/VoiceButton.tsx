@@ -45,7 +45,7 @@ const VoiceButton: React.FC = () => {
   }, [audioBlob, sendCommand]);
 
   // 통합 에러 메시지
-  const error = recordError || uploadError;
+  // const error = recordError || uploadError; // unused for now
 
   return (
     <>

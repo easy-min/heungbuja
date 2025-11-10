@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import type { SongInfo } from '@/types/voiceCommand';
 import './SongPage.css';
 
@@ -20,13 +20,12 @@ const dummySongInfo: SongInfo = {
 
 function SongPage() {
   const location = useLocation();
-  const navigate = useNavigate();
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const state = location.state as SongPageState | null;
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
+  const [, setCurrentTime] = useState(0);
+  const [, setDuration] = useState(0);
 
   // state 없으면 테스트 데이터 사용 (useMemo로 메모이제이션)
   const songInfo = useMemo(() =>

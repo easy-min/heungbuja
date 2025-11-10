@@ -4,7 +4,7 @@ import './UserLogin.css';
 
 const UserLoginPage = () => {
   const [deviceNumber, setDeviceNumber] = useState('DEVICE001');
-  const [userId, setUserId] = useState('1');
+  const [userId] = useState('1');
   const { login, isLoading, error } = useDeviceAuth();
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
