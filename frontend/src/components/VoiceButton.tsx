@@ -67,11 +67,8 @@ const VoiceButton: React.FC = () => {
           disabled={isRecording || isUploading || isPlaying}
           aria-label="음성 인식"
         >
-          {isUploading ? (
-            // 업로드 중 - 로딩 스피너
-            <div className="spinner" />
-          ) : (
-            // 기본 - 마이크 아이콘
+         
+            {/* 기본 - 마이크 아이콘 */}
             <svg 
               className="mic-icon" 
               viewBox="0 0 24 24" 
@@ -84,7 +81,7 @@ const VoiceButton: React.FC = () => {
               <line x1="12" y1="19" x2="12" y2="23" />
               <line x1="8" y1="23" x2="16" y2="23" />
             </svg>
-          )}
+          
         </button>
 
         {/* 에러 메시지 */}
