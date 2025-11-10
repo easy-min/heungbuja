@@ -29,8 +29,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ScheduledFuture;
-import java.util.stream.Collectors;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -293,7 +293,7 @@ public class EmergencyService {
      */
     public List<EmergencyResponse> getConfirmedReports() {
         return emergencyReportRepository
-                .findAll()  // 모든 신고 조회
+                .findAllWithUser()  // User를 함께 fetch하여 LazyInitializationException 방지
                 .stream()
                 .sorted((a, b) -> b.getReportedAt().compareTo(a.getReportedAt()))  // 최신순 정렬
                 .map(report -> EmergencyResponse.from(report, null))
