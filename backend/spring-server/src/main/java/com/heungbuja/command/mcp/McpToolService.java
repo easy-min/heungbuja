@@ -302,56 +302,101 @@ public class McpToolService {
         Long userId = getLongArg(args, "userId");
         Long songId = getLongArg(args, "songId");
 
-        User user = userService.findById(userId);
+        // ----------------------- 수정 --------------------------------------------
 
-        // 노래 선택
-        Song song;
-        if (songId != null) {
-            // 특정 노래로 게임 시작 (findById는 이미 예외를 던짐)
-            song = songService.findById(songId);
-        } else {
-            // songId가 없으면 랜덤 선택 또는 에러
-            // TODO: 안무 정보가 있는 노래만 선택하도록 개선 필요
-            throw new IllegalArgumentException("게임용 노래 ID가 필요합니다 (songId 파라미터)");
+        // 1. 노래 유효성 검증
+        if (songId == null) {
+            // TODO: 안무 정보가 있는 노래 중 랜덤으로 하나 선택하는 로직
+            throw new IllegalArgumentException("게임 시작을 위한 노래 ID(songId)가 필요합니다.");
         }
+        // 노래 존재 여부만 간단히 확인. 상세 검증은 GameService에 위임.
+        Song song = songService.findById(songId);
 
-        // 게임 시작 요청 생성
+        // 2. GameService 호출을 위한 요청 객체 생성
         com.heungbuja.game.dto.GameStartRequest gameRequest =
-                new com.heungbuja.game.dto.GameStartRequest();
-        gameRequest.setUserId(userId);
-        gameRequest.setSongId(song.getId());
+                new com.heungbuja.game.dto.GameStartRequest(userId, songId);
 
-        // 게임 서비스 호출 (1초 이내 반환)
+        // 3. GameService를 직접 호출하여 게임 시작 처리 및 모든 데이터 받아오기
+        //    (이 과정은 서버 내부에서 일어나므로 매우 빠름)
         com.heungbuja.game.dto.GameStartResponse gameResponse =
                 gameService.startGame(gameRequest);
 
-        // Redis Context 업데이트 (EXERCISE 모드로 전환)
+        // 4. Redis Context 업데이트
         conversationContextService.changeMode(userId, PlaybackMode.EXERCISE);
-        conversationContextService.setCurrentSong(userId, song.getId());
+        conversationContextService.setCurrentSong(userId, songId);
 
-        // 게임 정보를 data에 포함
+        // 5. 프론트엔드에 전달할 데이터 구성
+        //    GameStartResponse 객체 자체를 데이터로 전달할 수 있지만,
+        //    Map으로 한번 감싸서 intent를 추가하면 프론트가 처리하기 더 용이할 수 있음.
         Map<String, Object> gameData = new HashMap<>();
-        gameData.put("sessionId", gameResponse.getSessionId());
-        gameData.put("songId", song.getId());
-        gameData.put("songTitle", song.getTitle());
-        gameData.put("songArtist", song.getArtist());
-        gameData.put("audioUrl", gameResponse.getAudioUrl());
-        gameData.put("beatInfo", gameResponse.getBeatInfo());
-        gameData.put("choreographyInfo", gameResponse.getChoreographyInfo());
-        gameData.put("lyricsInfo", gameResponse.getLyricsInfo());
+        gameData.put("intent", "START_GAME_IMMEDIATELY"); // "즉시 게임 시작" 이라는 명확한 지시
+        gameData.put("gameInfo", gameResponse); // GameStartResponse 전체를 담음
 
-        String message = String.format("%s의 '%s'로 게임을 시작할게요",
-                                       song.getArtist(), song.getTitle());
+        // 6. GPT와 사용자에게 전달할 음성 메시지 생성
+        String message = String.format("%s의 '%s' 노래로 체조를 시작합니다. 화면을 봐주세요.",
+                song.getArtist(), song.getTitle());
 
-        log.info("게임 시작 완료: userId={}, sessionId={}, songId={}",
-                 userId, gameResponse.getSessionId(), song.getId());
+        log.info("게임 시작 Tool 실행 완료 (즉시 시작): userId={}, sessionId={}, songId={}",
+                userId, gameResponse.getSessionId(), song.getId());
 
+        // 7. McpToolResult 반환
         return McpToolResult.success(
-            toolCall.getId(),
-            "start_game",
-            message,
-            gameData
+                toolCall.getId(),
+                "start_game",
+                message,
+                gameData
         );
+
+//        User user = userService.findById(userId);
+//        // 노래 선택
+//        Song song;
+//        if (songId != null) {
+//            // 특정 노래로 게임 시작 (findById는 이미 예외를 던짐)
+//            song = songService.findById(songId);
+//        } else {
+//            // songId가 없으면 랜덤 선택 또는 에러
+//            // TODO: 안무 정보가 있는 노래만 선택하도록 개선 필요
+//            throw new IllegalArgumentException("게임용 노래 ID가 필요합니다 (songId 파라미터)");
+//        }
+//
+//        // 게임 시작 요청 생성
+//        com.heungbuja.game.dto.GameStartRequest gameRequest =
+//                new com.heungbuja.game.dto.GameStartRequest();
+//        gameRequest.setUserId(userId);
+//        gameRequest.setSongId(song.getId());
+//
+//        // 게임 서비스 호출 (1초 이내 반환)
+//        com.heungbuja.game.dto.GameStartResponse gameResponse =
+//                gameService.startGame(gameRequest);
+//
+//        // Redis Context 업데이트 (EXERCISE 모드로 전환)
+//        conversationContextService.changeMode(userId, PlaybackMode.EXERCISE);
+//        conversationContextService.setCurrentSong(userId, song.getId());
+//
+//        // 게임 정보를 data에 포함
+//        Map<String, Object> gameData = new HashMap<>();
+//        gameData.put("sessionId", gameResponse.getSessionId());
+//        gameData.put("songId", song.getId());
+//        gameData.put("songTitle", song.getTitle());
+//        gameData.put("songArtist", song.getArtist());
+//        gameData.put("audioUrl", gameResponse.getAudioUrl());
+////        gameData.put("beatInfo", gameResponse.getBeatInfo());
+////        gameData.put("choreographyInfo", gameResponse.getChoreographyInfo());
+//        gameData.put("lyricsInfo", gameResponse.getLyricsInfo());
+//
+//        String message = String.format("%s의 '%s'로 게임을 시작할게요",
+//                                       song.getArtist(), song.getTitle());
+//
+//        log.info("게임 시작 완료: userId={}, sessionId={}, songId={}",
+//                 userId, gameResponse.getSessionId(), song.getId());
+//
+//        return McpToolResult.success(
+//            toolCall.getId(),
+//            "start_game",
+//            message,
+//            gameData
+//        );
+        // ----------------------- 수정 --------------------------------------------
     }
 
     // ========== 헬퍼 메서드 ==========

@@ -40,6 +40,11 @@ public enum ErrorCode {
     // Song
     SONG_NOT_FOUND(HttpStatus.NOT_FOUND, "Song not found"),
 
+    // Game
+    GAME_SESSION_NOT_FOUND(HttpStatus.NOT_FOUND, "Game session not found or has expired"),  // Redis에서 GameState를 찾지 못했을 때
+    GAME_SESSION_INVALID(HttpStatus.BAD_REQUEST, "Invalid session for this request"),  // session id는 유효하지만, 함께 온 song id가 세션의  song id와 다를 때
+    GAME_METADATA_NOT_FOUND(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to load essential game metadata"),  // startGame 시점에서 MongoDB에서 비트, 가사, 안무 정보 중 하나라도 찾지 못했을 때
+
     // Voice & Command
     STT_SERVICE_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Speech-to-text service error"),
     TTS_SERVICE_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Text-to-speech service error"),
