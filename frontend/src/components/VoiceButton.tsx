@@ -9,14 +9,12 @@ const VoiceButton: React.FC = () => {
     isRecording, 
     countdown, 
     audioBlob, 
-    error: recordError, 
     startRecording 
   } = useVoiceRecorder();
 
   const {
     isUploading,
     isPlaying,
-    error: uploadError,
     responseText,
     sendCommand,
   } = useVoiceCommand();
@@ -45,7 +43,7 @@ const VoiceButton: React.FC = () => {
   }, [audioBlob, sendCommand]);
 
   // 통합 에러 메시지
-  const error = recordError || uploadError;
+  // const error = recordError || uploadError; // unused for now
 
   return (
     <>

@@ -1,0 +1,55 @@
+/* WebSocket 상태 표시 */
+.ws-status {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  padding: 10px 20px;
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 999;
+}
+
+.ws-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.ws-indicator.connected {
+  background: #2ecc71;
+  animation: blink 2s infinite;
+}
+
+.ws-indicator.connecting {
+  background: #f39c12;
+  animation: pulse 1s infinite;
+}
+
+.ws-indicator.disconnected {
+  background: #e74c3c;
+}
+
+@keyframes blink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.7;
+  }
+}

@@ -13,6 +13,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -32,11 +34,14 @@ public class CommandController {
     /**
      * 음성 파일로 명령 처리 (통합 엔드포인트)
      * 음성 업로드 → STT → Intent 분석 → 실행 → TTS 응답
+     * JWT 인증 필요 (Authorization: Bearer <token>)
      */
     @PostMapping(value = "/process", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<CommandResponse> processVoiceCommand(
-            @RequestParam("userId") Long userId,
             @RequestParam("audioFile") MultipartFile audioFile) {
+
+        // JWT 토큰에서 userId 추출 (보안 강화)
+        Long userId = getCurrentUserId();
 
         log.info("음성 명령 처리 요청: userId={}, 파일크기={} bytes", userId, audioFile.getSize());
 
@@ -53,10 +58,25 @@ public class CommandController {
 
             CommandResponse response = commandService.processTextCommand(request);
 
+            // MCP 방식에서는 ttsAudioUrl이 null이므로 자동 생성 (파일 저장 없이 base64로 반환)
+            if (response.getTtsAudioUrl() == null && response.getResponseText() != null) {
+                byte[] audioData = ttsService.synthesizeBytes(response.getResponseText(), "default");
+                String base64Audio = java.util.Base64.getEncoder().encodeToString(audioData);
+                response = CommandResponse.builder()
+                        .success(response.isSuccess())
+                        .intent(response.getIntent())
+                        .responseText(response.getResponseText())
+                        .ttsAudioUrl("data:audio/mpeg;base64," + base64Audio)
+                        .songInfo(response.getSongInfo())
+                        .screenTransition(response.getScreenTransition())
+                        .build();
+                log.info("TTS 자동 생성 완료 (base64): 크기={} bytes", audioData.length);
+            }
+
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
-            log.error("음성 명령 처리 실패");
+            log.error("음성 명령 처리 실패: {} - {}", e.getClass().getSimpleName(), e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(CommandResponse.failure(null, "처리 중 오류가 발생했습니다", null));
         }
@@ -72,6 +92,22 @@ public class CommandController {
         log.info("텍스트 명령 처리 요청: userId={}, text='{}'", request.getUserId(), request.getText());
 
         CommandResponse response = commandService.processTextCommand(request);
+
+        // MCP 방식에서는 ttsAudioUrl이 null이므로 자동 생성 (파일 저장 없이 base64로 반환)
+        if (response.getTtsAudioUrl() == null && response.getResponseText() != null) {
+            byte[] audioData = ttsService.synthesizeBytes(response.getResponseText(), "default");
+            String base64Audio = java.util.Base64.getEncoder().encodeToString(audioData);
+            response = CommandResponse.builder()
+                    .success(response.isSuccess())
+                    .intent(response.getIntent())
+                    .responseText(response.getResponseText())
+                    .ttsAudioUrl("data:audio/mpeg;base64," + base64Audio)
+                    .songInfo(response.getSongInfo())
+                    .screenTransition(response.getScreenTransition())
+                    .build();
+            log.info("TTS 자동 생성 완료 (base64): 크기={} bytes", audioData.length);
+        }
+
         return ResponseEntity.ok(response);
     }
 
@@ -79,11 +115,14 @@ public class CommandController {
      * 음성 파일로 명령 처리 (음성 직접 응답)
      * 음성 업로드 → STT → Intent 분석 → 실행 → TTS 응답 (MP3 바이너리 직접 전송)
      * 메타데이터는 HTTP 헤더로 전송
+     * JWT 인증 필요 (Authorization: Bearer <token>)
      */
     @PostMapping(value = "/process-audio", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<byte[]> processVoiceCommandWithAudio(
-            @RequestParam("userId") Long userId,
             @RequestParam("audioFile") MultipartFile audioFile) {
+
+        // JWT 토큰에서 userId 추출 (보안 강화)
+        Long userId = getCurrentUserId();
 
         log.info("음성 명령 처리 요청 (음성 직접 응답): userId={}, 파일크기={} bytes", userId, audioFile.getSize());
 
@@ -206,5 +245,28 @@ public class CommandController {
             log.error("TTS 파일 다운로드 실패: fileId={}", fileId, e);
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
+    }
+
+    /**
+     * SecurityContext에서 현재 인증된 사용자 ID 추출
+     */
+    private Long getCurrentUserId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new CustomException(
+                    com.heungbuja.common.exception.ErrorCode.UNAUTHORIZED,
+                    "인증이 필요합니다"
+            );
+        }
+
+        Object principal = authentication.getPrincipal();
+        if (principal instanceof Long) {
+            return (Long) principal;
+        }
+
+        throw new CustomException(
+                com.heungbuja.common.exception.ErrorCode.UNAUTHORIZED,
+                "유효하지 않은 인증 정보입니다"
+        );
     }
 }

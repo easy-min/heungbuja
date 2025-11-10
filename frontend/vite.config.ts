@@ -5,7 +5,8 @@ import path from 'path'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
-  base: '/user/',  // ← /user 경로로 배포
+
+  base: '/user/',
     resolve: {
     alias: {
       '@': path.resolve(__dirname, './src')
