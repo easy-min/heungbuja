@@ -54,6 +54,15 @@ export interface SongData {
   sections: Section[];
 }
 
+export interface LyricLine {
+  lineIndex: number;
+  text: string;
+  start: number; // (초)
+  end: number;   // (초)
+  sBeat: number;
+  eBeat: number;
+}
+
 // ===== 업로드 관련 타입 =====
 
 export interface UploadSegment {
