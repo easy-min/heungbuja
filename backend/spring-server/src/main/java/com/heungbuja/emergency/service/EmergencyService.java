@@ -18,6 +18,8 @@ import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -41,10 +43,10 @@ public class EmergencyService {
     private final TaskScheduler taskScheduler;
 
     /**
-     * 긴급 신고 감지
+     * 긴급 신고 감지 (스케줄 포함)
      */
     @Transactional
-    public EmergencyResponse detectEmergency(EmergencyRequest request) {
+    public EmergencyResponse detectEmergencyWithSchedule(EmergencyRequest request) {
         User user = userService.findById(request.getUserId());
 
         EmergencyReport report = EmergencyReport.builder()
@@ -63,21 +65,17 @@ public class EmergencyService {
         log.info("응급 신고 감지: reportId={}, userId={}, 10초 후 자동 확정 스케줄",
                 savedReport.getId(), user.getId());
 
+        // 트랜잭션 커밋 후 스케줄 등록
+        Long reportId = savedReport.getId();
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                log.info("트랜잭션 커밋 완료, 스케줄 등록: reportId={}", reportId);
+                scheduleAutoConfirm(reportId, 10);
+            }
+        });
+
         return EmergencyResponse.from(savedReport, message);
-    }
-
-    /**
-     * 긴급 신고 감지 (트랜잭션 없는 래퍼 메서드)
-     * 트랜잭션 커밋 후 스케줄을 등록하기 위해 사용
-     */
-    public EmergencyResponse detectEmergencyWithSchedule(EmergencyRequest request) {
-        // 1. 트랜잭션 안에서 저장
-        EmergencyResponse response = detectEmergency(request);
-
-        // 2. 트랜잭션 커밋 완료 후 스케줄 등록
-        scheduleAutoConfirm(response.getReportId(), 10);
-
-        return response;
     }
 
     /**

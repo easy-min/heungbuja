@@ -22,7 +22,7 @@ public class EmergencyController {
     @PostMapping
     public ResponseEntity<EmergencyResponse> detectEmergency(
             @Valid @RequestBody EmergencyRequest request) {
-        EmergencyResponse response = emergencyService.detectEmergency(request);
+        EmergencyResponse response = emergencyService.detectEmergencyWithSchedule(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
