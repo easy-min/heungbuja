@@ -80,9 +80,9 @@ const VoiceOverlay: React.FC<VoiceOverlayProps> = ({
               <div className="voice-circle-text">인식 중...</div>
             ) : isPlaying ? (
               null
-            ) : (
+            ) : isRecording && countdown > 0 ? (
               <div className="voice-circle-countdown">{countdown}</div>
-            )}
+            ) : null}
           </div>
         </div>
       </div>
