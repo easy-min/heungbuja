@@ -11,6 +11,25 @@ import java.util.Map;
 public class GameStartResponse {
     private String sessionId;
 //    private String websocketUrl;
+
+    /**
+     * 노래 ID
+     */
+    private Long songId;
+
+    /**
+     * 노래 제목
+     */
+    private String songTitle;
+
+    /**
+     * 가수명
+     */
+    private String songArtist;
+
+    /**
+     * 노래 오디오 파일의 S3 URL
+     */
     private String audioUrl;
     private Map<String, String> videoUrls;
 
