@@ -5,9 +5,11 @@
   height: 100vh;
   background-color: #FFFFFF;
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
   overflow: hidden;
+  gap: 20px;
 }
 .gradient-blur {
   position: absolute;
@@ -34,10 +36,61 @@
   border-radius: 50%;
   z-index: 1;
   box-shadow: 0 0 60px rgba(255, 255, 255, 0.3);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
 }
- .music-icon {
-    color: #FF5035;
+
+.song-info {
+  text-align: center;
+  padding: 20px;
+}
+
+.song-title {
+  font-size: 24px;
+  font-weight: bold;
+  color: #FF5035;
+  margin: 0 0 8px 0;
+}
+
+.song-artist {
+  font-size: 16px;
+  color: #666;
+  margin: 0;
+}
+
+.playing-indicator {
+  font-size: 14px;
+  color: #E6264F;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
   }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.audio-player {
+  z-index: 2;
+  width: 400px;
+  max-width: 90%;
+}
+
+.time-display {
+  z-index: 2;
+  color: #666;
+  font-size: 14px;
+}
+
+.music-icon {
+  color: #FF5035;
+}
 
 /* 회전 애니메이션 */
 @keyframes rotate {
