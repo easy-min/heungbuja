@@ -9,14 +9,12 @@ const VoiceButton: React.FC = () => {
     isRecording, 
     countdown, 
     audioBlob, 
-    error: recordError, 
     startRecording 
   } = useVoiceRecorder();
 
   const {
     isUploading,
     isPlaying,
-    error: uploadError,
     responseText,
     sendCommand,
   } = useVoiceCommand();
