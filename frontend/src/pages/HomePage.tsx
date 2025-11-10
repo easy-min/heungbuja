@@ -11,7 +11,7 @@ const HomePage: React.FC = () => {
   };
 
   const handleExerciseClick = () => {
-    navigate('/game/1'); // 추후 노래 목록 페이지로 이동 고민
+    navigate('/tutorial'); // 추후 노래 목록 페이지로 이동 고민
   };
 
   return (
@@ -47,7 +47,7 @@ const HomePage: React.FC = () => {
           </button>
         </div>
       </div>
-         {/* 음성인식 버튼 */}
+      {/* 음성인식 버튼 */}
       <VoiceButton />
     </div>
   );

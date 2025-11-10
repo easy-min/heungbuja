@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useCamera } from '@/hooks/useCamera';
 import { useFrameCapture } from '@/hooks/useFrameCapture';
 import { useMusicMonitor } from '@/hooks/useMusicMonitor';
@@ -77,9 +77,11 @@ function GamePage() {
     return (60 / bpm) * loopBeats;
   };
 
-  // URL 파라미터
+  // URL 파라미터 및 state
   const { songId } = useParams<{ songId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const gameData = location.state as any; // 음성 명령으로 전달받은 게임 데이터
 
   // Refs
   const motionVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -95,7 +97,8 @@ function GamePage() {
   // 상태
   const [isGameStarted, setIsGameStarted] = useState(false);
   const [currentSegment, setCurrentSegment] = useState(0);
-  const [sessionId] = useState(() => generateSessionId());
+  // sessionId: 음성 명령으로 받은 데이터 우선, 없으면 생성
+  const [sessionId] = useState(() => gameData?.sessionId || generateSessionId());
   const [testMode] = useState(true);  // ✅ testMode 설정
 
   // 가사
@@ -435,7 +438,6 @@ function GamePage() {
 
   function handleAllComplete() {
     console.log('🎉 모든 세그먼트 완료!');    
-    navigate('/result');
   }
 
   function handleUploadSuccess(segmentIndex: number, response?: UploadResponse) {
