@@ -18,6 +18,8 @@ import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -41,10 +43,10 @@ public class EmergencyService {
     private final TaskScheduler taskScheduler;
 
     /**
-     * 긴급 신고 감지
+     * 긴급 신고 감지 (스케줄 포함)
      */
     @Transactional
-    public EmergencyResponse detectEmergency(EmergencyRequest request) {
+    public EmergencyResponse detectEmergencyWithSchedule(EmergencyRequest request) {
         User user = userService.findById(request.getUserId());
 
         EmergencyReport report = EmergencyReport.builder()
@@ -63,8 +65,15 @@ public class EmergencyService {
         log.info("응급 신고 감지: reportId={}, userId={}, 10초 후 자동 확정 스케줄",
                 savedReport.getId(), user.getId());
 
-        // 10초 후 자동 confirm 스케줄
-        scheduleAutoConfirm(savedReport.getId(), 10);
+        // 트랜잭션 커밋 후 스케줄 등록
+        Long reportId = savedReport.getId();
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                log.info("트랜잭션 커밋 완료, 스케줄 등록: reportId={}", reportId);
+                scheduleAutoConfirm(reportId, 10);
+            }
+        });
 
         return EmergencyResponse.from(savedReport, message);
     }
@@ -149,6 +158,13 @@ public class EmergencyService {
      * WebSocket으로 긴급 알림 전송
      */
     private void sendEmergencyAlert(EmergencyReport report) {
+        // Admin이 연결되어 있는지 확인
+        if (report.getUser().getAdmin() == null) {
+            log.error("❌ WebSocket 알림 전송 실패: User(id={})에 Admin이 연결되어 있지 않습니다",
+                    report.getUser().getId());
+            return;
+        }
+
         Long adminId = report.getUser().getAdmin().getId();
 
         // Null-safe 처리: 혹시 모를 null 값을 기본값으로 대체

@@ -256,7 +256,7 @@ public class McpToolService {
                 .fullText(fullText)
                 .build();
 
-        emergencyService.detectEmergency(request);
+        emergencyService.detectEmergencyWithSchedule(request);
 
         String message = "괜찮으세요? 대답해주세요!";
 

@@ -10,7 +10,6 @@ import java.util.Map;
 @Builder
 public class GameStartResponse {
     private String sessionId;
-//    private String websocketUrl;
 
     /**
      * 노래 ID
@@ -31,6 +30,10 @@ public class GameStartResponse {
      * 노래 오디오 파일의 S3 URL
      */
     private String audioUrl;
+
+    /**
+     * 영상 URL 맵 (intro, verse1, verse2_level1, verse2_level2, verse2_level3)
+     */
     private Map<String, String> videoUrls;
 
     /** 노래의 BPM (Beats Per Minute) */

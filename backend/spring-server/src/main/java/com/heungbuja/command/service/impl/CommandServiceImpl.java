@@ -338,8 +338,10 @@ public class CommandServiceImpl implements CommandService {
         gameData.put("songTitle", gameResponse.getSongTitle());
         gameData.put("songArtist", gameResponse.getSongArtist());
         gameData.put("audioUrl", gameResponse.getAudioUrl());
-        gameData.put("beatInfo", gameResponse.getBeatInfo());
-        gameData.put("choreographyInfo", gameResponse.getChoreographyInfo());
+        gameData.put("videoUrls", gameResponse.getVideoUrls());
+        gameData.put("bpm", gameResponse.getBpm());
+        gameData.put("duration", gameResponse.getDuration());
+        gameData.put("sectionInfo", gameResponse.getSectionInfo());
         gameData.put("lyricsInfo", gameResponse.getLyricsInfo());
 
         CommandResponse.ScreenTransition screenTransition = CommandResponse.ScreenTransition.builder()
@@ -391,7 +393,7 @@ public class CommandServiceImpl implements CommandService {
                 .fullText(intentResult.getRawText())  // 전체 발화 텍스트
                 .build();
 
-        emergencyService.detectEmergency(emergencyRequest);
+        emergencyService.detectEmergencyWithSchedule(emergencyRequest);
 
         String responseText = responseGenerator.generateResponse(Intent.EMERGENCY);
         String ttsUrl = ttsService.synthesize(responseText, "urgent"); // 긴급 음성 타입

@@ -272,7 +272,7 @@
 
         try{
             document.getElementById('record-status').textContent = '⏳ 음성 인식 중...';
-            const res = await fetch(`${API_BASE}/commands/process-audio`, {
+            const res = await fetch(`${API_BASE}/commands/process`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${userToken}`
@@ -281,47 +281,31 @@
                 body: formData
             });
 
-            // 헤더에서 메타데이터 추출 (URL 디코딩)
-            const success = res.headers.get('X-Success') === 'true';
-            const intent = res.headers.get('X-Intent');
-            const responseText = decodeURIComponent(res.headers.get('X-Response-Text') || '');
-            const errorCode = res.headers.get('X-Error-Code');
-            const songTitle = res.headers.get('X-Song-Title') ? decodeURIComponent(res.headers.get('X-Song-Title')) : null;
-            const songArtist = res.headers.get('X-Song-Artist') ? decodeURIComponent(res.headers.get('X-Song-Artist')) : null;
+            // JSON 응답 파싱
+            const data = await res.json();
 
-            console.log('📥 응답 헤더:');
+            console.log('📥 JSON 응답:');
             console.log('  HTTP Status:', res.status, res.statusText);
-            console.log('  X-Success:', success);
-            console.log('  X-Intent:', intent);
-            console.log('  X-Error-Code:', errorCode);
-            console.log('  X-Response-Text (디코딩 후):', responseText);
-            console.log('  Content-Type:', res.headers.get('Content-Type'));
-
-            // 응답 바디는 MP3 바이너리 (성공/실패 모두 음성 있음)
-            const audioBlob = await res.blob();
-            console.log('📦 응답 바디 (Blob):', audioBlob);
+            console.log('  success:', data.success);
+            console.log('  intent:', data.intent);
+            console.log('  responseText:', data.responseText);
+            console.log('  songInfo:', data.songInfo);
+            console.log('  screenTransition:', data.screenTransition);
+            console.log('  ttsAudioUrl:', data.ttsAudioUrl);
 
             // 응답 정보 표시
             const responseData = {
                 httpStatus: res.status,
-                success: success,
-                intent: intent,
-                errorCode: errorCode,
-                responseText: responseText,
-                audioSize: audioBlob.size + ' bytes',
-                songInfo: songTitle ? {title: songTitle, artist: songArtist} : null
+                success: data.success,
+                intent: data.intent,
+                responseText: data.responseText,
+                songInfo: data.songInfo,
+                screenTransition: data.screenTransition
             };
-            showResponse('res-voice-command', responseData, !success);
+            showResponse('res-voice-command', responseData, !data.success);
 
-            // 성공/실패 관계없이 항상 음성 재생
-            const voiceData = {
-                success: success,
-                intent: intent,
-                responseText: responseText,
-                audioBlob: audioBlob,
-                songInfo: songTitle ? {title: songTitle, artist: songArtist} : null
-            };
-            handleVoiceResponse(voiceData);
+            // 음성/화면 전환 처리
+            handleVoiceResponse(data);
 
             document.getElementById('btn-send').disabled = true;
             document.getElementById('record-status').textContent = '녹음 대기 중...';
@@ -367,30 +351,42 @@
     async function handleVoiceResponse(data){
         console.log('응답 처리:', data);
 
-        // 1. TTS 음성 재생 (audioBlob 또는 ttsAudioUrl)
+        // 0. 화면 전환 정보 확인 (screenTransition)
+        if(data.screenTransition){
+            console.log('🎯 화면 전환 정보:');
+            console.log('  targetScreen:', data.screenTransition.targetScreen);
+            console.log('  action:', data.screenTransition.action);
+            console.log('  data:', data.screenTransition.data);
+
+            // 게임 시작인 경우
+            if(data.screenTransition.action === 'START_GAME'){
+                console.log('🎮 게임 시작 데이터:');
+                console.log('  sessionId:', data.screenTransition.data.sessionId);
+                console.log('  songId:', data.screenTransition.data.songId);
+                console.log('  songTitle:', data.screenTransition.data.songTitle);
+                console.log('  songArtist:', data.screenTransition.data.songArtist);
+                console.log('  audioUrl:', data.screenTransition.data.audioUrl);
+                console.log('  videoUrls:', data.screenTransition.data.videoUrls);
+                console.log('  bpm:', data.screenTransition.data.bpm);
+                console.log('  duration:', data.screenTransition.data.duration);
+                console.log('  sectionInfo:', data.screenTransition.data.sectionInfo);
+                console.log('  lyricsInfo:', data.screenTransition.data.lyricsInfo);
+            }
+        }
+
+        // 1. TTS 음성 재생 (ttsAudioUrl)
         const ttsAudio = document.getElementById('tts-audio');
-        if(data.audioBlob){
-            // 새 방식: Blob 데이터를 직접 재생
-            console.log('🔊 audioBlob 감지:', data.audioBlob);
-            console.log('Blob 크기:', data.audioBlob.size, 'bytes');
-            console.log('Blob 타입:', data.audioBlob.type);
-
-            const audioUrl = URL.createObjectURL(data.audioBlob);
-            console.log('생성된 Blob URL:', audioUrl);
-
-            ttsAudio.src = audioUrl;
-            ttsAudio.play()
-                .then(() => console.log('✅ 음성 재생 시작'))
-                .catch(err => console.error('❌ 음성 재생 실패:', err));
-        } else if(data.ttsAudioUrl){
-            // 기존 방식: URL로 재생
+        if(data.ttsAudioUrl){
             console.log('🔊 ttsAudioUrl 사용:', data.ttsAudioUrl);
-            ttsAudio.src = API_BASE + data.ttsAudioUrl;
+            // Data URI는 그대로 사용, 일반 URL은 API_BASE 추가
+            ttsAudio.src = data.ttsAudioUrl.startsWith('data:')
+                ? data.ttsAudioUrl
+                : API_BASE + data.ttsAudioUrl;
             ttsAudio.play()
                 .then(() => console.log('✅ 음성 재생 시작'))
                 .catch(err => console.error('❌ 음성 재생 실패:', err));
         } else {
-            console.warn('⚠️ audioBlob도 ttsAudioUrl도 없음');
+            console.warn('⚠️ ttsAudioUrl 없음 (JSON 응답에서는 정상)');
         }
 
         // 2. 노래 재생 (songInfo가 있는 경우만)
