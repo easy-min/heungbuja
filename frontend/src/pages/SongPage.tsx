@@ -9,12 +9,13 @@ interface SongPageState {
 }
 
 // 테스트용 더미 데이터 (컴포넌트 외부로 이동)
+const BASE_URL = import.meta.env.BASE_URL;
 const dummySongInfo: SongInfo = {
   songId: 1,
   title: '테스트 노래 - 당돌한 여자',
   artist: '테스트 가수 - 서주경',
   mediaId: 100,
-  audioUrl: '/당돌한여자.mp3',
+  audioUrl: `${BASE_URL}당돌한여자.mp3`,
   mode: 'LISTENING'
 };
 

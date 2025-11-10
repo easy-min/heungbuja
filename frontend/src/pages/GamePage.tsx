@@ -180,7 +180,7 @@ function GamePage() {
     startCamera();
 
     // JSON 로드
-    loadSongData('/당돌한여자.json');
+    loadSongData(`${BASE_URL}당돌한여자.json`);
 
     // ✅ 수정: 언마운트/정리 useEffect 내
     return () => {
@@ -237,7 +237,7 @@ function GamePage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch('/당돌한여자_가사.json');
+        const res = await fetch(`${BASE_URL}당돌한여자_가사.json`);
         const data: { lines: LyricLine[] } = await res.json();
         if (!cancelled) setLyrics(data.lines ?? []);
       } catch (e) {
@@ -470,7 +470,7 @@ function GamePage() {
             preload="auto"
             muted
             playsInline
-            src="/break.mp4"
+            src={`${BASE_URL}break.mp4`}
             className="motion-video"
             style={{width: '800px'}}
           />
@@ -481,7 +481,7 @@ function GamePage() {
           <audio
             controls
             ref={audioRef}
-            src="/당돌한여자.mp3"
+            src={`${BASE_URL}당돌한여자.mp3`}
             style={{ display: testMode ? 'block' : 'none', width: '40%', height: '20%' }}
           />
 

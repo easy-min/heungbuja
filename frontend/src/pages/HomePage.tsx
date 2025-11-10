@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import './HomePage.css';
 import VoiceButton from '@/components/VoiceButton';
 
+const BASE_URL = import.meta.env.BASE_URL;
+
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
 
@@ -23,9 +25,9 @@ const HomePage: React.FC = () => {
             onClick={handleMusicClick}
           >
             <div className="button-content">
-              <img 
-                src="/character-music.svg" 
-                alt="노래 감상" 
+              <img
+                src={`${BASE_URL}character-music.svg`}
+                alt="노래 감상"
                 className="character-image"
               />
               <span className="button-text">노래 감상</span>
@@ -37,9 +39,9 @@ const HomePage: React.FC = () => {
             onClick={handleExerciseClick}
           >
             <div className="button-content">
-              <img 
-                src="/character-exercise.svg" 
-                alt="음악 체조" 
+              <img
+                src={`${BASE_URL}character-exercise.svg`}
+                alt="음악 체조"
                 className="character-image"
               />
               <span className="button-text">음악 체조</span>
