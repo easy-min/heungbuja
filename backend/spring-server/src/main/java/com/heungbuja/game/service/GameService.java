@@ -2,11 +2,17 @@ package com.heungbuja.game.service;
 
 import com.heungbuja.common.exception.CustomException;
 import com.heungbuja.common.exception.ErrorCode;
+import com.heungbuja.game.domain.GameDetail;
 import com.heungbuja.game.dto.*;
 import com.heungbuja.game.entity.GameResult;
+import com.heungbuja.game.enums.GameSessionStatus;
+import com.heungbuja.game.repository.GameDetailRepository;
 import com.heungbuja.game.repository.GameResultRepository;
 import com.heungbuja.game.state.GameState;
 import com.heungbuja.song.domain.ChoreographyPattern;
+import com.heungbuja.s3.service.MediaUrlService;
+import com.heungbuja.session.service.SessionStateService;
+import com.heungbuja.session.state.ActivityState;
 import com.heungbuja.song.domain.SongBeat;
 import com.heungbuja.song.domain.SongChoreography;
 import com.heungbuja.song.domain.SongLyrics;
@@ -30,6 +36,8 @@ import org.springframework.beans.factory.annotation.Value;
 
 import java.time.Duration;
 import java.util.*;
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -64,8 +72,10 @@ public class GameService {
     private final RedisTemplate<String, GameState> gameStateRedisTemplate;
     private final WebClient webClient;
     private final GameResultRepository gameResultRepository;
+    private final GameDetailRepository gameDetailRepository;
 //    private final MediaUrlService mediaUrlService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final SessionStateService sessionStateService;
 //    private final ScoringStrategyFactory scoringStrategyFactory;
     private final ChoreographyPatternRepository choreographyPatternRepository;
 
@@ -110,8 +120,25 @@ public class GameService {
 
         // --- 1-5. 세션 생성 및 URL 발급 ---
         String sessionId = UUID.randomUUID().toString();
+
+        // Redis: 게임 상태 저장
         GameState initialGameState = GameState.initial(sessionId, user.getId(), song.getId());
         saveGameState(sessionId, initialGameState);
+
+        // Redis: 활동 상태 설정
+        sessionStateService.setCurrentActivity(user.getId(), ActivityState.game(sessionId));
+        sessionStateService.setSessionStatus(sessionId, "IN_PROGRESS");
+
+        // MySQL: 게임 결과 초기 레코드 생성
+        GameResult gameResult = GameResult.builder()
+                .user(user)
+                .song(song)
+                .sessionId(sessionId)
+                .status(GameSessionStatus.IN_PROGRESS)
+                .startTime(LocalDateTime.now())
+                .build();
+        gameResultRepository.save(gameResult);
+
         log.info("새로운 게임 세션 시작: userId={}, sessionId={}", user.getId(), sessionId);
 
         String audioUrl = getTestUrl("/media/test");
@@ -324,6 +351,16 @@ public class GameService {
      */
     public void processFrame(WebSocketFrameRequest request) {
         String sessionId = request.getSessionId();
+
+        // 인터럽트 체크 (최우선)
+        String status = sessionStateService.getSessionStatus(sessionId);
+        if ("INTERRUPTING".equals(status) || "INTERRUPTED".equals(status)) {
+            log.info("게임 인터럽트 감지, 프레임 처리 중단: sessionId={}", sessionId);
+            // 프론트에 중단 알림
+            sendGameInterruptNotification(sessionId);
+            return; // 프레임 처리 중단
+        }
+
         GameState gameState = getGameState(sessionId);
         double currentPlayTime = request.getCurrentPlayTime();
 
@@ -423,24 +460,81 @@ public class GameService {
         double verse1Avg = calculateScoreFromJudgments(finalGameState.getVerse1Judgments());
         double verse2Avg = calculateScoreFromJudgments(finalGameState.getVerse2Judgments());
 
-        User user = userRepository.findById(finalGameState.getUserId())
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND, "게임 결과 저장 중 사용자를 찾을 수 없습니다."));
-        Song song = songRepository.findById(finalGameState.getSongId())
-                .orElseThrow(() -> new CustomException(ErrorCode.SONG_NOT_FOUND, "게임 결과 저장 중 노래를 찾을 수 없습니다."));
+        // MongoDB: 상세 데이터 저장
+        GameDetail.Statistics verse1Stats = calculateStatistics(finalGameState.getVerse1Judgments());
+        GameDetail.Statistics verse2Stats = calculateStatistics(finalGameState.getVerse2Judgments());
 
-        GameResult gameResult = GameResult.builder()
-                .user(user)
-                .song(song)
-                .verse1AvgScore(verse1Avg)
-                .verse2AvgScore(verse2Avg)
-                .finalLevel(finalGameState.getNextLevel())
+        GameDetail gameDetail = GameDetail.builder()
+                .sessionId(sessionId)
+                // TODO: 실제 Movement 데이터는 프레임 처리 시 수집 필요
+                .verse1Stats(verse1Stats)
+                .verse2Stats(verse2Stats)
                 .build();
+        gameDetailRepository.save(gameDetail);
+
+        // MySQL: 게임 결과 업데이트
+        GameResult gameResult = gameResultRepository.findBySessionId(sessionId)
+                .orElseThrow(() -> new CustomException(ErrorCode.GAME_SESSION_NOT_FOUND));
+
+        gameResult.setVerse1AvgScore(verse1Avg);
+        gameResult.setVerse2AvgScore(verse2Avg);
+        gameResult.setFinalLevel(finalGameState.getNextLevel());
+        gameResult.complete(); // 상태 = COMPLETED, endTime 설정
 
         gameResultRepository.save(gameResult);
         log.info("세션 {}의 게임 결과 저장 완료. 1절 점수: {}, 2절 점수: {}", sessionId, verse1Avg, verse2Avg);
 
+        // Redis: 상태 정리
         gameStateRedisTemplate.delete(sessionId);
+        sessionStateService.clearSessionStatus(sessionId);
+        sessionStateService.clearActivity(finalGameState.getUserId());
         log.info("세션 {}의 Redis 데이터 삭제 완료.", sessionId);
+    }
+
+    /**
+     * 게임 인터럽트 처리 (외부 호출용)
+     */
+    @Transactional
+    public void interruptGame(String sessionId, String reason) {
+        GameState finalGameState = getGameState(sessionId);
+        if (finalGameState == null) {
+            log.warn("존재하지 않는 세션 ID로 인터럽트 요청: {}", sessionId);
+            return;
+        }
+
+        // 1, 2절 판정 결과를 바탕으로 점수 계산
+        double verse1Avg = calculateScoreFromJudgments(finalGameState.getVerse1Judgments());
+        double verse2Avg = calculateScoreFromJudgments(finalGameState.getVerse2Judgments());
+
+        // MongoDB: 상세 데이터 저장 (진행된 부분까지)
+        GameDetail.Statistics verse1Stats = calculateStatistics(finalGameState.getVerse1Judgments());
+        GameDetail.Statistics verse2Stats = calculateStatistics(finalGameState.getVerse2Judgments());
+
+        GameDetail gameDetail = GameDetail.builder()
+                .sessionId(sessionId)
+                .verse1Stats(verse1Stats)
+                .verse2Stats(verse2Stats)
+                .build();
+        gameDetailRepository.save(gameDetail);
+
+        // MySQL: 게임 결과 업데이트 (중단 처리)
+        GameResult gameResult = gameResultRepository.findBySessionId(sessionId)
+                .orElseThrow(() -> new CustomException(ErrorCode.GAME_SESSION_NOT_FOUND));
+
+        gameResult.setVerse1AvgScore(verse1Avg);
+        gameResult.setVerse2AvgScore(verse2Avg);
+        gameResult.interrupt(reason); // 상태 = INTERRUPTED, endTime, interruptReason 설정
+
+        gameResultRepository.save(gameResult);
+        log.info("세션 {}의 게임 중단 처리 완료. 사유: {}", sessionId, reason);
+
+        // Redis: 상태 정리
+        gameStateRedisTemplate.delete(sessionId);
+        sessionStateService.clearSessionStatus(sessionId);
+        sessionStateService.clearActivity(finalGameState.getUserId());
+
+        // WebSocket: 프론트에 중단 알림
+        sendGameInterruptNotification(sessionId);
     }
 
     // (신규) 판정 리스트를 100점 만점 점수로 변환하는 메소드
@@ -453,6 +547,44 @@ public class GameService {
                 .mapToDouble(judgment -> (double) judgment / 3.0 * 100.0)
                 .sum();
         return totalScore / judgments.size();
+    }
+
+    // 판정 리스트에서 통계 계산
+    private GameDetail.Statistics calculateStatistics(List<Integer> judgments) {
+        if (judgments == null || judgments.isEmpty()) {
+            return GameDetail.Statistics.builder()
+                    .totalMovements(0)
+                    .correctMovements(0)
+                    .averageScore(0.0)
+                    .perfectCount(0)
+                    .goodCount(0)
+                    .badCount(0)
+                    .build();
+        }
+
+        int perfectCount = (int) judgments.stream().filter(j -> j == 3).count();
+        int goodCount = (int) judgments.stream().filter(j -> j == 2).count();
+        int badCount = (int) judgments.stream().filter(j -> j == 1).count();
+
+        return GameDetail.Statistics.builder()
+                .totalMovements(judgments.size())
+                .correctMovements(perfectCount + goodCount) // PERFECT + GOOD
+                .averageScore(calculateScoreFromJudgments(judgments))
+                .perfectCount(perfectCount)
+                .goodCount(goodCount)
+                .badCount(badCount)
+                .build();
+    }
+
+    // 게임 인터럽트 알림 전송
+    private void sendGameInterruptNotification(String sessionId) {
+        String destination = "/topic/game/" + sessionId;
+        GameWebSocketMessage<Map<String, String>> message = new GameWebSocketMessage<>(
+                "GAME_INTERRUPTED",
+                Map.of("message", "게임이 중단되었습니다")
+        );
+        messagingTemplate.convertAndSend(destination, message);
+        log.info("게임 중단 알림 전송: sessionId={}", sessionId);
     }
 
     // --- Helper 메소드들 ---

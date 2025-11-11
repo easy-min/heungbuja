@@ -1,7 +1,10 @@
 package com.heungbuja.common.config;
 
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
+import com.fasterxml.jackson.databind.jsontype.PolymorphicTypeValidator;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -84,6 +87,19 @@ public class RedisConfig {
         ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
         objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+
+        // 타입 정보 활성화 (역직렬화 시 올바른 클래스로 변환)
+        // PROPERTY 방식: @class 속성으로 타입 정보 저장 (WRAPPER_ARRAY 대신)
+        PolymorphicTypeValidator typeValidator = BasicPolymorphicTypeValidator.builder()
+                .allowIfSubType(Object.class)
+                .build();
+
+        objectMapper.activateDefaultTyping(
+                typeValidator,
+                ObjectMapper.DefaultTyping.NON_FINAL,
+                JsonTypeInfo.As.PROPERTY
+        );
+
         return objectMapper;
     }
 }

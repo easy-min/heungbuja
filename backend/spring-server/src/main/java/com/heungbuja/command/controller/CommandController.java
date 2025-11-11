@@ -58,6 +58,21 @@ public class CommandController {
 
             CommandResponse response = commandService.processTextCommand(request);
 
+            // MCP 방식에서는 ttsAudioUrl이 null이므로 자동 생성 (파일 저장 없이 base64로 반환)
+            if (response.getTtsAudioUrl() == null && response.getResponseText() != null) {
+                byte[] audioData = ttsService.synthesizeBytes(response.getResponseText(), "default");
+                String base64Audio = java.util.Base64.getEncoder().encodeToString(audioData);
+                response = CommandResponse.builder()
+                        .success(response.isSuccess())
+                        .intent(response.getIntent())
+                        .responseText(response.getResponseText())
+                        .ttsAudioUrl("data:audio/mpeg;base64," + base64Audio)
+                        .songInfo(response.getSongInfo())
+                        .screenTransition(response.getScreenTransition())
+                        .build();
+                log.info("TTS 자동 생성 완료 (base64): 크기={} bytes", audioData.length);
+            }
+
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
@@ -77,6 +92,22 @@ public class CommandController {
         log.info("텍스트 명령 처리 요청: userId={}, text='{}'", request.getUserId(), request.getText());
 
         CommandResponse response = commandService.processTextCommand(request);
+
+        // MCP 방식에서는 ttsAudioUrl이 null이므로 자동 생성 (파일 저장 없이 base64로 반환)
+        if (response.getTtsAudioUrl() == null && response.getResponseText() != null) {
+            byte[] audioData = ttsService.synthesizeBytes(response.getResponseText(), "default");
+            String base64Audio = java.util.Base64.getEncoder().encodeToString(audioData);
+            response = CommandResponse.builder()
+                    .success(response.isSuccess())
+                    .intent(response.getIntent())
+                    .responseText(response.getResponseText())
+                    .ttsAudioUrl("data:audio/mpeg;base64," + base64Audio)
+                    .songInfo(response.getSongInfo())
+                    .screenTransition(response.getScreenTransition())
+                    .build();
+            log.info("TTS 자동 생성 완료 (base64): 크기={} bytes", audioData.length);
+        }
+
         return ResponseEntity.ok(response);
     }
 

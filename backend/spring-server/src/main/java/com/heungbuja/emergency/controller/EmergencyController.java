@@ -22,7 +22,7 @@ public class EmergencyController {
     @PostMapping
     public ResponseEntity<EmergencyResponse> detectEmergency(
             @Valid @RequestBody EmergencyRequest request) {
-        EmergencyResponse response = emergencyService.detectEmergency(request);
+        EmergencyResponse response = emergencyService.detectEmergencyWithSchedule(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -41,18 +41,25 @@ public class EmergencyController {
     // 관리자용 API
     @GetMapping("/admins/reports")
     public ResponseEntity<List<EmergencyResponse>> getConfirmedReports(Authentication authentication) {
-        // TODO: 관리자 권한 확인
-        List<EmergencyResponse> responses = emergencyService.getConfirmedReports();
-        return ResponseEntity.ok(responses);
+        try {
+            // TODO: 관리자 권한 확인
+            List<EmergencyResponse> responses = emergencyService.getConfirmedReports();
+            return ResponseEntity.ok(responses);
+        } catch (Exception e) {
+            // 명시적 로깅
+            System.err.println("❌ getConfirmedReports 실패: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
+        }
     }
 
     @PutMapping("/admins/reports/{id}")
-    public ResponseEntity<Void> handleReport(
+    public ResponseEntity<EmergencyResponse> handleReport(
             Authentication authentication,
             @PathVariable Long id,
             @RequestParam String notes) {
         Long adminId = (Long) authentication.getPrincipal();
-        emergencyService.handleReport(adminId, id, notes);
-        return ResponseEntity.noContent().build();
+        EmergencyResponse response = emergencyService.handleReport(adminId, id, notes);
+        return ResponseEntity.ok(response);
     }
 }
