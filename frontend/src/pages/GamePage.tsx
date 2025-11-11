@@ -100,7 +100,7 @@ function GamePage() {
   const [currentSegment, setCurrentSegment] = useState(0);
   // sessionId: 음성 명령으로 받은 데이터 우선, 없으면 생성
   const [sessionId] = useState(() => gameData?.sessionId || generateSessionId());
-  const [testMode] = useState(true);  // ✅ testMode 설정
+  const [testMode] = useState(false);  // ✅ testMode 설정
 
   // 가사
   const [lyrics, setLyrics] = useState<LyricLine[]>([]);
@@ -517,10 +517,11 @@ function GamePage() {
           {/* 세그먼트 정보 */}
           <div className="segment-info">
             <span className="segment-number">
-              세그먼트 {currentSegment}/6
+              {/* 세그먼트 {currentSegment}/6 */}
+              사용자 화면
             </span>
             {isCapturing && (
-              <span className="capturing-badge">📹 캡처 중</span>
+              <span className="capturing-badge">📹 동작 인식 중</span>
             )}
             {isUploading && (
               <span className="uploading-badge">📤 업로드 중</span>
@@ -543,9 +544,9 @@ function GamePage() {
         </div>
 
         {/* 아래쪽: 피드백 */}
-        <div className="feedback-section">
+        {/* <div className="feedback-section"> */}
           {/* 테스트용 컨트롤 */}
-          {testMode && (
+          {/* {testMode && (
             <div className="test-controls">
               <div className="button-group">
                 <button
@@ -566,7 +567,7 @@ function GamePage() {
               </div>
             </div>
           )}
-          </div>
+          </div> */}
         </div>
       </div>
     </>
