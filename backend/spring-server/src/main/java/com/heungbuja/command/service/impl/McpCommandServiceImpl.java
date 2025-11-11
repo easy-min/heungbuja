@@ -229,6 +229,7 @@ public class McpCommandServiceImpl implements CommandService {
                    - 파라미터:
                      * userId (필수): 사용자 ID
                      * songId: 게임에 사용할 노래 ID (선택적, 안무 정보가 있는 노래만 가능)
+                   - 중요: 사용자가 특정 노래로 체조하고 싶다고 하면, 반드시 search_song으로 노래를 먼저 찾은 다음 start_game을 호출하세요!
                 """;
 
         return String.format("""
@@ -246,6 +247,8 @@ public class McpCommandServiceImpl implements CommandService {
                 [지침]
                 - 사용자 요청을 이해하고 필요한 Tool(들)을 선택하세요
                 - 복잡한 요청은 여러 Tool을 순차적으로 호출할 수 있습니다
+                - **중요**: 특정 노래로 체조하려면 search_song → start_game 순서로 호출하세요
+                  예: "당돌한 여자로 체조해" → 1) search_song(title="당돌한 여자") 2) start_game(songId=검색결과)
                 - userId는 %d로 설정하세요
                 - 반드시 JSON 형식으로만 응답하세요
 
@@ -356,10 +359,14 @@ public class McpCommandServiceImpl implements CommandService {
     /**
      * 응답 생성
      * ttsUrl은 사용하지 않음 (Controller에서 synthesizeBytes()로 직접 처리)
+     *
+     * 중요: 마지막 Tool 결과를 우선 처리하기 위해 역순으로 순회합니다.
+     * 예: search_song → start_game 호출 시, start_game 결과가 우선 처리됩니다.
      */
     private CommandResponse buildResponse(String responseText, String ttsUrl, List<McpToolResult> toolResults) {
-        // Tool 결과에 따라 응답 생성
-        for (McpToolResult result : toolResults) {
+        // Tool 결과에 따라 응답 생성 (역순 순회: 마지막 Tool 우선 처리)
+        for (int i = toolResults.size() - 1; i >= 0; i--) {
+            McpToolResult result = toolResults.get(i);
             // search_song: 노래 재생 → LISTENING 모드로 화면 전환
             if ("search_song".equals(result.getToolName()) && result.getSongInfo() != null) {
                 return CommandResponse.builder()
