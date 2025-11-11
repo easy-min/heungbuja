@@ -1,5 +1,4 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { type BarGroup } from '@/types';
 import type { SongTimeline } from '@/types/song';
 import { GAME_CONFIG } from '@/utils/constants';
 
@@ -18,18 +17,6 @@ interface SectionTime {
 interface UseMusicMonitorProps {
   audioRef: React.RefObject<HTMLAudioElement | null>;
   onSectionEnter?: (label: SectionTime['label']) => void;
-}
-
-interface UseMusicMonitorReturn {
-  barGroups: BarGroup[];
-  currentSegmentIndex: number;
-  isMonitoring: boolean;
-  songBpm: number;
-  sectionTimes: SectionTime[];
-  loadSongData: (jsonPath: string) => Promise<void>;
-  startMonitoring: () => void;
-  stopMonitoring: () => void;
-  loadFromGameStart: (args: LoadFromGameStartArgs) => Promise<void>;
 }
 
 // ---- helpers ----
@@ -51,13 +38,8 @@ function buildSectionTimesFromAnchors(duration: number, timeline: SongTimeline):
 }
 
 // ---- hook ----
-export const useMusicMonitor = (props: UseMusicMonitorProps): UseMusicMonitorReturn => {
+export const useMusicMonitor = (props: UseMusicMonitorProps) => {
   const { audioRef, onSectionEnter } = props;
-
-  const [barGroups, setBarGroups] = useState<BarGroup[]>([]); // 항상 []
-  const [currentSegmentIndex] = useState(0);                  // 세그먼트 미사용
-  const [isMonitoring, setIsMonitoring] = useState(false);
-  const [songBpm, setSongBpm] = useState<number>(100);
   const [sectionTimes, setSectionTimes] = useState<SectionTime[]>([]);
 
   const animationFrameIdRef = useRef<number | null>(null);
@@ -84,12 +66,7 @@ export const useMusicMonitor = (props: UseMusicMonitorProps): UseMusicMonitorRet
 
   useEffect(() => { sectionTimesRef.current = sectionTimes; }, [sectionTimes]);
 
-  const loadSongData = useCallback(async () => {
-    console.warn('[useMusicMonitor] loadSongData(jsonPath)는 더 이상 사용하지 않습니다. loadFromGameStart를 사용하세요.');
-  }, []);
-
   const stopMonitoring = useCallback(() => {
-    setIsMonitoring(false);
     if (animationFrameIdRef.current !== null) {
       cancelAnimationFrame(animationFrameIdRef.current);
       animationFrameIdRef.current = null;
@@ -101,7 +78,6 @@ export const useMusicMonitor = (props: UseMusicMonitorProps): UseMusicMonitorRet
       console.warn('⚠️ audioRef 없음');
       return;
     }
-    setIsMonitoring(true);
     currentSectionIdxRef.current = -1;
 
     const tick = () => {
@@ -133,19 +109,11 @@ export const useMusicMonitor = (props: UseMusicMonitorProps): UseMusicMonitorRet
 
   useEffect(() => () => stopMonitoring(), [stopMonitoring]);
 
-  const loadFromGameStart = useCallback(async ({ bpm, duration, timeline }: LoadFromGameStartArgs) => {
-    setSongBpm(bpm);
-    setBarGroups([]); // 현재 구조에서는 세그먼트 그룹 미사용
+  const loadFromGameStart = useCallback(async ({duration, timeline }: LoadFromGameStartArgs) => {
     setSectionTimes(buildSectionTimesFromAnchors(duration, timeline));
   }, []);
 
   return {
-    barGroups,                 // []
-    currentSegmentIndex,       // 0
-    isMonitoring,
-    songBpm,
-    sectionTimes,
-    loadSongData,
     startMonitoring,
     stopMonitoring,
     loadFromGameStart,

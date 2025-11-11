@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useCamera } from '@/hooks/useCamera';
 import { useFrameStreamer } from '@/hooks/useFrameStreamer';
 import { useMusicMonitor } from '@/hooks/useMusicMonitor';
@@ -17,33 +17,32 @@ function GamePage() {
 
   // === 상태 / 참조 ===
   const { songId } = useParams<{ songId: string }>();
-  const navigate = useNavigate();
-  const motionVideoRef = useRef<HTMLVideoElement | null>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const motionVideoRef = useRef<HTMLVideoElement | null>(null); // 동작 영상
+  const videoRef = useRef<HTMLVideoElement | null>(null); //카메라 영상
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const captureTimeoutsRef = useRef<number[]>([]);
   const countdownTimerRef = useRef<number | null>(null);
   const hasNavigatedRef = useRef(false);
   const songBpmRef = useRef<number>(120);
   const currentSectionRef = useRef<'intro' | 'break' | 'verse1' | 'verse2'>('break');
-
-  const { isCapturing, start: startStream, stop: stopStream } = useFrameStreamer({
-    videoRef, audioRef, canvasRef,
-  });
+  const navigate = useNavigate();
 
   const [isCounting, setIsCounting] = useState(false);
   const [count, setCount] = useState(5);
   const [isGameStarted, setIsGameStarted] = useState(false);
   const [lyrics, setLyrics] = useState<LyricLine[]>([]);
-
+  
+  const { isCapturing, start: startStream, stop: stopStream } = useFrameStreamer({
+    videoRef, audioRef, canvasRef,
+  });
   const { stream, isReady, error, startCamera, stopCamera } = useCamera();
   const { setAll } = useGameStore();
-
   const { current: currentLyric, next: nextLyric, isInstrumental } =
     useLyricsSync(audioRef, lyrics, { prerollSec: 0.04 });
 
   // === 모니터링 (섹션 감지 → 영상 전환) ===
-  const { loadFromGameStart, stopMonitoring } = useMusicMonitor({
+  const { loadFromGameStart, startMonitoring, stopMonitoring } = useMusicMonitor({
     audioRef,
     onSectionEnter: (label) => {
       const map = { intro: 'break', break: 'break', verse1: 'verse1', verse2: 'verse2' } as const;
@@ -109,14 +108,21 @@ function GamePage() {
 
     const applyAndPlay = async () => {
       const songBpm = songBpmRef.current || 120;
-      mv.loop = false; // 수동 루프 사용
+      mv.loop = false;
+      mv.pause(); // 소스 교체 직후 잔여 재생 방지
       mv.playbackRate = songBpm / videoBpm;
-      // 수동 루프 기준으로 살짝 앞에서 시작
       mv.currentTime = LOOP_RESTART;
-      if (shouldPlayNow) {
-        await mv.play().catch(() => {});
-      }
+      if (shouldPlayNow) await mv.play().catch(() => {});
     };
+
+    if (needSrcSwap) {
+      mv.src = src;
+      mv.load();
+      const onReady = () => { applyAndPlay(); mv.removeEventListener('loadedmetadata', onReady); };
+      mv.addEventListener('loadedmetadata', onReady, { once: true });
+    } else {
+      void applyAndPlay();
+    }
 
     if (needSrcSwap) {
       mv.src = src;
@@ -127,7 +133,6 @@ function GamePage() {
         void applyAndPlay();
       }
     } else {
-      // 같은 파일이어도 항상 재적용(배속/되감기)
       void applyAndPlay();
     }
   }
@@ -168,6 +173,7 @@ function GamePage() {
   // === 게임 시작 ===
   async function beginGame() {
     if (!audioRef.current || !isReady) return;
+    startMonitoring();
 
     // 오디오 먼저 재생
     await audioRef.current.play().catch(e => console.warn('audio play err', e));
@@ -179,20 +185,35 @@ function GamePage() {
   // === 구간 캡처 스케줄링(서버 segments 사용) ===
   function scheduleRangeCaptures() {
     const audio = audioRef.current;
+    const store = useGameStore.getState();
     const segs = useGameStore.getState().segments;
     if (!audio || !segs) return;
 
-    const sessionId = useGameStore.getState().sessionId!;
-    const songTitle = useGameStore.getState().songInfo?.title ?? 'unknown';
+    clearCaptureTimeouts();
+
+    const sessionId = store.sessionId!;
+    const songTitle = store.songInfo?.title ?? 'unknown';
     const segments = [
       { key: 'verse1' as const, start: segs.verse1.startTime, end: segs.verse1.endTime },
       { key: 'verse2' as const, start: segs.verse2.startTime, end: segs.verse2.endTime },
     ];
 
     segments.forEach(({ key, start, end }) => {
-      const delayMs = Math.max(0, (start - audio.currentTime) * 1000);
-      setTimeout(() => {
-        startStream(start, end, (blob, { t, idx }) => {
+      // ② 현재 시각 기준 지연 계산(음악이 이미 시작되어 있을 수 있음)
+      const now = audio.currentTime;
+      const delayMs = Math.max(0, (start - now) * 1000);
+
+      const timeoutId = window.setTimeout(() => {
+        // ③ 콜백 진입 시점에 다시 현재 시간을 확인(시킹/백그라운드 지연 대비)
+        const cur = audio.currentTime;
+
+        // 이미 구간이 끝났으면 실행하지 않음
+        if (cur >= end) return;
+
+        // 중간부터라도 시작: start가 지났다면 cur부터 캡처 시작
+        const effectiveStart = Math.max(cur, start);
+
+        startStream(effectiveStart, end, (blob, { t, idx }) => {
           send(blob, {
             sessionId,
             songTitle,
@@ -203,7 +224,15 @@ function GamePage() {
           });
         });
       }, delayMs);
+
+      // ④ 타이머 ID 저장(나중에 일괄 해제)
+      captureTimeoutsRef.current.push(timeoutId);
     });
+  }
+
+  function clearCaptureTimeouts() {
+    captureTimeoutsRef.current.forEach(id => clearTimeout(id));
+    captureTimeoutsRef.current = [];
   }
 
   // === 카운트다운 ===
@@ -236,6 +265,7 @@ function GamePage() {
     stopMonitoring();
     stopCamera();
     stopStream();
+    clearCaptureTimeouts();
     if (audioRef.current) audioRef.current.pause();
 
     navigate('/result');
@@ -278,6 +308,7 @@ function GamePage() {
       stopCamera();
       stopMonitoring();
       stopStream();
+      clearCaptureTimeouts();
       if (audioRef.current) audioRef.current.pause();
     };
   }, [songId]);
@@ -292,15 +323,16 @@ function GamePage() {
 
   // === Canvas 크기 ===
   useEffect(() => {
-    if (videoRef.current && canvasRef.current) {
-      const video = videoRef.current;
-      video.addEventListener('loadedmetadata', () => {
-        if (canvasRef.current) {
-          canvasRef.current.width = video.videoWidth || 320;
-          canvasRef.current.height = video.videoHeight || 240;
-        }
-      });
-    }
+    const video = videoRef.current;
+    if (!video || !canvasRef.current) return;
+
+    const onMeta = () => {
+      if (!canvasRef.current) return;
+      canvasRef.current.width = video.videoWidth || 320;
+      canvasRef.current.height = video.videoHeight || 240;
+    };
+    video.addEventListener('loadedmetadata', onMeta);
+    return () => video.removeEventListener('loadedmetadata', onMeta);
   }, []);
 
   return (

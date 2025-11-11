@@ -11,10 +11,6 @@ export const GAME_CONFIG: GameConfig = {
   SEGMENT_COUNT: 6,     // 총 세그먼트 수
 };
 
-
-// ===== API 설정 =====
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
-
 // ===== 웨이크워드 =====
 export const WAKE_WORD = '흥부야';
 
