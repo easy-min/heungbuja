@@ -249,25 +249,27 @@ public class McpCommandServiceImpl implements CommandService {
                   - 체조/게임/운동 키워드가 있는가?
 
                 STEP 2: 패턴 결정
-                  - 패턴 A: 노래 이름 + 체조 키워드 있음 → search_song + start_game
-                  - 패턴 B: 노래 이름만 있음 → search_song
-                  - 패턴 C: 체조 키워드만 있음 → start_game
+                  ⚠️ 중요: 노래만 듣기 vs 체조하기 구분!
+                  - 패턴 A (노래로 체조): 노래 이름 + "체조/게임/운동" → search_song + start_game
+                  - 패턴 B (노래만 듣기): 노래 이름 + "틀어/들려/듣고" → search_song만
+                  - 패턴 C (랜덤 체조): "체조/게임/운동"만 → start_game만
 
                 STEP 3: Tool 호출 생성
                   - 패턴에 맞게 tool_calls 배열 구성
 
-                [패턴 예시]
-                명령: "당돌한 여자로 체조하고 싶어"
-                분석: 노래("당돌한 여자") + 체조("체조하고 싶어") → 패턴 A
-                응답: search_song + start_game
+                [패턴 A 예시: 노래로 체조]
+                "당돌한 여자로 체조하고 싶어" → 노래("당돌한 여자") + 체조("체조") → search_song + start_game
+                "당돌한 여자로 게임해줘" → 노래("당돌한 여자") + 게임("게임") → search_song + start_game
+                "당돌한 여자로 운동할래" → 노래("당돌한 여자") + 운동("운동") → search_song + start_game
 
-                명령: "당돌한 여자 틀어줘"
-                분석: 노래("당돌한 여자") → 패턴 B
-                응답: search_song
+                [패턴 B 예시: 노래만 듣기]
+                "당돌한 여자 틀어줘" → 노래("당돌한 여자") + 재생("틀어") → search_song만
+                "당돌한 여자 들려줘" → 노래("당돌한 여자") + 재생("들려") → search_song만
+                "당돌한 여자 듣고 싶어" → 노래("당돌한 여자") + 재생("듣고") → search_song만
 
-                명령: "체조하고 싶어"
-                분석: 체조("체조하고 싶어") → 패턴 C
-                응답: start_game
+                [패턴 C 예시: 랜덤 체조]
+                "체조하고 싶어" → 체조만 → start_game만
+                "게임할래" → 게임만 → start_game만
 
                 [예시 1: 특정 노래로 체조]
                 입력: "당돌한 여자로 체조하고 싶어"

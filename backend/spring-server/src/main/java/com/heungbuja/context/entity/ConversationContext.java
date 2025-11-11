@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.redis.core.RedisHash;
 import org.springframework.data.redis.core.TimeToLive;
+import org.springframework.data.redis.core.index.Indexed;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -38,8 +39,9 @@ public class ConversationContext {
     private String id;  // "user:{userId}" 형식
 
     /**
-     * 사용자 ID
+     * 사용자 ID (인덱스 추가 - findByUserId 지원)
      */
+    @Indexed
     private Long userId;
 
     /**
