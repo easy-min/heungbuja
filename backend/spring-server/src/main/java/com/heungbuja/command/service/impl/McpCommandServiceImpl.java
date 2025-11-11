@@ -229,7 +229,6 @@ public class McpCommandServiceImpl implements CommandService {
                    - 파라미터:
                      * userId (필수): 사용자 ID
                      * songId: 게임에 사용할 노래 ID (선택적, 안무 정보가 있는 노래만 가능)
-                   - 중요: 사용자가 특정 노래로 체조하고 싶다고 하면, 반드시 search_song으로 노래를 먼저 찾은 다음 start_game을 호출하세요!
                 """;
 
         return String.format("""
@@ -244,33 +243,44 @@ public class McpCommandServiceImpl implements CommandService {
                 [사용자 명령]
                 "%s"
 
-                [지침]
-                - 사용자 요청을 이해하고 필요한 Tool(들)을 선택하세요
-                - 복잡한 요청은 여러 Tool을 순차적으로 호출할 수 있습니다
-                - **중요**: 특정 노래로 체조하려면 search_song → start_game 순서로 호출하세요
-                  예: "당돌한 여자로 체조해" → 1) search_song(title="당돌한 여자") 2) start_game(songId=검색결과)
-                - userId는 %d로 설정하세요
-                - 반드시 JSON 형식으로만 응답하세요
+                [핵심 규칙 - 반드시 준수]
+                1. "체조", "게임", "운동" 키워드가 있으면 무조건 start_game 호출
+                2. 특정 노래로 체조하려면 search_song + start_game 둘 다 호출 (순서대로)
+                3. 여러 Tool을 호출할 때는 tool_calls 배열에 모두 포함
 
-                [응답 형식]
+                [예시]
+                입력: "당돌한 여자로 체조해"
+                응답:
                 {
                   "tool_calls": [
-                    {
-                      "name": "search_song",
-                      "arguments": {
-                        "userId": 1,
-                        "artist": "태진아"
-                      }
-                    }
+                    {"name": "search_song", "arguments": {"userId": 1, "title": "당돌한 여자"}},
+                    {"name": "start_game", "arguments": {"userId": 1}}
+                  ]
+                }
+                참고: search_song 후 start_game 호출 시, songId는 생략하면 자동으로 검색된 노래 사용
+
+                입력: "체조하고 싶어"
+                응답:
+                {
+                  "tool_calls": [
+                    {"name": "start_game", "arguments": {"userId": 1}}
                   ]
                 }
 
-                만약 Tool을 호출할 필요가 없으면:
+                입력: "노래 틀어줘"
+                응답:
                 {
-                  "tool_calls": []
+                  "tool_calls": [
+                    {"name": "search_song", "arguments": {"userId": 1}}
+                  ]
                 }
 
-                JSON만 출력하세요 (다른 설명 금지):
+                [응답 형식]
+                - userId는 %d로 설정
+                - 반드시 JSON만 출력 (설명 금지)
+                - tool_calls는 배열 (여러 개 가능)
+
+                JSON만 출력:
                 """, contextInfo, toolsDescription, userMessage, userId);
     }
 

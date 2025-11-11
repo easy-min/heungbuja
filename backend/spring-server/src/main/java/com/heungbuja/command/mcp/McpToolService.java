@@ -342,12 +342,19 @@ public class McpToolService {
 
         // ----------------------- 수정 --------------------------------------------
 
-        // 1. 노래 유효성 검증
+        // 1. 노래 ID 결정 (songId가 없으면 context에서 가져오기)
         if (songId == null) {
-            // TODO: 안무 정보가 있는 노래 중 랜덤으로 하나 선택하는 로직
-            throw new IllegalArgumentException("게임 시작을 위한 노래 ID(songId)가 필요합니다.");
+            log.info("songId가 없음, context에서 현재 곡 조회 시도");
+            ConversationContext context = conversationContextService.getOrCreate(userId);
+            songId = context.getCurrentSongId();
+
+            if (songId == null) {
+                throw new IllegalArgumentException("게임 시작을 위한 노래가 없습니다. 먼저 노래를 선택해주세요.");
+            }
+            log.info("context에서 songId 획득: {}", songId);
         }
-        // 노래 존재 여부만 간단히 확인. 상세 검증은 GameService에 위임.
+
+        // 노래 존재 여부 확인
         Song song = songService.findById(songId);
 
         // 2. GameService 호출을 위한 요청 객체 생성
