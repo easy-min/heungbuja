@@ -41,6 +41,7 @@ function GamePage() {
   const {
     sessionId,
     songTitle,
+    songArtist,
     audioUrl,
     videoUrls, // 필요 시 사용
     bpm,
@@ -55,17 +56,19 @@ function GamePage() {
 
   // === 영상 메타 ===
   // 필요 시 videoUrls를 활용해 교체 가능합니다.
+  const pub = (p: string) => `${import.meta.env.BASE_URL}${p}`;
   const VIDEO_META = {
-    intro:  { src: '/break.mp4', bpm: 100,  loopBeats: 8  },
-    break:  { src: '/break.mp4', bpm: 100,  loopBeats: 8  },
-    verse1: { src: '/part1.mp4', bpm: 98.5, loopBeats: 16 },
-    verse2: { src: '/part2.mp4', bpm: 99,   loopBeats: 16 },
+    intro:  { src: pub('break.mp4'),      bpm: 100,  loopBeats: 8  },
+    break:  { src: pub('break.mp4'),      bpm: 100,  loopBeats: 8  },
+    verse1: { src: pub('part1.mp4'),      bpm: 98.5, loopBeats: 16 },
+    verse2: { src: pub('part2_level2.mp4'), bpm: 99, loopBeats: 16 },
   } as const;
   type SectionKey = keyof typeof VIDEO_META;
 
+
   // === 수동 루프 파라미터 ===
   const LOOP_EPS = 0.02;     // 경계 여유
-  const LOOP_RESTART = 0.04; // 되감을 위치(싱크 보정)
+  const LOOP_RESTART = 0.05; // 되감을 위치(싱크 보정)
 
   const getLoopLenSec = (section: SectionKey) => {
     const { bpm, loopBeats } = VIDEO_META[section];
@@ -76,7 +79,7 @@ function GamePage() {
   const { loadFromGameStart, startMonitoring, stopMonitoring } = useMusicMonitor({
     audioRef,
     onSectionEnter: (label) => {
-      const map = { intro: 'break', break: 'break', verse1: 'verse1', verse2: 'verse2' } as const;
+      const map = { intro: 'intro', break: 'break', verse1: 'verse1', verse2: 'verse2' } as const;
       const nextSection = map[label] ?? 'break';
       switchSectionVideo(nextSection);
 
@@ -152,7 +155,7 @@ function GamePage() {
 
     const { src, bpm: videoBpm } = VIDEO_META[next];
     const shouldPlayNow = !!au && !au.paused;
-    const needSrcSwap = !mv.src.endsWith(src);
+    const needSrcSwap = mv.src !== src;
 
     const applyAndPlay = async () => {
       const songBpm = songBpmRef.current || 120;
@@ -166,17 +169,8 @@ function GamePage() {
     if (needSrcSwap) {
       mv.src = src;
       mv.load();
-      const onReady = () => { applyAndPlay(); mv.removeEventListener('loadedmetadata', onReady); };
-      mv.addEventListener('loadedmetadata', onReady, { once: true });
-    } else {
-      void applyAndPlay();
-    }
-
-    if (needSrcSwap) {
-      mv.src = src;
-      mv.load();
-      if (mv.readyState < 2) {
-        mv.addEventListener('canplay', applyAndPlay, { once: true });
+      if (mv.readyState < 1) {
+        mv.addEventListener('loadedmetadata', applyAndPlay, { once: true });
       } else {
         void applyAndPlay();
       }
@@ -331,7 +325,14 @@ function GamePage() {
 
         // 오디오 소스
         if (audioRef.current) {
-          audioRef.current.src = audioUrl;
+          const localAudio = pub('당돌한여자.mp3');
+          audioRef.current.src = localAudio;
+          audioRef.current.onerror = () => {
+            if (audioUrl) {
+              audioRef.current!.src = audioUrl;
+              audioRef.current!.load();
+            }
+          };
           audioRef.current.load();
         }
 
@@ -348,6 +349,7 @@ function GamePage() {
         };
 
         await loadFromGameStart({ bpm, duration, timeline });
+        switchSectionVideo('break');
       } catch (e) {
         console.error('게임 시작 초기화 실패:', e);
       }
@@ -378,40 +380,53 @@ function GamePage() {
         </div>
       )}
       <div className="game-page">
-        <div className="video-container">
-          <div className="character-section">
-            <video
-              ref={motionVideoRef}
-              preload="auto"
-              muted
-              playsInline
-              src="/break.mp4"
-              className="motion-video"
-              style={{ width: '800px' }}
-            />
-          </div>
-          <div className="lyrics-container">
+        <div className="left-container">
+          <div className="left__top">
             <audio controls ref={audioRef} style={{ display: 'block', width: '40%', height: '20%' }} />
-            <div className="lyrics-display">
-              <div className="lyrics-current">{isInstrumental ? '(간주 중)' : currentLyric?.text ?? '\u00A0'}</div>
-              <div className="lyrics-next">{!isInstrumental ? nextLyric?.text ?? '\u00A0' : '\u00A0'}</div>
+          </div>
+          <div className="left__main">
+            <div className="character-section">
+              <video
+                ref={motionVideoRef}
+                preload="auto"
+                muted
+                playsInline
+                src={VIDEO_META.break.src}
+                className="motion-video"
+                style={{ width: '800px' }}
+              />
+            </div>
+            <div className="lyrics-container">
+              <div className="lyrics-display">
+                <div className="lyrics-current">{isInstrumental ? '(간주 중)' : currentLyric?.text ?? '\u00A0'}</div>
+                <div className="lyrics-next">{!isInstrumental ? nextLyric?.text ?? '\u00A0' : '\u00A0'}</div>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="camera-container">
-          <div className="camera-section">
-            <video ref={videoRef} autoPlay playsInline muted className="camera-video" />
-            <canvas ref={canvasRef} className="capture-canvas" />
-
-            <div className="segment-info">
-              {isCapturing && <span className="capturing-badge">📹 캡처 중</span>}
+          <div className="right-container">
+            <div className="right__top">
+              <div className="song-title">{songTitle}</div>
+              <div className="song-artist">{songArtist}</div>
             </div>
+            <div className="right__main">
+              <div className="camera-section">
+                <video ref={videoRef} autoPlay playsInline muted className="camera-video" />
+                <canvas ref={canvasRef} className="capture-canvas" />
 
-            {error && <div className="error-message">❌ {error}</div>}
-            {!isReady && !error && <div className="loading-message">📹 카메라 준비 중...</div>}
+                <div className="segment-info">
+                  {isCapturing && <span className="capturing-badge">📹 캡처 중</span>}
+                </div>
+
+                {error && <div className="error-message">❌ {error}</div>}
+                {!isReady && !error && <div className="loading-message">📹 카메라 준비 중...</div>}
+              </div>
+              <div className="feedback-section">
+                ( 동작인식 피드백 )
+              </div>
+            </div>
           </div>
-        </div>
       </div>
     </>
   );

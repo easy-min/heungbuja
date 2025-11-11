@@ -53,7 +53,7 @@ export async function mockGameStart(): Promise<GameStartResponse> {
     data: {
       sessionId: '19cb4d67-07f3-400e-9dc9-6d8bc2402446',
       songId: 1,
-      songTitle: '당돌한여자',
+      songTitle: '당돌한 여자',
       songArtist: 'Seo Jookyung',
       audioUrl:
         '/당돌한여자.mp3',
