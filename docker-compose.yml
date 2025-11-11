@@ -117,6 +117,14 @@ services:
     restart: unless-stopped
     networks: [app-net]
 
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1          # GPU 1개 사용 (여러 개면 all 또는 숫자 변경)
+              capabilities: [gpu]
+
   music:
     container_name: music-server
     build:
@@ -134,6 +142,14 @@ services:
       start_period: 10s
     restart: unless-stopped
     networks: [app-net]
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 
   admin:
     container_name: heungbuja-admin
