@@ -14,8 +14,7 @@ RUN apt-get update \
         libgl1-mesa-glx \
         libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/* \
-    && ln -s /usr/bin/python3.11 /usr/bin/python \
-    && ln -s /usr/bin/pip3 /usr/bin/pip
+    && ln -s /usr/bin/python3.11 /usr/bin/python
 
 WORKDIR /app
 
