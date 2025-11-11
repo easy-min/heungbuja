@@ -57,8 +57,13 @@ public class CommandServiceImpl implements CommandService {
     private final EmergencyService emergencyService;
     private final com.heungbuja.s3.service.MediaUrlService mediaUrlService;
     private final com.heungbuja.context.service.ConversationContextService conversationContextService;
-    private final com.heungbuja.game.service.GameService gameService;
     private final com.heungbuja.session.service.SessionStateService sessionStateService;
+
+    // 세션 서비스
+    private final com.heungbuja.session.service.SessionPrepareService sessionPrepareService;
+
+    // Song 캐시
+    private final com.heungbuja.song.service.SongGameDataCache songGameDataCache;
 
     // 기타
     private final VoiceCommandRepository voiceCommandRepository;
@@ -317,22 +322,22 @@ public class CommandServiceImpl implements CommandService {
     }
 
     /**
-     * 게임 시작 처리
-     * 최근 청취한 곡으로 게임 시작, 없으면 랜덤 선택
+     * 게임 시작 처리 (튜토리얼)
      */
     private CommandResponse handleGameStart(User user) {
-        // 음악 재생 중이면 중단
+        log.info("게임 시작 요청: userId={}", user.getId());
+
+        // 1. 음악/게임 진행 중이면 중단
         handleActivityInterrupt(user.getId(), "게임 시작");
 
-        // 1. 노래 선택 (최근 청취한 곡 or 랜덤)
+        // 2. 노래 선택 (최근 청취한 곡 or 랜덤)
         Song selectedSong;
         try {
             var recentHistory = listeningHistoryService.getRecentHistory(user, 1);
             if (!recentHistory.isEmpty()) {
                 selectedSong = recentHistory.get(0).getSong();
             } else {
-                // 랜덤 노래 선택 (SongService에 랜덤 선택 메서드가 없다면 첫 번째 노래 선택)
-                selectedSong = songService.searchByArtist(""); // 임시: 아무 노래나 선택
+                selectedSong = songService.searchByArtist("");
             }
         } catch (Exception e) {
             log.error("게임용 노래 선택 실패: userId={}", user.getId(), e);
@@ -341,38 +346,53 @@ public class CommandServiceImpl implements CommandService {
             return CommandResponse.failure(Intent.MODE_EXERCISE, errorText, "/commands/tts/" + ttsUrl);
         }
 
-        // 2. 게임 시작 (GameService에서 ActivityState 설정함)
-        GameStartRequest gameRequest = GameStartRequest.builder()
-                .userId(user.getId())
-                .songId(selectedSong.getId())
-                .build();
+        // 3. Song 게임 데이터 조회 (캐시 우선)
+        com.heungbuja.song.dto.SongGameData songGameData = songGameDataCache.getOrLoadSongGameData(selectedSong.getId());
+        log.debug("Song 게임 데이터 조회: songId={}", selectedSong.getId());
 
-        GameStartResponse gameResponse = gameService.startGame(gameRequest);
+        // 4. audioUrl 생성
+        String audioUrl = mediaUrlService.issueUrlById(selectedSong.getMedia().getId());
 
-        // 3. Redis: 모드 변경
+        // 5. SessionPrepareService로 세션 준비 (GameState만 생성)
+        com.heungbuja.game.dto.GameSessionPrepareResponse prepareResponse =
+                sessionPrepareService.prepareGameSession(
+                        user.getId(),
+                        selectedSong,
+                        audioUrl,
+                        songGameData
+                );
+
+        String sessionId = prepareResponse.getSessionId();
+        log.info("GameState 생성 완료: sessionId={}", sessionId);
+
+        // 6. ActivityState 설정 (Command가 관리!)
+        sessionStateService.setCurrentActivity(
+                user.getId(),
+                com.heungbuja.session.state.ActivityState.gameTutorial(sessionId)
+        );
+
+        // 7. SessionStatus 설정
+        sessionStateService.setSessionStatus(sessionId, "TUTORIAL_READY");
+
+        log.info("세션 상태 설정 완료: sessionId={}", sessionId);
+
+        // 8. ConversationContext 모드 변경
         conversationContextService.changeMode(user.getId(), PlaybackMode.EXERCISE);
 
-        // 4. 응답 생성
+        // 9. 응답 생성
         String responseText = String.format("%s의 %s로 게임을 시작할게요",
                 selectedSong.getArtist(), selectedSong.getTitle());
 
-        // 5. screenTransition 데이터 생성
-        Map<String, Object> gameData = new HashMap<>();
-        gameData.put("sessionId", gameResponse.getSessionId());
-        gameData.put("songId", gameResponse.getSongId());
-        gameData.put("songTitle", gameResponse.getSongTitle());
-        gameData.put("songArtist", gameResponse.getSongArtist());
-        gameData.put("audioUrl", gameResponse.getAudioUrl());
-        gameData.put("videoUrls", gameResponse.getVideoUrls());
-        gameData.put("bpm", gameResponse.getBpm());
-        gameData.put("duration", gameResponse.getDuration());
-        gameData.put("sectionInfo", gameResponse.getSectionInfo());
-        gameData.put("lyricsInfo", gameResponse.getLyricsInfo());
+        Map<String, Object> tutorialData = new HashMap<>();
+        tutorialData.put("sessionId", sessionId);
+        tutorialData.put("tutorialVideoUrl", prepareResponse.getTutorialVideoUrl());
+        tutorialData.put("songTitle", prepareResponse.getSongTitle());
+        tutorialData.put("songArtist", prepareResponse.getSongArtist());
 
         CommandResponse.ScreenTransition screenTransition = CommandResponse.ScreenTransition.builder()
-                .targetScreen("/game")
-                .action("START_GAME")
-                .data(gameData)
+                .targetScreen("/tutorial")
+                .action("START_TUTORIAL")
+                .data(tutorialData)
                 .build();
 
         return CommandResponse.builder()
@@ -386,30 +406,31 @@ public class CommandServiceImpl implements CommandService {
     }
 
     /**
-     * 게임 종료 처리
+     * 게임 종료 처리 (Command가 ActivityState 조회)
      */
     private CommandResponse handleGameEnd(User user) {
-        // Redis에서 현재 게임 세션 ID를 가져와서 게임 종료 처리
+        // Command가 ActivityState 조회!
         com.heungbuja.session.state.ActivityState currentActivity =
-            sessionStateService.getCurrentActivity(user.getId());
+                sessionStateService.getCurrentActivity(user.getId());
 
         if (currentActivity.getType() == com.heungbuja.session.enums.ActivityType.GAME) {
             String sessionId = currentActivity.getSessionId();
-            log.info("게임 종료 처리: userId={}, sessionId={}", user.getId(), sessionId);
+            log.info("게임 종료 요청: userId={}, sessionId={}", user.getId(), sessionId);
 
-            // 게임 인터럽트 처리 (사용자가 직접 종료)
+            // Redis 상태만 변경 (GameService가 감지)
             if (sessionStateService.trySetInterrupt(sessionId, "USER_END")) {
-                gameService.interruptGame(sessionId, "USER_END");
-                log.info("게임 중단 처리 완료: sessionId={}", sessionId);
+                log.info("게임 중단 플래그 설정: sessionId={}", sessionId);
+            } else {
+                log.warn("게임 중단 플래그 설정 실패 (이미 처리 중): sessionId={}", sessionId);
             }
         } else {
-            log.warn("게임 진행 중이 아닌 상태에서 종료 요청: userId={}, currentType={}",
-                user.getId(), currentActivity.getType());
+            log.warn("게임 진행 중이 아님: userId={}, currentType={}",
+                    user.getId(), currentActivity.getType());
         }
 
         String responseText = responseGenerator.generateResponse(Intent.MODE_EXERCISE_END);
 
-        // Redis: 모드 변경 (HOME으로 복귀)
+        // ConversationContext 모드 변경
         conversationContextService.changeMode(user.getId(), PlaybackMode.HOME);
 
         // 화면 전환
@@ -571,38 +592,36 @@ public class CommandServiceImpl implements CommandService {
     }
 
     /**
-     * 현재 활동 인터럽트 처리
-     * 게임/음악 진행 중이면 중단
+     * 현재 활동 인터럽트 처리 (Command가 ActivityState 조회)
      */
     private void handleActivityInterrupt(Long userId, String newActivity) {
+        // Command가 ActivityState 조회!
         com.heungbuja.session.state.ActivityState currentActivity =
-            sessionStateService.getCurrentActivity(userId);
+                sessionStateService.getCurrentActivity(userId);
 
         if (currentActivity.getType() == com.heungbuja.session.enums.ActivityType.IDLE) {
-            return; // 인터럽트 불필요
+            return;
         }
 
         log.info("활동 인터럽트: userId={}, 현재={}, 새활동={}",
-            userId, currentActivity.getType(), newActivity);
+                userId, currentActivity.getType(), newActivity);
 
         switch (currentActivity.getType()) {
             case GAME:
-                // 게임 중단
+                // sessionId 획득 후 Redis 플래그만 설정
                 String sessionId = currentActivity.getSessionId();
                 if (sessionStateService.trySetInterrupt(sessionId, newActivity)) {
-                    gameService.interruptGame(sessionId, newActivity);
-                    log.info("게임 중단 완료: sessionId={}, reason={}", sessionId, newActivity);
+                    log.info("게임 중단 플래그 설정: sessionId={}, reason={}", sessionId, newActivity);
                 }
                 break;
 
             case MUSIC:
-                // 음악 중단 (프론트에서 처리, 상태만 초기화)
+                // 음악은 바로 정리 (프론트가 관리)
                 sessionStateService.clearActivity(userId);
                 log.info("음악 중단: userId={}", userId);
                 break;
 
             case EMERGENCY:
-                // 응급 상황은 중단 불가
                 log.warn("응급 상황 중에는 다른 활동 불가: userId={}", userId);
                 break;
 
