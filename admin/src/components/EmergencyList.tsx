@@ -39,10 +39,10 @@ const EmergencyList = ({ reports, onResolve, isLoading }: EmergencyListProps) =>
     <div className="emergency-list">
       {reports.map((report) => (
         <EmergencyCard
-          key={report.id}
+          key={report.reportId}
           report={report}
           onResolve={handleResolve}
-          isResolving={resolvingId === report.id}
+          isResolving={resolvingId === report.reportId}
         />
       ))}
     </div>
