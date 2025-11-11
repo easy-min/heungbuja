@@ -225,10 +225,18 @@ public class McpCommandServiceImpl implements CommandService {
                      * mode (필수): HOME, LISTENING, EXERCISE 중 하나
 
                 9. start_game
-                   - 설명: 게임(체조)을 시작합니다. 노래에 맞춰 동작을 따라하는 3-5분 게임입니다.
+                   - 설명: 게임(체조)을 시작합니다. 현재 선택된 노래 또는 랜덤 노래로 시작합니다.
                    - 파라미터:
                      * userId (필수): 사용자 ID
-                     * songId: 게임에 사용할 노래 ID (선택적, 안무 정보가 있는 노래만 가능)
+                     * songId: 게임에 사용할 노래 ID (선택적)
+
+                10. start_game_with_song
+                   - 설명: 특정 노래로 게임(체조)을 시작합니다. 노래 검색과 게임 시작을 한 번에 처리합니다.
+                   - 파라미터:
+                     * userId (필수): 사용자 ID
+                     * title: 노래 제목
+                     * artist: 가수명 (선택적)
+                   - 사용 시점: 사용자가 "특정 노래로 체조/게임/운동"을 요청할 때
                 """;
 
         return String.format("""
@@ -243,31 +251,66 @@ public class McpCommandServiceImpl implements CommandService {
                 [사용자 명령]
                 "%s"
 
-                [지침]
-                - 사용자 요청을 이해하고 필요한 Tool(들)을 선택하세요
-                - 복잡한 요청은 여러 Tool을 순차적으로 호출할 수 있습니다
-                - userId는 %d로 설정하세요
-                - 반드시 JSON 형식으로만 응답하세요
+                [명령 분석 절차]
+                STEP 1: 사용자 명령에서 키워드 추출
+                  - 노래 이름이 있는가? (가수명, 곡명 등)
+                  - 체조/게임/운동 키워드가 있는가?
+                  - 재생 키워드가 있는가? (틀어/들려/듣고)
 
-                [응답 형식]
+                STEP 2: 패턴 결정
+                  ⚠️ 중요: 하나의 명령에는 하나의 Tool만!
+                  - 패턴 A (노래로 체조): 노래 이름 + "체조/게임/운동" → start_game_with_song (한 번에!)
+                  - 패턴 B (노래만 듣기): 노래 이름 + "틀어/들려/듣고" → search_song만
+                  - 패턴 C (랜덤 체조): "체조/게임/운동"만 → start_game만
+
+                STEP 3: Tool 호출 생성
+                  - 패턴에 맞는 Tool 하나만 호출
+
+                [패턴 A 예시: 노래로 체조 - start_game_with_song 사용]
+                "당돌한 여자로 체조하고 싶어" → start_game_with_song(title="당돌한 여자")
+                "당돌한 여자로 게임해줘" → start_game_with_song(title="당돌한 여자")
+                "서주경의 당돌한 여자로 운동할래" → start_game_with_song(artist="서주경", title="당돌한 여자")
+
+                [패턴 B 예시: 노래만 듣기 - search_song 사용]
+                "당돌한 여자 틀어줘" → search_song(title="당돌한 여자")
+                "당돌한 여자 들려줘" → search_song(title="당돌한 여자")
+                "당돌한 여자 듣고 싶어" → search_song(title="당돌한 여자")
+
+                [패턴 C 예시: 랜덤 체조 - start_game 사용]
+                "체조하고 싶어" → start_game()
+                "게임할래" → start_game()
+
+                [JSON 예시]
+                입력: "당돌한 여자로 체조하고 싶어"
+                응답:
                 {
                   "tool_calls": [
-                    {
-                      "name": "search_song",
-                      "arguments": {
-                        "userId": 1,
-                        "artist": "태진아"
-                      }
-                    }
+                    {"name": "start_game_with_song", "arguments": {"userId": 1, "title": "당돌한 여자"}}
                   ]
                 }
 
-                만약 Tool을 호출할 필요가 없으면:
+                입력: "당돌한 여자 들려줘"
+                응답:
                 {
-                  "tool_calls": []
+                  "tool_calls": [
+                    {"name": "search_song", "arguments": {"userId": 1, "title": "당돌한 여자"}}
+                  ]
                 }
 
-                JSON만 출력하세요 (다른 설명 금지):
+                입력: "체조하고 싶어"
+                응답:
+                {
+                  "tool_calls": [
+                    {"name": "start_game", "arguments": {"userId": 1}}
+                  ]
+                }
+
+                [응답 형식]
+                - userId는 %d로 설정
+                - 반드시 JSON만 출력 (설명 금지)
+                - tool_calls는 배열이지만 대부분 하나의 Tool만 호출
+
+                JSON만 출력:
                 """, contextInfo, toolsDescription, userMessage, userId);
     }
 
@@ -356,10 +399,14 @@ public class McpCommandServiceImpl implements CommandService {
     /**
      * 응답 생성
      * ttsUrl은 사용하지 않음 (Controller에서 synthesizeBytes()로 직접 처리)
+     *
+     * 중요: 마지막 Tool 결과를 우선 처리하기 위해 역순으로 순회합니다.
+     * 예: search_song → start_game 호출 시, start_game 결과가 우선 처리됩니다.
      */
     private CommandResponse buildResponse(String responseText, String ttsUrl, List<McpToolResult> toolResults) {
-        // Tool 결과에 따라 응답 생성
-        for (McpToolResult result : toolResults) {
+        // Tool 결과에 따라 응답 생성 (역순 순회: 마지막 Tool 우선 처리)
+        for (int i = toolResults.size() - 1; i >= 0; i--) {
+            McpToolResult result = toolResults.get(i);
             // search_song: 노래 재생 → LISTENING 모드로 화면 전환
             if ("search_song".equals(result.getToolName()) && result.getSongInfo() != null) {
                 return CommandResponse.builder()
@@ -381,6 +428,24 @@ public class McpCommandServiceImpl implements CommandService {
 
             // start_game: 게임 시작 → EXERCISE 모드로 화면 전환
             if ("start_game".equals(result.getToolName()) && result.getData() != null) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> gameData = (Map<String, Object>) result.getData();
+
+                return CommandResponse.builder()
+                        .success(true)
+                        .intent(Intent.MODE_EXERCISE)  // ✅ 게임 시작 Intent
+                        .responseText(responseText)
+                        .ttsAudioUrl(null)  // TTS는 Controller에서 처리
+                        .screenTransition(CommandResponse.ScreenTransition.builder()
+                                .targetScreen("/game")
+                                .action("START_GAME")
+                                .data(gameData)  // sessionId, audioUrl, beatInfo 등 포함
+                                .build())
+                        .build();
+            }
+
+            // start_game_with_song: 특정 노래로 게임 시작 → EXERCISE 모드로 화면 전환
+            if ("start_game_with_song".equals(result.getToolName()) && result.getData() != null) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> gameData = (Map<String, Object>) result.getData();
 

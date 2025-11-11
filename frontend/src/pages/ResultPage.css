@@ -1,0 +1,48 @@
+.result-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  height: 100vh;
+  width: 100vw;
+
+  background-color: var(--color-bg);
+}
+
+.result-page p {
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: var(--color-text);
+  z-index: 1;
+}
+
+.btn-container {
+  margin-top: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px
+}
+
+.btn-container p {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--color-bg);
+}
+
+/* === 버튼 기본 스타일 === */
+.play-btn {
+  z-index: 1;
+  width: 140px;
+  height: 140px;
+  border: none;
+  border-radius: 20px;
+  background-color: var(--color-primary);
+  cursor: pointer;
+  position: relative;
+  box-shadow:
+    6px 6px 12px rgba(0, 0, 0, 0.25), /* 바닥 그림자 */
+    -6px -6px 12px rgba(255, 255, 255, 0.4); /* 윗면 빛 반사 */
+  transition: all 0.2s ease;
+}

@@ -81,6 +81,33 @@ public class RedisConfig {
     }
 
     /**
+     * SongGameData 전용 RedisTemplate 빈 생성
+     * SongGameDataCache에서 사용
+     */
+    @Bean
+    public RedisTemplate<String, com.heungbuja.song.dto.SongGameData> songGameDataRedisTemplate(
+            RedisConnectionFactory connectionFactory) {
+        RedisTemplate<String, com.heungbuja.song.dto.SongGameData> template = new RedisTemplate<>();
+        template.setConnectionFactory(connectionFactory);
+
+        // Key Serializer: String
+        template.setKeySerializer(new StringRedisSerializer());
+        template.setHashKeySerializer(new StringRedisSerializer());
+
+        // Value Serializer: JSON (Jackson)
+        ObjectMapper objectMapper = createObjectMapper();
+
+        GenericJackson2JsonRedisSerializer jsonSerializer =
+                new GenericJackson2JsonRedisSerializer(objectMapper);
+
+        template.setValueSerializer(jsonSerializer);
+        template.setHashValueSerializer(jsonSerializer);
+
+        template.afterPropertiesSet();
+        return template;
+    }
+
+    /**
      * ObjectMapper 생성 헬퍼 메서드
      */
     private ObjectMapper createObjectMapper() {

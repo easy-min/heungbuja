@@ -2,7 +2,7 @@
   "version": "1.0",
   "pipeline": "librosa(HPSS/normalize/trim) + madmom + Essentia + meter-phase-search",
   "audio": {
-    "title": "서주경 - 당돌한 여자.mp3",
+    "title": "[Official Audio] 서주경(Seo Joo Kyung) - 당돌한 여자.mp3",
     "durationSec": 220.35736961451246,
     "sampleRate": 44100
   },
@@ -2787,6 +2787,40 @@
       "bar": 115,
       "beat": 4,
       "t": 216.02315192743762
+    }
+  ],
+  "sections": [
+		{
+      "label": "intro",
+      "lineRange": null,
+      "startBeat": 1,
+      "endBeat": 64,
+      "startBar" : 1,
+      "endBar" : 16
+    },
+    {
+      "label": "part1",
+      "lineRange": [1, 20],
+      "startBeat": 65,
+      "endBeat": 224,
+      "startBar" : 17,
+      "endBar" : 56
+    },
+    {
+      "label": "break",
+      "lineRange": null,
+      "startBeat": 225,
+      "endBeat": 292,
+      "startBar" : 57,
+      "endBar" : 73
+    },
+    {
+      "label": "part2",
+      "lineRange": [21, 40],
+      "startBeat": 293,
+      "endBeat": 460,
+      "startBar" : 74,
+      "endBar" : 115
     }
   ]
 }

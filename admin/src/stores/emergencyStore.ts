@@ -32,12 +32,12 @@ export const useEmergencyStore = create<EmergencyStore>((set) => ({
   
   updateReport: (reportId, updates) => set((state) => ({
     reports: state.reports.map((report) =>
-      report.id === reportId ? { ...report, ...updates } : report
+      report.reportId === reportId ? { ...report, ...updates } : report
     ),
   })),
-  
+
   removeReport: (reportId) => set((state) => ({
-    reports: state.reports.filter((report) => report.id !== reportId),
+    reports: state.reports.filter((report) => report.reportId !== reportId),
   })),
   
   setLoading: (isLoading) => set({ isLoading }),
