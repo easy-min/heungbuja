@@ -15,12 +15,13 @@ import org.springframework.scheduling.annotation.EnableAsync;
 @EnableJpaRepositories(basePackages = {
 		"com.heungbuja.admin.repository", "com.heungbuja.auth.repository",
 		"com.heungbuja.device.repository", "com.heungbuja.emergency.repository",
-		"com.heungbuja.game.repository", "com.heungbuja.s3.repository",
+		"com.heungbuja.game.repository.jpa", "com.heungbuja.s3.repository",
 		"com.heungbuja.song.repository.jpa", // <-- 수정된 경로
 		"com.heungbuja.user.repository", "com.heungbuja.voice.repository"
 })
 @EnableMongoRepositories(basePackages = {
-		"com.heungbuja.song.repository.mongo" // <-- 수정된 경로
+		"com.heungbuja.song.repository.mongo", // <-- 수정된 경로
+		"com.heungbuja.game.repository.mongo"
 })
 @EnableRedisRepositories(basePackages = {
 		"com.heungbuja.context.repository", // <-- Redis Repository가 있는 실제 경로로 수정 필요

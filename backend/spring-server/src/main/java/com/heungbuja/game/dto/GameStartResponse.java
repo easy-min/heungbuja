@@ -4,6 +4,7 @@ import com.heungbuja.song.domain.SongLyrics;
 import lombok.Builder;
 import lombok.Getter;
 
+import java.util.List;
 import java.util.Map;
 
 @Getter
@@ -48,10 +49,9 @@ public class GameStartResponse {
     /** 가사 정보 (원본 JSON 그대로 전달) */
     private SongLyrics lyricsInfo;
 
-    /**
-     * 게임 전체의 동작 타임라인.
-     * Key: 동작이 시작되는 시간(초), Value: 해당 동작의 코드(actionCode)
-     * 2절의 모든 레벨에 대한 동작 정보가 포함될 수 있습니다.
-     */
-    private Map<Double, Integer> actionTimeline;
+    /** 1절의 동작 타임라인 */
+    private List<ActionTimelineEvent> verse1Timeline;
+
+    /** 2절의 레벨별 동작 타임라인을 담는 Map */
+    private Map<String, List<ActionTimelineEvent>> verse2Timelines;
 }

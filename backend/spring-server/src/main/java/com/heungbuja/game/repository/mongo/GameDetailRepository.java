@@ -1,4 +1,4 @@
-package com.heungbuja.game.repository;
+package com.heungbuja.game.repository.mongo;
 
 import com.heungbuja.game.domain.GameDetail;
 import org.springframework.data.mongodb.repository.MongoRepository;

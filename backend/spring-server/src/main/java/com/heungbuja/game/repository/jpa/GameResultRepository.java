@@ -1,4 +1,4 @@
-package com.heungbuja.game.repository;
+package com.heungbuja.game.repository.jpa;
 
 import com.heungbuja.game.entity.GameResult;
 import org.springframework.data.jpa.repository.JpaRepository;
