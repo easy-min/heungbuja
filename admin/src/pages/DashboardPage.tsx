@@ -159,7 +159,7 @@ const DashboardPage = () => {
   useEffect(() => {
     // 가장 최근 PENDING/CONFIRMED 신고가 있으면 알림 표시
     const latestEmergency = reports.find(
-      (r) => r.status === 'PENDING' || r.status === 'CONFIRMED'
+      (r) => r.status === 'CONFIRMED'
     );
     
     if (latestEmergency && !currentEmergencyAlert) {
