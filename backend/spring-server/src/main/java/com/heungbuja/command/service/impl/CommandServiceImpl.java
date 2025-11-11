@@ -58,6 +58,7 @@ public class CommandServiceImpl implements CommandService {
     private final com.heungbuja.s3.service.MediaUrlService mediaUrlService;
     private final com.heungbuja.context.service.ConversationContextService conversationContextService;
     private final com.heungbuja.game.service.GameService gameService;
+    private final com.heungbuja.session.service.SessionStateService sessionStateService;
 
     // 기타
     private final VoiceCommandRepository voiceCommandRepository;
@@ -160,12 +161,19 @@ public class CommandServiceImpl implements CommandService {
 
         Song song = songService.searchByArtist(query);
 
+        // 게임 진행 중이면 중단
+        handleActivityInterrupt(user.getId(), "음악 재생");
+
         // 청취 이력 기록
         listeningHistoryService.recordListening(user, song, PlaybackMode.LISTENING);
 
         // Redis: 컨텍스트 업데이트 (모드 + 현재 곡)
         conversationContextService.changeMode(user.getId(), PlaybackMode.LISTENING);
         conversationContextService.setCurrentSong(user.getId(), song.getId());
+
+        // Redis: 활동 상태 업데이트
+        sessionStateService.setCurrentActivity(user.getId(),
+            com.heungbuja.session.state.ActivityState.music(String.valueOf(song.getId())));
 
         // presigned URL 생성
         String presignedUrl = mediaUrlService.issueUrlById(song.getMedia().getId());
@@ -198,12 +206,19 @@ public class CommandServiceImpl implements CommandService {
         String title = intentResult.getEntity("title");
         Song song = songService.searchByTitle(title);
 
+        // 게임 진행 중이면 중단
+        handleActivityInterrupt(user.getId(), "음악 재생");
+
         // 청취 이력 기록
         listeningHistoryService.recordListening(user, song, PlaybackMode.LISTENING);
 
         // Redis: 컨텍스트 업데이트 (모드 + 현재 곡)
         conversationContextService.changeMode(user.getId(), PlaybackMode.LISTENING);
         conversationContextService.setCurrentSong(user.getId(), song.getId());
+
+        // Redis: 활동 상태 업데이트
+        sessionStateService.setCurrentActivity(user.getId(),
+            com.heungbuja.session.state.ActivityState.music(String.valueOf(song.getId())));
 
         // presigned URL 생성
         String presignedUrl = mediaUrlService.issueUrlById(song.getMedia().getId());
@@ -238,12 +253,19 @@ public class CommandServiceImpl implements CommandService {
 
         Song song = songService.searchByArtistAndTitle(artist, title);
 
+        // 게임 진행 중이면 중단
+        handleActivityInterrupt(user.getId(), "음악 재생");
+
         // 청취 이력 기록
         listeningHistoryService.recordListening(user, song, PlaybackMode.LISTENING);
 
         // Redis: 컨텍스트 업데이트 (모드 + 현재 곡)
         conversationContextService.changeMode(user.getId(), PlaybackMode.LISTENING);
         conversationContextService.setCurrentSong(user.getId(), song.getId());
+
+        // Redis: 활동 상태 업데이트
+        sessionStateService.setCurrentActivity(user.getId(),
+            com.heungbuja.session.state.ActivityState.music(String.valueOf(song.getId())));
 
         // presigned URL 생성
         String presignedUrl = mediaUrlService.issueUrlById(song.getMedia().getId());
@@ -299,6 +321,9 @@ public class CommandServiceImpl implements CommandService {
      * 최근 청취한 곡으로 게임 시작, 없으면 랜덤 선택
      */
     private CommandResponse handleGameStart(User user) {
+        // 음악 재생 중이면 중단
+        handleActivityInterrupt(user.getId(), "게임 시작");
+
         // 1. 노래 선택 (최근 청취한 곡 or 랜덤)
         Song selectedSong;
         try {
@@ -316,7 +341,7 @@ public class CommandServiceImpl implements CommandService {
             return CommandResponse.failure(Intent.MODE_EXERCISE, errorText, "/commands/tts/" + ttsUrl);
         }
 
-        // 2. 게임 시작
+        // 2. 게임 시작 (GameService에서 ActivityState 설정함)
         GameStartRequest gameRequest = GameStartRequest.builder()
                 .userId(user.getId())
                 .songId(selectedSong.getId())
@@ -365,15 +390,43 @@ public class CommandServiceImpl implements CommandService {
      */
     private CommandResponse handleGameEnd(User user) {
         // Redis에서 현재 게임 세션 ID를 가져와서 게임 종료 처리
-        // TODO: Redis에 저장된 세션 ID를 가져오는 로직 추가
-        // 현재는 간단한 응답만 반환
+        com.heungbuja.session.state.ActivityState currentActivity =
+            sessionStateService.getCurrentActivity(user.getId());
+
+        if (currentActivity.getType() == com.heungbuja.session.enums.ActivityType.GAME) {
+            String sessionId = currentActivity.getSessionId();
+            log.info("게임 종료 처리: userId={}, sessionId={}", user.getId(), sessionId);
+
+            // 게임 인터럽트 처리 (사용자가 직접 종료)
+            if (sessionStateService.trySetInterrupt(sessionId, "USER_END")) {
+                gameService.interruptGame(sessionId, "USER_END");
+                log.info("게임 중단 처리 완료: sessionId={}", sessionId);
+            }
+        } else {
+            log.warn("게임 진행 중이 아닌 상태에서 종료 요청: userId={}, currentType={}",
+                user.getId(), currentActivity.getType());
+        }
 
         String responseText = responseGenerator.generateResponse(Intent.MODE_EXERCISE_END);
 
         // Redis: 모드 변경 (HOME으로 복귀)
         conversationContextService.changeMode(user.getId(), PlaybackMode.HOME);
 
-        return CommandResponse.success(Intent.MODE_EXERCISE_END, responseText, null);
+        // 화면 전환
+        CommandResponse.ScreenTransition screenTransition = CommandResponse.ScreenTransition.builder()
+                .targetScreen("/home")
+                .action("END_GAME")
+                .data(Map.of())
+                .build();
+
+        return CommandResponse.builder()
+                .success(true)
+                .intent(Intent.MODE_EXERCISE_END)
+                .responseText(responseText)
+                .ttsAudioUrl(null)
+                .songInfo(null)
+                .screenTransition(screenTransition)
+                .build();
     }
 
     /**
@@ -393,7 +446,7 @@ public class CommandServiceImpl implements CommandService {
                 .fullText(intentResult.getRawText())  // 전체 발화 텍스트
                 .build();
 
-        emergencyService.detectEmergency(emergencyRequest);
+        emergencyService.detectEmergencyWithSchedule(emergencyRequest);
 
         String responseText = responseGenerator.generateResponse(Intent.EMERGENCY);
         String ttsUrl = ttsService.synthesize(responseText, "urgent"); // 긴급 음성 타입
@@ -515,5 +568,46 @@ public class CommandServiceImpl implements CommandService {
                 .build();
 
         voiceCommandRepository.save(command);
+    }
+
+    /**
+     * 현재 활동 인터럽트 처리
+     * 게임/음악 진행 중이면 중단
+     */
+    private void handleActivityInterrupt(Long userId, String newActivity) {
+        com.heungbuja.session.state.ActivityState currentActivity =
+            sessionStateService.getCurrentActivity(userId);
+
+        if (currentActivity.getType() == com.heungbuja.session.enums.ActivityType.IDLE) {
+            return; // 인터럽트 불필요
+        }
+
+        log.info("활동 인터럽트: userId={}, 현재={}, 새활동={}",
+            userId, currentActivity.getType(), newActivity);
+
+        switch (currentActivity.getType()) {
+            case GAME:
+                // 게임 중단
+                String sessionId = currentActivity.getSessionId();
+                if (sessionStateService.trySetInterrupt(sessionId, newActivity)) {
+                    gameService.interruptGame(sessionId, newActivity);
+                    log.info("게임 중단 완료: sessionId={}, reason={}", sessionId, newActivity);
+                }
+                break;
+
+            case MUSIC:
+                // 음악 중단 (프론트에서 처리, 상태만 초기화)
+                sessionStateService.clearActivity(userId);
+                log.info("음악 중단: userId={}", userId);
+                break;
+
+            case EMERGENCY:
+                // 응급 상황은 중단 불가
+                log.warn("응급 상황 중에는 다른 활동 불가: userId={}", userId);
+                break;
+
+            default:
+                break;
+        }
     }
 }
