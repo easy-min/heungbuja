@@ -243,13 +243,34 @@ public class McpCommandServiceImpl implements CommandService {
                 [사용자 명령]
                 "%s"
 
-                [핵심 규칙 - 반드시 준수]
-                1. "체조", "게임", "운동" 키워드가 있으면 무조건 start_game 호출
-                2. 특정 노래로 체조하려면 search_song + start_game 둘 다 호출 (순서대로)
-                3. 여러 Tool을 호출할 때는 tool_calls 배열에 모두 포함
+                [명령 분석 절차]
+                STEP 1: 사용자 명령에서 키워드 추출
+                  - 노래 이름이 있는가? (가수명, 곡명 등)
+                  - 체조/게임/운동 키워드가 있는가?
 
-                [예시]
-                입력: "당돌한 여자로 체조해"
+                STEP 2: 패턴 결정
+                  - 패턴 A: 노래 이름 + 체조 키워드 있음 → search_song + start_game
+                  - 패턴 B: 노래 이름만 있음 → search_song
+                  - 패턴 C: 체조 키워드만 있음 → start_game
+
+                STEP 3: Tool 호출 생성
+                  - 패턴에 맞게 tool_calls 배열 구성
+
+                [패턴 예시]
+                명령: "당돌한 여자로 체조하고 싶어"
+                분석: 노래("당돌한 여자") + 체조("체조하고 싶어") → 패턴 A
+                응답: search_song + start_game
+
+                명령: "당돌한 여자 틀어줘"
+                분석: 노래("당돌한 여자") → 패턴 B
+                응답: search_song
+
+                명령: "체조하고 싶어"
+                분석: 체조("체조하고 싶어") → 패턴 C
+                응답: start_game
+
+                [예시 1: 특정 노래로 체조]
+                입력: "당돌한 여자로 체조하고 싶어"
                 응답:
                 {
                   "tool_calls": [
@@ -257,7 +278,15 @@ public class McpCommandServiceImpl implements CommandService {
                     {"name": "start_game", "arguments": {"userId": 1}}
                   ]
                 }
-                참고: search_song 후 start_game 호출 시, songId는 생략하면 자동으로 검색된 노래 사용
+
+                [예시 2: 노래 재생만]
+                입력: "당돌한 여자 들려줘"
+                응답:
+                {
+                  "tool_calls": [
+                    {"name": "search_song", "arguments": {"userId": 1, "title": "당돌한 여자"}}
+                  ]
+                }
 
                 입력: "체조하고 싶어"
                 응답:
