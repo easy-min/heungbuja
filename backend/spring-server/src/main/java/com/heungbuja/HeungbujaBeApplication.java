@@ -23,7 +23,8 @@ import org.springframework.scheduling.annotation.EnableAsync;
 		"com.heungbuja.song.repository.mongo" // <-- 수정된 경로
 })
 @EnableRedisRepositories(basePackages = {
-		"com.heungbuja.context.repository" // <-- Redis Repository가 있는 실제 경로로 수정 필요
+		"com.heungbuja.context.repository", // <-- Redis Repository가 있는 실제 경로로 수정 필요
+		"com.heungbuja.session"
 })
 public class HeungbujaBeApplication {
 
