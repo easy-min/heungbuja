@@ -6,8 +6,8 @@ import { useMusicMonitor } from '@/hooks/useMusicMonitor';
 import { useLyricsSync } from '@/hooks/useLyricsSync';
 import { useWs } from '@/hooks/useWs';
 import { type LyricLine } from '@/types/song';
-import { useGameStore } from '@/store/gameStore';
 import { GAME_CONFIG } from '@/utils/constants';
+import { useGameStore } from '@/store/gameStore';
 import './GamePage.css';
 
 function GamePage() {
@@ -24,12 +24,15 @@ function GamePage() {
   const hasNavigatedRef = useRef(false);
   const songBpmRef = useRef<number>(120);
   const currentSectionRef = useRef<'intro' | 'break' | 'verse1' | 'verse2'>('break');
+  const announcedSectionRef = useRef<SectionKey | null>(null);
+
   const navigate = useNavigate();
 
   const [isCounting, setIsCounting] = useState(false);
   const [count, setCount] = useState(5);
   const [isGameStarted, setIsGameStarted] = useState(false);
   const [lyrics, setLyrics] = useState<LyricLine[]>([]);
+  const [sectionMessage, setSectionMessage] = useState<string | null>(null);
 
   const { isCapturing, start: startStream, stop: stopStream } = useFrameStreamer({
     videoRef, audioRef, canvasRef,
@@ -50,15 +53,6 @@ function GamePage() {
   const { current: currentLyric, next: nextLyric, isInstrumental } =
     useLyricsSync(audioRef, lyrics, { prerollSec: 0.04 });
 
-  // === 모니터링 (섹션 감지 → 영상 전환) ===
-  const { loadFromGameStart, startMonitoring, stopMonitoring } = useMusicMonitor({
-    audioRef,
-    onSectionEnter: (label) => {
-      const map = { intro: 'break', break: 'break', verse1: 'verse1', verse2: 'verse2' } as const;
-      switchSectionVideo(map[label]);
-    },
-  });
-
   // === 영상 메타 ===
   // 필요 시 videoUrls를 활용해 교체 가능합니다.
   const VIDEO_META = {
@@ -78,7 +72,29 @@ function GamePage() {
     return (60 / bpm) * loopBeats;
   };
 
-  // === 자동 카운트다운 ===
+  // === 모니터링 (섹션 감지 → 영상 전환) ===
+  const { loadFromGameStart, startMonitoring, stopMonitoring } = useMusicMonitor({
+    audioRef,
+    onSectionEnter: (label) => {
+      const map = { intro: 'break', break: 'break', verse1: 'verse1', verse2: 'verse2' } as const;
+      const nextSection = map[label] ?? 'break';
+      switchSectionVideo(nextSection);
+
+      if (nextSection !== announcedSectionRef.current) {
+        announcedSectionRef.current = nextSection;
+        if (nextSection === 'intro') {
+          setSectionMessage("노래에 맞춰 캐릭터의 동작을 따라해주세요!");
+          setTimeout(() => setSectionMessage(null), 8000);
+        }
+        if (nextSection === 'break') {
+          setSectionMessage('잘 따라하셔서 2절은 한 단계 높은 동작으로 바꿔볼게요!');
+          window.setTimeout(() => setSectionMessage(null), 12000);
+        }
+      }
+    },
+  });
+
+  // 자동 카운트다운
   useEffect(() => {
     const readyToStart = !!(isReady && audioRef.current?.src);
     if (readyToStart && !isGameStarted && !isCounting && !countdownTimerRef.current) {
@@ -102,6 +118,28 @@ function GamePage() {
     return () => {
       audio.removeEventListener('ended', handleEnded);
     };
+  }, []);
+
+  // === 카메라 스트림 연결 ===
+  useEffect(() => {
+    if (stream && videoRef.current && !videoRef.current.srcObject) {
+      videoRef.current.srcObject = stream;
+      console.log('📹 카메라 스트림 연결 완료');
+    }
+  }, [stream]);
+
+  // === Canvas 크기 ===
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !canvasRef.current) return;
+
+    const onMeta = () => {
+      if (!canvasRef.current) return;
+      canvasRef.current.width = video.videoWidth || 320;
+      canvasRef.current.height = video.videoHeight || 240;
+    };
+    video.addEventListener('loadedmetadata', onMeta);
+    return () => video.removeEventListener('loadedmetadata', onMeta);
   }, []);
 
   // === 섹션별 영상 전환 ===
@@ -268,7 +306,6 @@ function GamePage() {
   function goToResultOnce() {
     if (hasNavigatedRef.current) return;
     hasNavigatedRef.current = true;
-
     stopMonitoring();
     stopCamera();
     stopStream();
@@ -280,7 +317,7 @@ function GamePage() {
 
   // === 초기화: store 기반으로만 세팅 ===
   useEffect(() => {
-    let cancelled = false;
+    // let cancelled = false;
     (async () => {
       try {
         startCamera();
@@ -317,35 +354,13 @@ function GamePage() {
     })();
 
     return () => {
-      cancelled = true;
+      // cancelled = true;
       stopCamera();
       stopMonitoring();
       stopStream();
       clearCaptureTimeouts();
       if (audioRef.current) audioRef.current.pause();
     };
-  }, []); // store에서만 세팅하므로 빈 배열
-
-  // === 카메라 스트림 연결 ===
-  useEffect(() => {
-    if (stream && videoRef.current && !videoRef.current.srcObject) {
-      videoRef.current.srcObject = stream;
-      console.log('📹 카메라 스트림 연결 완료');
-    }
-  }, [stream]);
-
-  // === Canvas 크기 ===
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !canvasRef.current) return;
-
-    const onMeta = () => {
-      if (!canvasRef.current) return;
-      canvasRef.current.width = video.videoWidth || 320;
-      canvasRef.current.height = video.videoHeight || 240;
-    };
-    video.addEventListener('loadedmetadata', onMeta);
-    return () => video.removeEventListener('loadedmetadata', onMeta);
   }, []);
 
   return (
@@ -353,6 +368,13 @@ function GamePage() {
       {isCounting && (
         <div className="countdown-overlay">
           <div className="countdown-bubble">{count > 0 ? count : 'Go!'}</div>
+        </div>
+      )}
+      {sectionMessage && (
+        <div className="section-message-overlay">
+          <div className="section-message-bubble">
+            {sectionMessage}
+          </div>
         </div>
       )}
       <div className="game-page">

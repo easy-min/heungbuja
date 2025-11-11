@@ -63,10 +63,11 @@ public class OpenAiTtsServiceImpl implements TtsService {
             // 음성 타입 매핑 (urgent → alloy, default → nova 등)
             String voice = mapVoiceType(voiceType);
 
-            // JSON 요청 본문 생성
+            // JSON 요청 본문 생성 (제어 문자 이스케이프)
+            String escapedText = escapeJson(text);
             String requestBody = String.format(
                     "{\"model\":\"gpt-4o-mini-tts\",\"input\":\"%s\",\"voice\":\"%s\",\"response_format\":\"mp3\"}",
-                    text.replace("\"", "\\\""), voice
+                    escapedText, voice
             );
 
             // 디버깅 로그 추가
@@ -160,10 +161,11 @@ public class OpenAiTtsServiceImpl implements TtsService {
             // 음성 타입 매핑
             String voice = mapVoiceType(voiceType);
 
-            // JSON 요청 본문 생성
+            // JSON 요청 본문 생성 (제어 문자 이스케이프)
+            String escapedText = escapeJson(text);
             String requestBody = String.format(
                     "{\"model\":\"gpt-4o-mini-tts\",\"input\":\"%s\",\"voice\":\"%s\",\"response_format\":\"mp3\"}",
-                    text.replace("\"", "\\\""), voice
+                    escapedText, voice
             );
 
             // HTTP 요청 생성
@@ -208,6 +210,23 @@ public class OpenAiTtsServiceImpl implements TtsService {
             throw new CustomException(ErrorCode.INTERNAL_SERVER_ERROR,
                     "음성 합성에 실패했습니다: " + e.getMessage());
         }
+    }
+
+    /**
+     * JSON 문자열 이스케이프 (줄바꿈, 탭, 따옴표 등)
+     */
+    private String escapeJson(String text) {
+        if (text == null) {
+            return "";
+        }
+        return text
+                .replace("\\", "\\\\")  // 백슬래시
+                .replace("\"", "\\\"")  // 따옴표
+                .replace("\n", "\\n")   // 줄바꿈
+                .replace("\r", "\\r")   // 캐리지 리턴
+                .replace("\t", "\\t")   // 탭
+                .replace("\b", "\\b")   // 백스페이스
+                .replace("\f", "\\f");  // 폼 피드
     }
 
     /**

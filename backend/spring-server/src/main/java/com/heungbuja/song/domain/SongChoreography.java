@@ -17,6 +17,7 @@ public class SongChoreography {
 
     @Id
     private String id;
+    private Long songId;
     private String song; // 노래 제목
 
     private List<Version> versions;

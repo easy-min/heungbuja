@@ -27,12 +27,13 @@ class SongMongoRepositoryTest {
 
     // 테스트할 노래의 정확한 제목 (JSON 파일에 있는 그대로)
     private final String songTitle = "[Official Audio] 서주경(Seo Joo Kyung) - 당돌한 여자.mp3";
+    private final long songId = 10;
 
     @Test
     @DisplayName("MongoDB에서 노래 비트 정보를 제목으로 성공적으로 조회한다.")
     void findSongBeatByTitleTest() {
         // when: findByAudioTitle 메소드를 호출했을 때
-        Optional<SongBeat> songBeatOptional = songBeatRepository.findByAudioTitle(songTitle);
+        Optional<SongBeat> songBeatOptional = songBeatRepository.findBySongId(songId);
 
         // then: 결과가 존재해야 하며, 제목이 일치해야 한다.
         assertThat(songBeatOptional).isPresent(); // Optional 객체가 비어있지 않은지 확인
@@ -45,7 +46,7 @@ class SongMongoRepositoryTest {
     @DisplayName("MongoDB에서 노래 가사 정보를 제목으로 성공적으로 조회한다.")
     void findSongLyricsByTitleTest() {
         // when: findByTitle 메소드를 호출했을 때
-        Optional<SongLyrics> songLyricsOptional = songLyricsRepository.findByTitle(songTitle);
+        Optional<SongLyrics> songLyricsOptional = songLyricsRepository.findBySongId(songId);
 
         // then: 결과가 존재해야 하며, 첫 번째 가사가 비어있지 않아야 한다.
         assertThat(songLyricsOptional).isPresent();
@@ -58,7 +59,7 @@ class SongMongoRepositoryTest {
     @DisplayName("MongoDB에서 노래 안무 정보를 제목으로 성공적으로 조회한다.")
     void findSongChoreographyByTitleTest() {
         // when: findBySong 메소드를 호출했을 때
-        Optional<SongChoreography> songChoreographyOptional = songChoreographyRepository.findBySong(songTitle);
+        Optional<SongChoreography> songChoreographyOptional = songChoreographyRepository.findBySongId(songId);
 
         // then: 결과가 존재해야 하며, 버전 정보가 비어있지 않아야 한다.
         assertThat(songChoreographyOptional).isPresent();

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import type { SongInfo } from '@/types/voiceCommand';
 import './SongPage.css';
 
@@ -9,24 +9,24 @@ interface SongPageState {
 }
 
 // 테스트용 더미 데이터 (컴포넌트 외부로 이동)
+const BASE_URL = import.meta.env.BASE_URL;
 const dummySongInfo: SongInfo = {
   songId: 1,
   title: '테스트 노래 - 당돌한 여자',
   artist: '테스트 가수 - 서주경',
   mediaId: 100,
-  audioUrl: '/당돌한여자.mp3',
+  audioUrl: `${BASE_URL}당돌한여자.mp3`,
   mode: 'LISTENING'
 };
 
 function SongPage() {
   const location = useLocation();
-  const navigate = useNavigate();
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const state = location.state as SongPageState | null;
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
+  const [, setCurrentTime] = useState(0);
+  const [, setDuration] = useState(0);
 
   // state 없으면 테스트 데이터 사용 (useMemo로 메모이제이션)
   const songInfo = useMemo(() =>

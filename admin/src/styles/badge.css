@@ -1,0 +1,29 @@
+/* 배지 스타일 */
+.badge {
+  padding: 4px 10px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: bold;
+  color: white;
+  display: inline-block;
+}
+
+.badge-success {
+  background: #2ecc71;
+}
+
+.badge-warning {
+  background: #f39c12;
+}
+
+.badge-danger {
+  background: #e74c3c;
+}
+
+.badge-secondary {
+  background: #95a5a6;
+}
+
+.badge-primary {
+  background: #667eea;
+}

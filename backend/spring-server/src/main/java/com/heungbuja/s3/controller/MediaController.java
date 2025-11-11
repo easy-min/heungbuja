@@ -35,17 +35,31 @@ public class MediaController {
         return Map.of("url", url);
     }
 
-    // 로컬 테스트: 비디오 파트1
-    @GetMapping("/test/video1")
+    // 로컬 테스트: 비디오 - break.mp4
+    @GetMapping("/test/video/break")
+    public Map<String, String> testVideoBreakPresignedUrl() {
+        String url = mediaUrlService.testPresignedUrl("video/break.mp4");
+        return Map.of("url", url);
+    }
+
+    // 로컬 테스트: 비디오 - part1.mp4
+    @GetMapping("/test/video/part1")
     public Map<String, String> testVideoPart1PresignedUrl() {
         String url = mediaUrlService.testPresignedUrl("video/part1.mp4");
         return Map.of("url", url);
     }
 
-    // 로컬 테스트: 비디오 파트2
-    @GetMapping("/test/video2")
-    public Map<String, String> testVideoPart2PresignedUrl() {
-        String url = mediaUrlService.testPresignedUrl("video/part2.mp4");
+    // 로컬 테스트: 비디오 - part2_level1.mp4
+    @GetMapping("/test/video/part2_1")
+    public Map<String, String> testVideoPart2Level1PresignedUrl() {
+        String url = mediaUrlService.testPresignedUrl("video/part2_level1.mp4");
+        return Map.of("url", url);
+    }
+
+    // 로컬 테스트: 비디오 - part2_level2.mp4
+    @GetMapping("/test/video/part2_2")
+    public Map<String, String> testVideoPart2Level2PresignedUrl() {
+        String url = mediaUrlService.testPresignedUrl("video/part2_level2.mp4");
         return Map.of("url", url);
     }
 }
