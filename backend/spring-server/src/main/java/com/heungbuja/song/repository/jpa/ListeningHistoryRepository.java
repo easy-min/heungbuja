@@ -1,4 +1,4 @@
-package com.heungbuja.song.repository;
+package com.heungbuja.song.repository.jpa;
 
 import com.heungbuja.song.entity.ListeningHistory;
 import com.heungbuja.user.entity.User;
