@@ -100,6 +100,10 @@ public class McpToolService {
         String mood = getStringArg(args, "mood");
         Long excludeSongId = getLongArg(args, "excludeSongId");
 
+        // 빈 문자열을 null로 처리
+        artist = (artist != null && artist.trim().isEmpty()) ? null : artist;
+        title = (title != null && title.trim().isEmpty()) ? null : title;
+
         User user = userService.findById(userId);
 
         // 노래 검색 (현재는 기본 검색만, 향후 era, genre, mood 활용 가능)
