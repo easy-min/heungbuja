@@ -63,6 +63,19 @@ public class ActivityState implements Serializable {
     }
 
     /**
+     * 게임 튜토리얼 활동 상태 생성
+     */
+    public static ActivityState gameTutorial(String sessionId) {
+        return ActivityState.builder()
+                .type(ActivityType.GAME)
+                .sessionId(sessionId)
+                .status("TUTORIAL_READY")
+                .lastUpdate(LocalDateTime.now())
+                .canInterrupt(true)
+                .build();
+    }
+
+    /**
      * 음악 활동 상태 생성
      */
     public static ActivityState music(String sessionId) {

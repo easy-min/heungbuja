@@ -25,10 +25,17 @@ public class ConversationContextServiceImpl implements ConversationContextServic
 
     @Override
     public ConversationContext getOrCreate(Long userId) {
-        return contextRepository.findByUserId(userId)
+        String key = ConversationContext.createKey(userId);
+
+        // ID로 직접 조회 (더 확실함)
+        return contextRepository.findById(key)
+                .map(context -> {
+                    log.debug("기존 컨텍스트 조회 성공: userId={}, currentSongId={}", userId, context.getCurrentSongId());
+                    return context;
+                })
                 .orElseGet(() -> {
                     ConversationContext newContext = ConversationContext.builder()
-                            .id(ConversationContext.createKey(userId))
+                            .id(key)
                             .userId(userId)
                             .currentMode(PlaybackMode.HOME)
                             .build();
@@ -58,7 +65,7 @@ public class ConversationContextServiceImpl implements ConversationContextServic
         context.setCurrentSong(songId);
         contextRepository.save(context);
 
-        log.debug("현재 재생 곡 설정: userId={}, songId={}", userId, songId);
+        log.info("현재 재생 곡 설정: userId={}, songId={}", userId, songId);
     }
 
     @Override
