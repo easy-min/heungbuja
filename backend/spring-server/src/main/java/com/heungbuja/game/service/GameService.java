@@ -6,15 +6,16 @@ import com.heungbuja.game.dto.*;
 import com.heungbuja.game.entity.GameResult;
 import com.heungbuja.game.repository.GameResultRepository;
 import com.heungbuja.game.state.GameState;
-import com.heungbuja.s3.service.MediaUrlService;
+import com.heungbuja.song.domain.ChoreographyPattern;
 import com.heungbuja.song.domain.SongBeat;
 import com.heungbuja.song.domain.SongChoreography;
 import com.heungbuja.song.domain.SongLyrics;
 import com.heungbuja.song.entity.Song;
-import com.heungbuja.song.repository.SongBeatRepository;
-import com.heungbuja.song.repository.SongChoreographyRepository;
-import com.heungbuja.song.repository.SongLyricsRepository;
-import com.heungbuja.song.repository.SongRepository;
+import com.heungbuja.song.repository.mongo.ChoreographyPatternRepository;
+import com.heungbuja.song.repository.mongo.SongBeatRepository;
+import com.heungbuja.song.repository.mongo.SongChoreographyRepository;
+import com.heungbuja.song.repository.mongo.SongLyricsRepository;
+import com.heungbuja.song.repository.jpa.SongRepository;
 import com.heungbuja.user.entity.User;
 import com.heungbuja.user.repository.UserRepository;
 import lombok.Getter;
@@ -26,20 +27,21 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.beans.factory.annotation.Value;
-import reactor.core.publisher.Mono;
 
 import java.time.Duration;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.Map;
-import java.util.HashMap;
-import java.util.UUID;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class GameService {
+
+    /**
+     * 노래 ID를 Key로, 미리 계산된 '시간-동작코드 타임라인'을 Value로 갖는 캐시
+     */
+    private final Map<Long, Map<Double, Integer>> choreographyCache = new HashMap<>();
 
     // --- 상수 정의 ---
     /** 1절을 구성하는 총 세그먼트(묶음)의 수 */
@@ -65,111 +67,62 @@ public class GameService {
 //    private final MediaUrlService mediaUrlService;
     private final SimpMessagingTemplate messagingTemplate;
 //    private final ScoringStrategyFactory scoringStrategyFactory;
+    private final ChoreographyPatternRepository choreographyPatternRepository;
 
     /**
      * 1. 게임 시작 로직
      */
     @Transactional(readOnly = true)
     public GameStartResponse startGame(GameStartRequest request) {
-        // (참고) 실제 구현 시에는 이 메소드에 @AuthenticationPrincipal을 추가하여
-        //        토큰에서 추출한 사용자 정보를 직접 받는 것이 더 좋습니다.
-        User user = userRepository.findById(request.getUserId())
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        // --- 1-1 & 1-2. 사용자 및 노래 정보 조회 ---
+        User user = userRepository.findById(request.getUserId()).orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        if (!user.getIsActive()) throw new CustomException(ErrorCode.USER_NOT_ACTIVE);
+        Song song = songRepository.findById(request.getSongId()).orElseThrow(() -> new CustomException(ErrorCode.SONG_NOT_FOUND));
+        Long songId = song.getId();
 
-        if (!user.getIsActive()) {
-            throw new CustomException(ErrorCode.USER_NOT_ACTIVE);
-        }
+        // --- 1-3. MongoDB에서 모든 게임 메타데이터 조회 ---
+        log.info("MongoDB에서 songId={}에 대한 메타데이터 조회를 시작합니다.", songId);
+        SongBeat songBeat = songBeatRepository.findBySongId(songId).orElseThrow(() -> new CustomException(ErrorCode.GAME_METADATA_NOT_FOUND, "비트 정보를 찾을 수 없습니다."));
+        SongLyrics lyricsInfo = songLyricsRepository.findBySongId(songId).orElseThrow(() -> new CustomException(ErrorCode.GAME_METADATA_NOT_FOUND, "가사 정보를 찾을 수 없습니다."));
+        SongChoreography choreography = songChoreographyRepository.findBySongId(songId).orElseThrow(() -> new CustomException(ErrorCode.GAME_METADATA_NOT_FOUND, "안무 지시 정보를 찾을 수 없습니다."));
+        ChoreographyPattern patternData = choreographyPatternRepository.findBySongId(songId).orElseThrow(() -> new CustomException(ErrorCode.GAME_METADATA_NOT_FOUND, "안무 패턴 정보를 찾을 수 없습니다."));
+        log.info(" > 모든 MongoDB 데이터 조회 성공");
 
-        Song song = songRepository.findById(request.getSongId())
-                .orElseThrow(() -> new CustomException(ErrorCode.SONG_NOT_FOUND));
-        Long songId = request.getSongId();
+        // --- 1-4. (핵심) 데이터 가공 로직 ---
+        log.info("프론트엔드 응답 데이터 가공을 시작합니다...");
 
-        // 1-3. MongoDB에서 노래 비트 및 가사 데이터 조회
-        SongBeat songBeat = songBeatRepository.findBySongId(songId)
-                .orElseThrow(() -> new CustomException(ErrorCode.GAME_METADATA_NOT_FOUND, "비트 정보를 찾을 수 없습니다."));
-        SongLyrics lyricsInfo = songLyricsRepository.findBySongId(songId)
-                .orElseThrow(() -> new CustomException(ErrorCode.GAME_METADATA_NOT_FOUND, "가사 정보를 찾을 수 없습니다."));
-
-        // --- ▼ 데이터 가공 로직 시작 ▼ ---
-
-        // 1. 각 마디(bar)의 시작 시간을 Map으로 미리 계산 (프론트 로직과 동일)
-        Map<Integer, Double> barStartTimes = new HashMap<>();
-        songBeat.getBeats().stream()
-                .filter(beat -> beat.getBeat() == 1) // 각 마디의 첫 번째 비트만 필터링
-                .forEach(beat -> barStartTimes.put(beat.getBar(), beat.getT()));
-
-        // 2. 주요 섹션(intro, part1 등)의 시작 시간 찾기
-        Map<String, Double> sectionStartTimes = songBeat.getSections().stream()
-                .collect(Collectors.toMap(
-                        SongBeat.Section::getLabel,
-                        section -> barStartTimes.getOrDefault(section.getStartBar(), 0.0)
-                ));
-
-        // --- ▼ (핵심 수정) verse1cam, verse2cam 시간 계산 로직 추가 ▼ ---
-
-        // A. 비트 번호(i)를 키로, 비트 시간(t)을 값으로 갖는 Map을 미리 생성 (시간 조회 성능 향상)
+        // A. 시간 계산에 필요한 Map들을 한 번만 생성
         Map<Integer, Double> beatNumToTimeMap = songBeat.getBeats().stream()
                 .collect(Collectors.toMap(SongBeat.Beat::getI, SongBeat.Beat::getT));
+        Map<Integer, Double> barStartTimes = songBeat.getBeats().stream()
+                .filter(beat -> beat.getBeat() == 1)
+                .collect(Collectors.toMap(SongBeat.Beat::getBar, SongBeat.Beat::getT));
 
-        // B. verse1, verse2 섹션 객체를 찾습니다.
-        SongBeat.Section verse1Section = findSectionByLabel(songBeat, "verse1");
-        SongBeat.Section verse2Section = findSectionByLabel(songBeat, "verse2");
+        // B. 동작 타임라인 캐시 생성 (기존과 동일)
+        Map<Double, Integer> actionTimeline = choreographyCache.computeIfAbsent(
+                songId, k -> createActionTimeline(songBeat, choreography, patternData, beatNumToTimeMap)
+        );
+        log.info(" > 동작 타임라인 생성 및 캐싱 완료. 타임라인 엔트리 개수: {}", actionTimeline.size());
 
-        // C. verse1cam의 시작/종료 시간 계산
-        // 시작: 1절 시작 비트 + 16 비트
-        int verse1CamStartBeat = verse1Section.getStartBeat() + 16;
-        // 종료: 1절 시작 비트 + 16 비트 + (16 * 6) 비트
-        int verse1CamEndBeat = verse1CamStartBeat + (16 * 6);
+        // C. SectionInfo 객체 생성
+        SectionInfo sectionInfo = createSectionInfo(songBeat, barStartTimes, beatNumToTimeMap);
+        log.info(" > SectionInfo 생성 완료.");
 
-        SectionInfo.VerseInfo verse1CamInfo = SectionInfo.VerseInfo.builder()
-                .startTime(beatNumToTimeMap.getOrDefault(verse1CamStartBeat, 0.0))
-                .endTime(beatNumToTimeMap.getOrDefault(verse1CamEndBeat, 0.0))
-                .build();
-
-        // D. verse2cam의 시작/종료 시간 계산 (1절과 동일한 로직)
-        int verse2CamStartBeat = verse2Section.getStartBeat() + 16;
-        int verse2CamEndBeat = verse2CamStartBeat + (16 * 6);
-
-        SectionInfo.VerseInfo verse2CamInfo = SectionInfo.VerseInfo.builder()
-                .startTime(beatNumToTimeMap.getOrDefault(verse2CamStartBeat, 0.0))
-                .endTime(beatNumToTimeMap.getOrDefault(verse2CamEndBeat, 0.0))
-                .build();
-
-        // E. 최종 SectionInfo 객체를 생성합니다.
-        SectionInfo sectionInfo = SectionInfo.builder()
-                .introStartTime(sectionStartTimes.getOrDefault("intro", 0.0))
-                .verse1StartTime(sectionStartTimes.getOrDefault("verse1", 0.0))
-                .breakStartTime(sectionStartTimes.getOrDefault("break", 0.0))
-                .verse2StartTime(sectionStartTimes.getOrDefault("verse2", 0.0))
-                .verse1cam(verse1CamInfo)
-                .verse2cam(verse2CamInfo)
-                .build();
-
-        // --- ▲ 데이터 가공 로직 종료 ▲ ---
-
-        // 1-4. 게임 세션 ID 생성 및 Redis 저장 (이전과 동일)
+        // --- 1-5. 세션 생성 및 URL 발급 ---
         String sessionId = UUID.randomUUID().toString();
         GameState initialGameState = GameState.initial(sessionId, user.getId(), song.getId());
         saveGameState(sessionId, initialGameState);
         log.info("새로운 게임 세션 시작: userId={}, sessionId={}", user.getId(), sessionId);
 
-        // 1-5. Presigned URL 생성 (1절 영상 URL 등도 여기서 생성해야 함)
-//        String audioUrl = mediaUrlService.issueUrlById(song.getMedia().getId());
-
-        // WebClient를 사용하여 MediaController의 테스트 엔드포인트를 호출합니다.
-        // 이 호출들은 동기적으로(순서대로) 작동하여 결과를 받아옵니다.
         String audioUrl = getTestUrl("/media/test");
-
         Map<String, String> videoUrls = new HashMap<>();
         videoUrls.put("intro", getTestUrl("/media/test/video/break"));
         videoUrls.put("verse1", getTestUrl("/media/test/video/part1"));
         videoUrls.put("verse2_level1", getTestUrl("/media/test/video/part2_1"));
         videoUrls.put("verse2_level2", getTestUrl("/media/test/video/part2_2"));
-        // TODO: 2절 3단계 영상 URL을 위한 테스트 엔드포인트가 필요합니다.
-        videoUrls.put("verse2_level3", "https://example.com/video_v2_level3.mp4"); // 임시 URL
-        // --- ▲ ---------------------------------------------------- ▲ ---
+        videoUrls.put("verse2_level3", "https://example.com/video_v2_level3.mp4");
 
-        // 1-6. 최종 응답 생성
+        // --- 1-6. 최종 응답 생성 ---
         return GameStartResponse.builder()
                 .sessionId(sessionId)
                 .songId(song.getId())
@@ -177,11 +130,155 @@ public class GameService {
                 .songArtist(song.getArtist())
                 .audioUrl(audioUrl)
                 .videoUrls(videoUrls)
-                .bpm(songBeat.getTempoMap().get(0).getBpm()) // 첫 번째 BPM 값 사용
+                .bpm(songBeat.getTempoMap().get(0).getBpm())
                 .duration(songBeat.getAudio().getDurationSec())
-                .sectionInfo(sectionInfo) // 가공된 데이터 전달
-                .lyricsInfo(lyricsInfo)     // 가사 정보는 그대로 전달
+                .sectionInfo(sectionInfo)
+                .lyricsInfo(lyricsInfo)
+                .actionTimeline(actionTimeline)
                 .build();
+    }
+
+    /**
+     * (신규) SectionInfo 생성을 전담하는 헬퍼 메소드
+     */
+    private SectionInfo createSectionInfo(SongBeat songBeat, Map<Integer, Double> barStartTimes, Map<Integer, Double> beatNumToTimeMap) {
+        Map<String, Double> sectionStartTimes = songBeat.getSections().stream()
+                .collect(Collectors.toMap(SongBeat.Section::getLabel, s -> barStartTimes.getOrDefault(s.getStartBar(), 0.0)));
+
+        SongBeat.Section verse1Section = findSectionByLabel(songBeat, "verse1");
+        SongBeat.Section verse2Section = findSectionByLabel(songBeat, "verse2");
+
+        int verse1CamStartBeat = verse1Section.getStartBeat() + 32;
+        int verse1CamEndBeat = verse1CamStartBeat + (16 * 6);
+        SectionInfo.VerseInfo verse1CamInfo = SectionInfo.VerseInfo.builder()
+                .startTime(beatNumToTimeMap.getOrDefault(verse1CamStartBeat, 0.0))
+                .endTime(beatNumToTimeMap.getOrDefault(verse1CamEndBeat, 0.0))
+                .build();
+
+        int verse2CamStartBeat = verse2Section.getStartBeat() + 32;
+        int verse2CamEndBeat = verse2CamStartBeat + (16 * 6);
+        SectionInfo.VerseInfo verse2CamInfo = SectionInfo.VerseInfo.builder()
+                .startTime(beatNumToTimeMap.getOrDefault(verse2CamStartBeat, 0.0))
+                .endTime(beatNumToTimeMap.getOrDefault(verse2CamEndBeat, 0.0))
+                .build();
+
+        return SectionInfo.builder()
+                .introStartTime(sectionStartTimes.getOrDefault("intro", 0.0))
+                .verse1StartTime(sectionStartTimes.getOrDefault("verse1", 0.0))
+                .breakStartTime(sectionStartTimes.getOrDefault("break", 0.0))
+                .verse2StartTime(sectionStartTimes.getOrDefault("verse2", 0.0))
+                .verse1cam(verse1CamInfo)
+                .verse2cam(verse2CamInfo)
+                .build();
+    }
+
+    /**
+     * 비트, 안무 지시, 안무 패턴 정보를 조합하여 최종 '시간-동작코드' 타임라인 맵을 생성합니다.
+     * @return 시간(초)을 Key로, 동작 코드(actionCode)를 Value로 갖는 정렬된 맵
+     */
+    private Map<Double, Integer> createActionTimeline(
+            SongBeat songBeat,
+            SongChoreography choreography,
+            ChoreographyPattern patternData,
+            Map<Integer, Double> beatNumToTimeMap) { // 파라미터로 beatNumToTimeMap을 받음
+
+        log.info("createActionTimeline 메소드 시작...");
+        Map<Double, Integer> timeline = new TreeMap<>();
+
+        // 사용할 안무 버전 (버전 리스트가 비어있을 경우를 대비)
+        if (choreography.getVersions() == null || choreography.getVersions().isEmpty()) {
+            throw new CustomException(ErrorCode.GAME_METADATA_NOT_FOUND, "안무 버전 정보가 없습니다.");
+        }
+        SongChoreography.Version version = choreography.getVersions().get(0);
+
+        // --- 1절 타임라인 생성 ---
+        if (version.getVerse1() != null) {
+            log.info("1절 타임라인 생성을 시작합니다...");
+            SongChoreography.VersePatternInfo verse1Info = version.getVerse1();
+            log.info("-- verse1Info 가져오기");
+            SongBeat.Section verse1Section = findSectionByLabel(songBeat, "verse1");
+            log.info("-- verse1Section 가져오기");
+            List<Integer> verse1PatternSeq = findPatternSequenceById(patternData, verse1Info.getPatternId());
+            log.info("-- verse1PatternSeq 가져오기");
+            addVerseTimeline(timeline, beatNumToTimeMap, verse1Section, verse1PatternSeq, verse1Info.getRepeat());
+            log.info("1절 타임라인 생성 완료. 현재 타임라인 크기: {}", timeline.size());
+        }
+
+        // --- 2절 타임라인 생성 (레벨별로) ---
+        if (version.getVerse2() != null && !version.getVerse2().isEmpty()) {
+            log.info("2절 타임라인 생성을 시작합니다...");
+            SongBeat.Section verse2Section = findSectionByLabel(songBeat, "verse2");
+            version.getVerse2().forEach(verse2LevelInfo -> {
+                List<Integer> verse2PatternSeq = findPatternSequenceById(patternData, verse2LevelInfo.getPatternId());
+                addVerseTimeline(timeline, beatNumToTimeMap, verse2Section, verse2PatternSeq, verse2LevelInfo.getRepeat());
+            });
+            log.info("2절 타임라인 생성 완료. 현재 타임라인 크기: {}", timeline.size());
+        }
+
+        return timeline;
+    }
+
+    /**
+     * 특정 절(verse)의 동작 타임라인을 생성하여 전체 타임라인 맵에 추가하는 헬퍼 메소드
+     */
+    private void addVerseTimeline(
+            Map<Double, Integer> timeline,
+            Map<Integer, Double> beatNumToTimeMap,
+            SongBeat.Section section,
+            List<Integer> patternSequence,
+            int repeatCount) {
+
+        int startBeat = section.getStartBeat();
+        // 1절 웹캠 시작은 1절 시작 후 32비트 뒤부터 (16박자 * 2)
+        int camStartOffset = 32;
+        int camStartBeat = startBeat + camStartOffset;
+
+        int patternLength = patternSequence.size();
+        // 16비트 * 6회 반복
+        int totalBeatsInCamSection = patternLength * 6;
+
+        for (int i = 0; i < totalBeatsInCamSection; i++) {
+            int currentBeatIndex = camStartBeat + i;
+            int patternIndex = i % patternLength;
+            int actionCode = patternSequence.get(patternIndex);
+
+            if (actionCode != 0) {
+                double time = beatNumToTimeMap.getOrDefault(currentBeatIndex, -1.0);
+                if (time >= 0) {
+                    timeline.put(time, actionCode);
+                }
+            }
+        }
+    }
+
+    /**
+     * ChoreographyPattern 데이터에서 패턴 ID로 실제 동작 시퀀스를 찾는 헬퍼 메소드
+     */
+    private List<Integer> findPatternSequenceById(ChoreographyPattern patternData, String patternId) {
+        // --- ▼ 임시 디버깅 코드 ▼ ---
+//        log.info("찾으려는 patternId: '{}', 길이: {}", patternId, patternId.length());
+        if (patternData.getPatterns() != null) {
+            patternData.getPatterns().forEach(p -> {
+//                log.info("patternData : {}", p);
+                String currentId = p.getPatternId(); // getId() 결과를 변수에 먼저 담음
+                if (currentId != null) {
+                    log.info("DB에 있는 id: '{}', 길이: {}", currentId, currentId.length());
+//                    log.info("두 문자열이 같은가? {}", patternId.equals(currentId));
+                } else {
+                    log.warn("DB에 id가 null인 패턴 데이터가 존재합니다!"); // <-- 이 로그가 찍히는지 확인!
+                }
+            });
+        } else {
+            log.error("patternData.getPatterns()가 null입니다!");
+        }
+        // --- ▲ -------------------- ▲ ---
+        return patternData.getPatterns().stream()
+                .filter(p -> patternId.equals(p.getPatternId()))
+                .findFirst()
+                .map(ChoreographyPattern.Pattern::getSequence)
+                .orElseThrow(() -> new CustomException(
+                        ErrorCode.GAME_METADATA_NOT_FOUND, "안무 패턴 '" + patternId + "'을(를) 찾을 수 없습니다.")
+                );
     }
 
     /**

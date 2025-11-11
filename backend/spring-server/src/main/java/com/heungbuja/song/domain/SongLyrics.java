@@ -1,6 +1,7 @@
 package com.heungbuja.song.domain;
 
 import lombok.Getter;
+import lombok.Setter;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
@@ -11,6 +12,7 @@ import java.util.List;
  * 노래의 가사 정보를 라인별로 담고 있음
  */
 @Getter
+@Setter
 @Document(collection = "song_lyrics")
 public class SongLyrics {
 
@@ -23,6 +25,7 @@ public class SongLyrics {
     private List<Line> lines;
 
     @Getter
+    @Setter
     public static class Line {
         private int lineIndex;
         private String text;
