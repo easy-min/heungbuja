@@ -94,6 +94,7 @@ function GamePage() {
   const [count, setCount] = useState(5);
   const countdownTimerRef = useRef<number | null>(null);
   const hasNavigatedRef = useRef(false);
+  const announcedSectionRef = useRef<SectionKey | null>(null);
 
   // 상태
   const [isGameStarted, setIsGameStarted] = useState(false);
@@ -134,15 +135,18 @@ function GamePage() {
         part2: 'part2',
       };
       const nextSection = map[label] ?? 'break';
-      switchSectionVideo(map[label] ?? 'break');
+      switchSectionVideo(nextSection);
 
-      if (nextSection === 'intro') {
-        setSectionMessage("노래에 맞춰 캐릭터의 동작을 따라해주세요!");
-        setTimeout(() => setSectionMessage(null), 4000);
-      }
-      if (nextSection === 'break') {
-        setSectionMessage("잘 따라하셔서 2절은 한 단계 높은 동작으로 바꿔볼게요!");
-        setTimeout(() => setSectionMessage(null), 8000);
+      if (nextSection !== announcedSectionRef.current) {
+        announcedSectionRef.current = nextSection;
+        if (nextSection === 'intro') {
+          setSectionMessage("노래에 맞춰 캐릭터의 동작을 따라해주세요!");
+          setTimeout(() => setSectionMessage(null), 8000);
+        }
+        if (nextSection === 'break') {
+          setSectionMessage('잘 따라하셔서 2절은 한 단계 높은 동작으로 바꿔볼게요!');
+          window.setTimeout(() => setSectionMessage(null), 12000);
+        }
       }
     },
   });
@@ -386,18 +390,18 @@ function GamePage() {
   }
 
   // function handleTestStop() {
-    console.log('⏹ 테스트 중지');
-    if (audioRef.current) {
-      audioRef.current.pause();
-    }
-    stopMonitoring();
-    setIsGameStarted(false);
+    // console.log('⏹ 테스트 중지');
+    // if (audioRef.current) {
+    //   audioRef.current.pause();
+    // }
+    // stopMonitoring();
+    // setIsGameStarted(false);
 
-    if (countdownTimerRef.current !== null) {
-      clearInterval(countdownTimerRef.current);
-      countdownTimerRef.current = null;
-    }
-    setIsCounting(false);
+    // if (countdownTimerRef.current !== null) {
+    //   clearInterval(countdownTimerRef.current);
+    //   countdownTimerRef.current = null;
+    // }
+    // setIsCounting(false);
   // }
 
   // ✅ 수정: 오디오 현재시간 기준으로 예약 호출
