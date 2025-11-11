@@ -18,10 +18,11 @@ public class EmergencyAlertMessage {
     private String triggerWord;
     private String fullText;  // 전체 발화 텍스트
     private LocalDateTime reportedAt;
+    private String status;  // 신고 상태 (PENDING, CONFIRMED, etc.)
     private String priority;  // "CRITICAL"
 
     public static EmergencyAlertMessage from(Long reportId, Long userId, String userName,
-                                             String triggerWord, String fullText, LocalDateTime reportedAt) {
+                                             String triggerWord, String fullText, LocalDateTime reportedAt, String status) {
         return EmergencyAlertMessage.builder()
                 .type("EMERGENCY_REPORT")
                 .reportId(reportId)
@@ -30,6 +31,7 @@ public class EmergencyAlertMessage {
                 .triggerWord(triggerWord)
                 .fullText(fullText)
                 .reportedAt(reportedAt)
+                .status(status)
                 .priority("CRITICAL")
                 .build();
     }

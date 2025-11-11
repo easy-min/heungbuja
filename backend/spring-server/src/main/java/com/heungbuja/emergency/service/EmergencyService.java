@@ -262,7 +262,8 @@ public class EmergencyService {
                 userName,
                 triggerWord,
                 fullText,
-                report.getReportedAt()
+                report.getReportedAt(),
+                report.getStatus().name()  // 신고 상태 추가
         );
 
         String destination = "/topic/admin/" + adminId + "/emergency";
@@ -289,12 +290,14 @@ public class EmergencyService {
 
     /**
      * 신고 목록 조회 (관리자)
-     * 모든 신고 조회 (PENDING, CONFIRMED, RESOLVED, FALSE_ALARM)
+     * PENDING을 제외한 신고만 조회 (CONFIRMED, RESOLVED, FALSE_ALARM)
+     * PENDING 상태는 10초 대기 중인 신고로, 관리자에게 노출하지 않음
      */
     public List<EmergencyResponse> getConfirmedReports() {
         return emergencyReportRepository
                 .findAllWithUser()  // User를 함께 fetch하여 LazyInitializationException 방지
                 .stream()
+                .filter(report -> report.getStatus() != EmergencyReport.ReportStatus.PENDING)  // PENDING 제외
                 .sorted((a, b) -> b.getReportedAt().compareTo(a.getReportedAt()))  // 최신순 정렬
                 .map(report -> EmergencyResponse.from(report, null))
                 .collect(Collectors.toList());
