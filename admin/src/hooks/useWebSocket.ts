@@ -126,10 +126,10 @@ export const useWebSocket = (options?: UseWebSocketOptions) => {
 
       // 활동 피드에 추가
       addActivity({
-        id: `emergency-${data.data.id}-${Date.now()}`,
+        id: `emergency-${data.data.reportId}-${Date.now()}`,
         type: 'EMERGENCY',
         message: `긴급 신고 발생: ${data.data.userName}`,
-        detail: data.data.location,
+        detail: data.data.message || data.data.triggerWord,
         userId: data.data.userId,
         userName: data.data.userName,
         timestamp: data.data.reportedAt,
@@ -185,7 +185,6 @@ export const useWebSocket = (options?: UseWebSocketOptions) => {
       // 스토어에서 신고 상태 업데이트
       updateReport(data.data.reportId, {
         status: 'RESOLVED',
-        resolvedAt: data.data.resolvedAt,
       });
 
       // 활동 피드에 추가
