@@ -63,6 +63,7 @@ public class McpToolService {
                 case "confirm_emergency" -> confirmEmergency(toolCall);
                 case "change_mode" -> changeMode(toolCall);
                 case "start_game" -> startGame(toolCall);
+                case "start_game_with_song" -> startGameWithSong(toolCall);
                 default -> McpToolResult.failure(
                         toolCall.getId(),
                         toolCall.getName(),
@@ -442,6 +443,78 @@ public class McpToolService {
 //            gameData
 //        );
         // ----------------------- 수정 --------------------------------------------
+    }
+
+    /**
+     * Tool: start_game_with_song
+     * 특정 노래로 게임(체조) 시작 - 노래 검색 + 게임 시작을 한 번에 처리
+     */
+    private McpToolResult startGameWithSong(McpToolCall toolCall) {
+        Map<String, Object> args = toolCall.getArguments();
+
+        Long userId = getLongArg(args, "userId");
+        String title = getStringArg(args, "title");
+        String artist = getStringArg(args, "artist");
+
+        // 빈 문자열을 null로 처리
+        title = (title != null && title.trim().isEmpty()) ? null : title;
+        artist = (artist != null && artist.trim().isEmpty()) ? null : artist;
+
+        log.info("특정 노래로 게임 시작: userId={}, title={}, artist={}", userId, title, artist);
+
+        try {
+            // 1. 노래 검색
+            Song song;
+            if (artist != null && title != null) {
+                song = songService.searchByArtistAndTitle(artist, title);
+            } else if (artist != null) {
+                song = songService.searchByArtist(artist);
+            } else if (title != null) {
+                song = songService.searchByTitle(title);
+            } else {
+                throw new IllegalArgumentException("노래 제목 또는 가수명이 필요합니다");
+            }
+
+            Long songId = song.getId();
+            log.info("노래 검색 성공: songId={}, title={}, artist={}", songId, song.getTitle(), song.getArtist());
+
+            // 2. 게임 시작 준비
+            com.heungbuja.game.dto.GameStartRequest gameRequest =
+                    new com.heungbuja.game.dto.GameStartRequest(userId, songId);
+
+            com.heungbuja.game.dto.GameStartResponse gameResponse =
+                    gameService.startGame(gameRequest);
+
+            // 3. Redis Context 업데이트
+            conversationContextService.changeMode(userId, PlaybackMode.EXERCISE);
+            conversationContextService.setCurrentSong(userId, songId);
+
+            // 4. 응답 데이터 구성
+            Map<String, Object> gameData = new HashMap<>();
+            gameData.put("intent", "START_GAME_IMMEDIATELY");
+            gameData.put("gameInfo", gameResponse);
+
+            String message = String.format("%s의 '%s' 노래로 체조를 시작합니다. 화면을 봐주세요.",
+                    song.getArtist(), song.getTitle());
+
+            log.info("특정 노래로 게임 시작 완료: userId={}, sessionId={}, songId={}",
+                    userId, gameResponse.getSessionId(), songId);
+
+            return McpToolResult.success(
+                    toolCall.getId(),
+                    "start_game_with_song",
+                    message,
+                    gameData
+            );
+
+        } catch (CustomException e) {
+            log.error("특정 노래로 게임 시작 실패: {}", e.getMessage());
+            return McpToolResult.failure(
+                    toolCall.getId(),
+                    toolCall.getName(),
+                    e.getMessage()
+            );
+        }
     }
 
     // ========== 헬퍼 메서드 ==========

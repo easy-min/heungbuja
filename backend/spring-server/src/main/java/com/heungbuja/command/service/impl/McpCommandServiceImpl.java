@@ -225,10 +225,18 @@ public class McpCommandServiceImpl implements CommandService {
                      * mode (필수): HOME, LISTENING, EXERCISE 중 하나
 
                 9. start_game
-                   - 설명: 게임(체조)을 시작합니다. 노래에 맞춰 동작을 따라하는 3-5분 게임입니다.
+                   - 설명: 게임(체조)을 시작합니다. 현재 선택된 노래 또는 랜덤 노래로 시작합니다.
                    - 파라미터:
                      * userId (필수): 사용자 ID
-                     * songId: 게임에 사용할 노래 ID (선택적, 안무 정보가 있는 노래만 가능)
+                     * songId: 게임에 사용할 노래 ID (선택적)
+
+                10. start_game_with_song
+                   - 설명: 특정 노래로 게임(체조)을 시작합니다. 노래 검색과 게임 시작을 한 번에 처리합니다.
+                   - 파라미터:
+                     * userId (필수): 사용자 ID
+                     * title: 노래 제목
+                     * artist: 가수명 (선택적)
+                   - 사용 시점: 사용자가 "특정 노래로 체조/게임/운동"을 요청할 때
                 """;
 
         return String.format("""
@@ -247,29 +255,30 @@ public class McpCommandServiceImpl implements CommandService {
                 STEP 1: 사용자 명령에서 키워드 추출
                   - 노래 이름이 있는가? (가수명, 곡명 등)
                   - 체조/게임/운동 키워드가 있는가?
+                  - 재생 키워드가 있는가? (틀어/들려/듣고)
 
                 STEP 2: 패턴 결정
-                  ⚠️ 중요: 노래만 듣기 vs 체조하기 구분!
-                  - 패턴 A (노래로 체조): 노래 이름 + "체조/게임/운동" → search_song + start_game
+                  ⚠️ 중요: 하나의 명령에는 하나의 Tool만!
+                  - 패턴 A (노래로 체조): 노래 이름 + "체조/게임/운동" → start_game_with_song (한 번에!)
                   - 패턴 B (노래만 듣기): 노래 이름 + "틀어/들려/듣고" → search_song만
                   - 패턴 C (랜덤 체조): "체조/게임/운동"만 → start_game만
 
                 STEP 3: Tool 호출 생성
-                  - 패턴에 맞게 tool_calls 배열 구성
+                  - 패턴에 맞는 Tool 하나만 호출
 
-                [패턴 A 예시: 노래로 체조]
-                "당돌한 여자로 체조하고 싶어" → 노래("당돌한 여자") + 체조("체조") → search_song + start_game
-                "당돌한 여자로 게임해줘" → 노래("당돌한 여자") + 게임("게임") → search_song + start_game
-                "당돌한 여자로 운동할래" → 노래("당돌한 여자") + 운동("운동") → search_song + start_game
+                [패턴 A 예시: 노래로 체조 - start_game_with_song 사용]
+                "당돌한 여자로 체조하고 싶어" → start_game_with_song(title="당돌한 여자")
+                "당돌한 여자로 게임해줘" → start_game_with_song(title="당돌한 여자")
+                "서주경의 당돌한 여자로 운동할래" → start_game_with_song(artist="서주경", title="당돌한 여자")
 
-                [패턴 B 예시: 노래만 듣기]
-                "당돌한 여자 틀어줘" → 노래("당돌한 여자") + 재생("틀어") → search_song만
-                "당돌한 여자 들려줘" → 노래("당돌한 여자") + 재생("들려") → search_song만
-                "당돌한 여자 듣고 싶어" → 노래("당돌한 여자") + 재생("듣고") → search_song만
+                [패턴 B 예시: 노래만 듣기 - search_song 사용]
+                "당돌한 여자 틀어줘" → search_song(title="당돌한 여자")
+                "당돌한 여자 들려줘" → search_song(title="당돌한 여자")
+                "당돌한 여자 듣고 싶어" → search_song(title="당돌한 여자")
 
-                [패턴 C 예시: 랜덤 체조]
-                "체조하고 싶어" → 체조만 → start_game만
-                "게임할래" → 게임만 → start_game만
+                [패턴 C 예시: 랜덤 체조 - start_game 사용]
+                "체조하고 싶어" → start_game()
+                "게임할래" → start_game()
 
                 [예시 1: 특정 노래로 체조]
                 입력: "당돌한 여자로 체조하고 싶어"
@@ -309,7 +318,7 @@ public class McpCommandServiceImpl implements CommandService {
                 [응답 형식]
                 - userId는 %d로 설정
                 - 반드시 JSON만 출력 (설명 금지)
-                - tool_calls는 배열 (여러 개 가능)
+                - tool_calls는 배열이지만 대부분 하나의 Tool만 호출
 
                 JSON만 출력:
                 """, contextInfo, toolsDescription, userMessage, userId);
