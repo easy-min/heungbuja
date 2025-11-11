@@ -2,8 +2,9 @@ import { useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { sendVoiceCommand } from '../api/voiceCommandApi';
 import type { VoiceCommandResponse } from '../types/voiceCommand';
+import { useAudioStore } from '@/store/audioStore';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://heungbuja.site/api';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
 interface UseVoiceCommandReturn {
   isUploading: boolean;
@@ -22,6 +23,7 @@ export const useVoiceCommand = (): UseVoiceCommandReturn => {
   const [responseText, setResponseText] = useState<string | null>(null);
   const navigate = useNavigate();
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const { pause: pauseAudio, play: playAudio } = useAudioStore();
 
   // TTS 재생 함수
   const playTTS = useCallback((ttsUrl: string | null, onComplete?: () => void) => {
@@ -87,9 +89,53 @@ export const useVoiceCommand = (): UseVoiceCommandReturn => {
     });
   }, []);
 
+  // 음악 재생 제어 처리
+  const handleMusicControl = useCallback((response: VoiceCommandResponse) => {
+    const { intent, responseText } = response;
+
+    // intent 기반 처리
+    if (intent === 'MUSIC_PAUSE') {
+      console.log('음악 일시정지 (intent: MUSIC_PAUSE)');
+      pauseAudio();
+      return true; // 처리 완료
+    }
+
+    if (intent === 'MUSIC_RESUME') {
+      console.log('음악 재생 재개 (intent: MUSIC_RESUME)');
+      playAudio();
+      return true; // 처리 완료
+    }
+
+    // responseText 기반 fallback 처리
+    if (responseText) {
+      if (responseText.includes('멈췄') || responseText.includes('일시정지') || responseText.includes('정지')) {
+        console.log('음악 일시정지 (responseText 기반):', responseText);
+        pauseAudio();
+        return true;
+      }
+
+      if (responseText.includes('재생') || responseText.includes('계속')) {
+        console.log('음악 재생 재개 (responseText 기반):', responseText);
+        playAudio();
+        return true;
+      }
+    }
+
+    return false; // 음악 제어 아님
+  }, [pauseAudio, playAudio]);
+
   // 화면 전환 처리
   const handleScreenTransition = useCallback((response: VoiceCommandResponse) => {
-    const { screenTransition, responseText, songInfo } = response;
+    const { intent, screenTransition, responseText, songInfo } = response;
+    
+    // intent 기반 처리
+    if (intent === 'MODE_EXERCISE') {
+      console.log('체조 모드 전환');
+      navigate('/tutorial', {
+        state: screenTransition?.data || {},
+      });
+      return;
+    }
 
     // responseText에 "게임" 또는 "체조" 키워드가 있으면 tutorial로 이동
     if (responseText && (responseText.includes('게임') || responseText.includes('체조'))) {
@@ -109,8 +155,8 @@ export const useVoiceCommand = (): UseVoiceCommandReturn => {
 
     // 노래 재생의 경우 (/listening -> /song)
     if (action === 'PLAY_SONG' && songInfo) {
-      console.log('노래 재생 → /song으로 이동', songInfo);
-      navigate('/song', {
+      console.log('노래 재생 → /listening으로 이동', songInfo);
+      navigate('/listening', {
         state: {
           songInfo,
           autoPlay: data?.autoPlay || true,
@@ -156,10 +202,15 @@ export const useVoiceCommand = (): UseVoiceCommandReturn => {
 
       // 성공 시
       if (result.success) {
-        // TTS 재생 후 화면 전환
+        // TTS 재생 후 음악 제어 또는 화면 전환
         playTTS(result.ttsAudioUrl, () => {
-          // TTS 재생 완료되면 화면 전환
-          handleScreenTransition(result);
+          // TTS 재생 완료되면 음악 제어 시도
+          const isMusicControl = handleMusicControl(result);
+
+          // 음악 제어가 아니면 화면 전환 처리
+          if (!isMusicControl) {
+            handleScreenTransition(result);
+          }
         });
       } else {
         // 실패 시 에러 메시지
@@ -176,7 +227,7 @@ export const useVoiceCommand = (): UseVoiceCommandReturn => {
       // console.log('✅ setIsUploading(false) 호출됨 (finally)');
       setIsUploading(false);
     }
-  }, [playTTS, handleScreenTransition]);
+  }, [playTTS, handleMusicControl, handleScreenTransition]);
 
   return {
     isUploading,

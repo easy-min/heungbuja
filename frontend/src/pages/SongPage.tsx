@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState, useMemo } from 'react';
-import { useLocation } from 'react-router-dom';
 import type { SongInfo } from '@/types/voiceCommand';
 import './SongPage.css';
+import VoiceButton from '@/components/VoiceButton';
+import { useRef, useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
+import { useAudioStore } from '@/store/audioStore';
 
 interface SongPageState {
   songInfo: SongInfo;
@@ -19,110 +21,59 @@ const dummySongInfo: SongInfo = {
   mode: 'LISTENING'
 };
 
+
+
 function SongPage() {
   const location = useLocation();
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
   const state = location.state as SongPageState | null;
+
+  // 전달받은 songInfo 또는 더미 데이터 사용
+  const songInfo = state?.songInfo || dummySongInfo;
+  const autoPlay = state?.autoPlay || false;
+
+  const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [, setCurrentTime] = useState(0);
-  const [, setDuration] = useState(0);
+  const { setAudioRef, setIsPlaying: setGlobalPlaying } = useAudioStore();
 
-  // state 없으면 테스트 데이터 사용 (useMemo로 메모이제이션)
-  const songInfo = useMemo(() =>
-    state?.songInfo || dummySongInfo,
-    [state?.songInfo]
-  );
-
-  const autoPlay = state?.autoPlay !== false;
-
-  // state 없으면 홈으로 리다이렉트 (프로덕션에서는 활성화)
-  // useEffect(() => {
-  //   if (!state || !state.songInfo) {
-  //     console.warn('노래 정보가 없습니다. 홈으로 이동합니다.');
-  //     navigate('/');
-  //   }
-  // }, [state, navigate]);
-
-  // 오디오 로드 및 자동재생
+  // audioRef를 store에 등록
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    // 오디오 이벤트 핸들러
-    const handleLoadedMetadata = () => {
-      setDuration(audio.duration);
-    };
-
-    const handleTimeUpdate = () => {
-      setCurrentTime(audio.currentTime);
-    };
-
-    const handlePlay = () => {
-      setIsPlaying(true);
-    };
-
-    const handlePause = () => {
-      setIsPlaying(false);
-    };
-
-    const handleEnded = () => {
-      setIsPlaying(false);
-    };
-
-    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
-    audio.addEventListener('timeupdate', handleTimeUpdate);
-    audio.addEventListener('play', handlePlay);
-    audio.addEventListener('pause', handlePause);
-    audio.addEventListener('ended', handleEnded);
-
-    // 자동재생
-    if (autoPlay) {
-      audio.play().catch((err) => {
-        console.error('자동재생 실패:', err);
-      });
+    if (audioRef.current) {
+      setAudioRef(audioRef.current);
     }
-
     return () => {
-      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      audio.removeEventListener('timeupdate', handleTimeUpdate);
-      audio.removeEventListener('play', handlePlay);
-      audio.removeEventListener('pause', handlePause);
-      audio.removeEventListener('ended', handleEnded);
-      audio.pause();
+      setAudioRef(null);
     };
-  }, [songInfo.audioUrl, autoPlay]); // audioUrl이 바뀔 때만 재실행
+  }, [setAudioRef]);
 
+  // isPlaying 상태를 store와 동기화
+  useEffect(() => {
+    setGlobalPlaying(isPlaying);
+  }, [isPlaying, setGlobalPlaying]);
 
   return (
     <div className="container">
       {/* 블러 그라디언트 배경 */}
-      <div className="gradient-blur"></div>
+      <span className='song-title'>{songInfo.title}</span>
+      <span className='song-artist'>{songInfo.artist}</span>
 
-      {/* 중앙 흰색 원 */}
-      <div className="white-circle">
-        {/* 음표 아이콘 또는 앨범 커버 */}
-        <div className="song-info">
-          <h2 className="song-title">{songInfo.title}</h2>
-          <p className="song-artist">{songInfo.artist}</p>
-        </div>
-
-        {/* 재생 상태 표시 */}
-        {isPlaying && (
-          <div className="playing-indicator">
-            ♪ 재생 중
-          </div>
-        )}
+      {/* LP판 턴테이블 */}
+      <div className={`lp-container ${isPlaying ? 'playing' : 'stopped'}`}>
+        <div className="lp-disc"></div>
+        <div className="tonearm-base"></div>
+        <div className="tonearm"></div>
       </div>
 
       {/* 오디오 플레이어 */}
       <audio
         ref={audioRef}
         src={songInfo.audioUrl}
-        controls
-        className="audio-player"
+        autoPlay={autoPlay}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        onEnded={() => setIsPlaying(false)}
       />
 
+      <VoiceButton/>
     </div>
   );
 }
