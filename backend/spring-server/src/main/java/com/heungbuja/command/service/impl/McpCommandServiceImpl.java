@@ -280,17 +280,15 @@ public class McpCommandServiceImpl implements CommandService {
                 "체조하고 싶어" → start_game()
                 "게임할래" → start_game()
 
-                [예시 1: 특정 노래로 체조]
+                [JSON 예시]
                 입력: "당돌한 여자로 체조하고 싶어"
                 응답:
                 {
                   "tool_calls": [
-                    {"name": "search_song", "arguments": {"userId": 1, "title": "당돌한 여자"}},
-                    {"name": "start_game", "arguments": {"userId": 1}}
+                    {"name": "start_game_with_song", "arguments": {"userId": 1, "title": "당돌한 여자"}}
                   ]
                 }
 
-                [예시 2: 노래 재생만]
                 입력: "당돌한 여자 들려줘"
                 응답:
                 {
@@ -304,14 +302,6 @@ public class McpCommandServiceImpl implements CommandService {
                 {
                   "tool_calls": [
                     {"name": "start_game", "arguments": {"userId": 1}}
-                  ]
-                }
-
-                입력: "노래 틀어줘"
-                응답:
-                {
-                  "tool_calls": [
-                    {"name": "search_song", "arguments": {"userId": 1}}
                   ]
                 }
 
@@ -438,6 +428,24 @@ public class McpCommandServiceImpl implements CommandService {
 
             // start_game: 게임 시작 → EXERCISE 모드로 화면 전환
             if ("start_game".equals(result.getToolName()) && result.getData() != null) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> gameData = (Map<String, Object>) result.getData();
+
+                return CommandResponse.builder()
+                        .success(true)
+                        .intent(Intent.MODE_EXERCISE)  // ✅ 게임 시작 Intent
+                        .responseText(responseText)
+                        .ttsAudioUrl(null)  // TTS는 Controller에서 처리
+                        .screenTransition(CommandResponse.ScreenTransition.builder()
+                                .targetScreen("/game")
+                                .action("START_GAME")
+                                .data(gameData)  // sessionId, audioUrl, beatInfo 등 포함
+                                .build())
+                        .build();
+            }
+
+            // start_game_with_song: 특정 노래로 게임 시작 → EXERCISE 모드로 화면 전환
+            if ("start_game_with_song".equals(result.getToolName()) && result.getData() != null) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> gameData = (Map<String, Object>) result.getData();
 
