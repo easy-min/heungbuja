@@ -137,7 +137,6 @@ const DashboardPage = () => {
         await new Promise(resolve => setTimeout(resolve, 500));
         updateReport(reportId, {
           status: 'RESOLVED',
-          // resolvedAt: new Date().toISOString(),
         });
       } else {
         const updatedReport = await resolveEmergency(reportId);
