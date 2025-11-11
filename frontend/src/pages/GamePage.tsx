@@ -101,6 +101,7 @@ function GamePage() {
   // sessionId: 음성 명령으로 받은 데이터 우선, 없으면 생성
   const [sessionId] = useState(() => gameData?.sessionId || generateSessionId());
   const [testMode] = useState(false);  // ✅ testMode 설정
+  const [sectionMessage, setSectionMessage] = useState<string | null>(null);
 
   // 가사
   const [lyrics, setLyrics] = useState<LyricLine[]>([]);
@@ -128,12 +129,22 @@ function GamePage() {
     onAllComplete: handleAllComplete,
     onSectionEnter: (label) => {
       const map: Record<string, SectionKey> = {
-        intro: 'break',
+        intro: 'intro',
         break: 'break',
         part1: 'part1',
         part2: 'part2',
       };
+      const nextSection = map[label] ?? 'break';
       switchSectionVideo(map[label] ?? 'break');
+
+      if (nextSection === 'intro') {
+        setSectionMessage("노래에 맞춰 캐릭터의 동작을 따라해주세요!");
+        setTimeout(() => setSectionMessage(null), 4000);
+      }
+      if (nextSection === 'break') {
+        setSectionMessage("잘 따라하셔서 2절은 한 단계 높은 동작으로 바꿔볼게요!");
+        setTimeout(() => setSectionMessage(null), 8000);
+      }
     },
   });
 
@@ -458,6 +469,13 @@ function GamePage() {
         </div>
       </div>
     )}
+    {sectionMessage && (
+      <div className="section-message-overlay">
+        <div className="section-message-bubble">
+          {sectionMessage}
+        </div>
+      </div>
+    )}
     <div className="game-page">
       {/* 좌측: 동작 시연 및 가사 */}
       <div className="video-container">
@@ -472,7 +490,7 @@ function GamePage() {
             playsInline
             src={`${BASE_URL}break.mp4`}
             className="motion-video"
-            style={{width: '800px'}}
+            style={{width: '900px'}}
           />
         </div>
         {/* 아래쪽: 가사 자리 */}
