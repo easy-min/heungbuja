@@ -155,6 +155,7 @@ public class EmergencyService {
         }
 
         report.confirm(); // confirm + 상태 변경
+        emergencyReportRepository.save(report); // 명시적 저장 (TaskScheduler 스레드에서 트랜잭션 보장)
         log.info("응급 신고 확정됨: reportId={}, status={}", reportId, report.getStatus());
 
         // WebSocket으로 관리자에게 알림 전송
@@ -169,6 +170,7 @@ public class EmergencyService {
     public void cancelReport(Long reportId) {
         EmergencyReport report = findById(reportId);
         report.cancel();
+        emergencyReportRepository.save(report);
     }
 
     /**
@@ -185,6 +187,7 @@ public class EmergencyService {
                         "취소할 응급 신고가 없습니다"));
 
         report.cancel();
+        emergencyReportRepository.save(report);
         log.info("응급 신고 취소됨: reportId={}, status={}", report.getId(), report.getStatus());
 
         // 응급 상태 해제 (IDLE로 전환)
@@ -208,6 +211,7 @@ public class EmergencyService {
                         "확정할 응급 신고가 없습니다"));
 
         report.confirm();
+        emergencyReportRepository.save(report);
         log.info("응급 신고 확정됨: reportId={}, status={}", report.getId(), report.getStatus());
 
         // 관리자에게 알림 전송
@@ -225,6 +229,7 @@ public class EmergencyService {
         EmergencyReport report = emergencyReportRepository.findByIdWithUserAndAdmin(reportId)
                 .orElseThrow(() -> new CustomException(ErrorCode.EMERGENCY_NOT_FOUND));
         report.confirm();
+        emergencyReportRepository.save(report);
         sendEmergencyAlert(report);
 
         return EmergencyResponse.from(report, "관리자에게 알림이 전송되었습니다");
@@ -286,6 +291,7 @@ public class EmergencyService {
         Admin admin = adminService.findById(adminId);
 
         report.handle(admin, notes);
+        emergencyReportRepository.save(report);
     }
 
     /**
