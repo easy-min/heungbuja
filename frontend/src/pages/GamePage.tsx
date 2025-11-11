@@ -70,8 +70,8 @@ function GamePage() {
   type SectionKey = keyof typeof VIDEO_META;
 
   // === 수동 루프 파라미터 ===
-  const LOOP_EPS = 0.03;     // 경계 여유
-  const LOOP_RESTART = 0.05; // 되감을 위치(싱크 보정)
+  const LOOP_EPS = 0.02;     // 경계 여유
+  const LOOP_RESTART = 0.04; // 되감을 위치(싱크 보정)
 
   const getLoopLenSec = (section: SectionKey) => {
     const { bpm, loopBeats } = VIDEO_META[section];

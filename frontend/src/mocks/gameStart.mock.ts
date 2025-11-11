@@ -27,6 +27,25 @@ export async function mockGameStart(): Promise<GameStartResponse> {
     { lineIndex: 17, text: '야이야이야이 말해요', start: 92.0, end: 96.0, sbeat: 191, ebeat: 200 },
     { lineIndex: 18, text: '그대 여자 되달라고 말해요', start: 96.0, end: 100.0, sbeat: 200, ebeat: 209 },
     { lineIndex: 19, text: '난 이미 오래전 그대 여자이고 싶었어요', start: 100.0, end: 108.0, sbeat: 209, ebeat: 226 },
+    { lineIndex: 20, text: "애인이 없다는거 맞죠", "start": 138.0, "end": 142.0, "ebeat": 300, "sbeat": 291 }, 
+    { lineIndex: 21, text: "혹시 숨겨둔거 아니겠죠", "start": 142.0, "end": 146.0, "ebeat": 308, "sbeat": 300 }, 
+    { lineIndex: 22, text: "믿어요 그대의 말을", "start": 146.0, "end": 149.0, "ebeat": 315, "sbeat": 308 }, 
+    { lineIndex: 23, text: "행여 있다 해도 양보는 싫어", "start": 149.0, "end": 153.0, "ebeat": 323, "sbeat": 315 }, 
+    { lineIndex: 24, text: "그대는 그게 맘에 들어", "start": 153.0, "end": 157.0, "ebeat": 332, "sbeat": 323 }, 
+    { lineIndex: 25, text: "여자 많은 듯한 겉모습에", "start": 157.0, "end": 161.0, "ebeat": 341, "sbeat": 332 }, 
+    { lineIndex: 26, text: "사실은 아무에게나", "start": 161.0, "end": 164.0, "ebeat": 347, "sbeat": 341 }, 
+    { lineIndex: 27, text: "마음주지 않는 그런 남자죠", "start": 164.0, "end": 168.0, "ebeat": 356, "sbeat": 347 },
+    { lineIndex: 28, text: "집으로 들어가는 길인가요", "start": 168.0, "end": 171.0, "ebeat": 362, "sbeat": 356 }, 
+    { lineIndex: 29, text: "그대의 어깨가 무거워 보여", "start": 171.0, "end": 175.0, "ebeat": 371, "sbeat": 362 }, 
+    { lineIndex: 30, text: "이런 나 당돌한가요", "start": 175.0, "end": 178.0, "ebeat": 378, "sbeat": 371 }, 
+    { lineIndex: 31, text: "술 한잔 사주실래요", "start": 178.0, "end": 183.0, "ebeat": 388, "sbeat": 378 }, 
+    { lineIndex: 32, text: "야이야야야이 날 봐요", "start": 183.0, "end": 186.0, "ebeat": 395, "sbeat": 388 }, 
+    { lineIndex: 33, text: "우리 마음 속이지는 말아요", "start": 186.0, "end": 190.0, "ebeat": 404, "sbeat": 395 }, 
+    { lineIndex: 34, text: "날 기다렸다고", "start": 190.0, "end": 193.0, "ebeat": 410, "sbeat": 404 }, 
+    { lineIndex: 35, text: "먼저 얘기하면 손해라도보나요", "start": 193.0, "end": 197.0, "ebeat": 419, "sbeat": 410 }, 
+    { lineIndex: 36, text: "야이야이야이 말해요", "start": 197.0, "end": 201.0, "ebeat": 427, "sbeat": 419 }, 
+    { lineIndex: 37, text: "그대 여자 되달라고 말해요", "start": 201.0, "end": 205.0, "ebeat": 436, "sbeat": 427 }, 
+    { lineIndex: 38, text: "난 이미 오래전 그대 여자이고 싶었어요", "start": 205.0, "end": 213.0, "ebeat": 453, "sbeat": 436 }
   ];
 
   return {

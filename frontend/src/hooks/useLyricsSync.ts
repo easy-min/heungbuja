@@ -39,7 +39,7 @@ export function useLyricsSync(
       const curIdx = indexRef.current;
       const cur = curIdx >= 0 ? lyrics[curIdx] : undefined;
 
-      if (cur && t >= cur.startTime && t <= cur.endTime) {
+      if (cur && t >= cur.start && t <= cur.end) {
         if (isInstrumentalRef.current) setIsInstrumental(false);
         return;
       }
@@ -48,7 +48,7 @@ export function useLyricsSync(
       let nextIdx = -1;
       for (let i = 0; i < lyrics.length; i++) {
         const l = lyrics[i];
-        if (t >= l.startTime && t <= l.endTime) {
+        if (t >= l.start && t <= l.end) {
           nextIdx = i;
           break;
         }
