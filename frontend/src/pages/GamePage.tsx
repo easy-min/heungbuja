@@ -97,7 +97,7 @@ function GamePage() {
 
   // 상태
   const [isGameStarted, setIsGameStarted] = useState(false);
-  const [currentSegment, setCurrentSegment] = useState(0);
+  const [, setCurrentSegment] = useState(0);
   // sessionId: 음성 명령으로 받은 데이터 우선, 없으면 생성
   const [sessionId] = useState(() => gameData?.sessionId || generateSessionId());
   const [testMode] = useState(false);  // ✅ testMode 설정
@@ -116,7 +116,6 @@ function GamePage() {
   const {
     barGroups,
     currentSegmentIndex,
-    isMonitoring,
     songBpm,
     // sectionTimes,
     loadSongData,
@@ -161,7 +160,6 @@ function GamePage() {
 
   // 세그먼트 업로드 훅
   const {
-    uploadQueue,
     isUploading,
     queueSegmentUpload,
   } = useSegmentUpload({
@@ -387,7 +385,7 @@ function GamePage() {
     setIsGameStarted(true);
   }
 
-  function handleTestStop() {
+  // function handleTestStop() {
     console.log('⏹ 테스트 중지');
     if (audioRef.current) {
       audioRef.current.pause();
@@ -400,7 +398,7 @@ function GamePage() {
       countdownTimerRef.current = null;
     }
     setIsCounting(false);
-  }
+  // }
 
   // ✅ 수정: 오디오 현재시간 기준으로 예약 호출
   function handleSegmentStart(segmentIndex: number) {
