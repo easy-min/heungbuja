@@ -1,12 +1,11 @@
 import { useRef, useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useCamera } from '@/hooks/useCamera';
 import { useFrameStreamer } from '@/hooks/useFrameStreamer';
 import { useMusicMonitor } from '@/hooks/useMusicMonitor';
 import { useLyricsSync } from '@/hooks/useLyricsSync';
 import { useWs } from '@/hooks/useWs';
 import { type LyricLine } from '@/types/song';
-import { gameStartApi } from '@/api/game';
 import { useGameStore } from '@/store/gameStore';
 import { GAME_CONFIG } from '@/utils/constants';
 import './GamePage.css';
@@ -16,9 +15,8 @@ function GamePage() {
   const { send } = useWs(import.meta.env.VITE_WS_URL);
 
   // === 상태 / 참조 ===
-  const { songId } = useParams<{ songId: string }>();
   const motionVideoRef = useRef<HTMLVideoElement | null>(null); // 동작 영상
-  const videoRef = useRef<HTMLVideoElement | null>(null); //카메라 영상
+  const videoRef = useRef<HTMLVideoElement | null>(null);       // 카메라 영상
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const captureTimeoutsRef = useRef<number[]>([]);
@@ -32,12 +30,23 @@ function GamePage() {
   const [count, setCount] = useState(5);
   const [isGameStarted, setIsGameStarted] = useState(false);
   const [lyrics, setLyrics] = useState<LyricLine[]>([]);
-  
+
   const { isCapturing, start: startStream, stop: stopStream } = useFrameStreamer({
     videoRef, audioRef, canvasRef,
   });
   const { stream, isReady, error, startCamera, stopCamera } = useCamera();
-  const { setAll } = useGameStore();
+  const {
+    sessionId,
+    songTitle,
+    audioUrl,
+    videoUrls, // 필요 시 사용
+    bpm,
+    duration,
+    sectionInfo,
+    segmentInfo,
+    lyrics: storeLyrics,
+  } = useGameStore();
+
   const { current: currentLyric, next: nextLyric, isInstrumental } =
     useLyricsSync(audioRef, lyrics, { prerollSec: 0.04 });
 
@@ -51,6 +60,7 @@ function GamePage() {
   });
 
   // === 영상 메타 ===
+  // 필요 시 videoUrls를 활용해 교체 가능합니다.
   const VIDEO_META = {
     intro:  { src: '/break.mp4', bpm: 100,  loopBeats: 8  },
     break:  { src: '/break.mp4', bpm: 100,  loopBeats: 8  },
@@ -182,41 +192,39 @@ function GamePage() {
     setIsGameStarted(true);
   }
 
-  // === 구간 캡처 스케줄링(서버 segments 사용) ===
+  // === 구간 캡처 스케줄링(서버 segmentInfo 사용) ===
   function scheduleRangeCaptures() {
     const audio = audioRef.current;
-    const store = useGameStore.getState();
-    const segs = useGameStore.getState().segments;
-    if (!audio || !segs) return;
+    if (!audio || !segmentInfo) return;
 
     clearCaptureTimeouts();
 
-    const sessionId = store.sessionId!;
-    const songTitle = store.songInfo?.title ?? 'unknown';
+    const sid = sessionId!;
+    const title = songTitle ?? 'unknown';
+
+    const verse1 = segmentInfo.verse1cam;
+    const verse2 = segmentInfo.verse2cam;
     const segments = [
-      { key: 'verse1' as const, start: segs.verse1.startTime, end: segs.verse1.endTime },
-      { key: 'verse2' as const, start: segs.verse2.startTime, end: segs.verse2.endTime },
-    ];
+      verse1 ? { key: 'verse1' as const, start: verse1.startTime, end: verse1.endTime } : null,
+      verse2 ? { key: 'verse2' as const, start: verse2.startTime, end: verse2.endTime } : null,
+    ].filter(Boolean) as Array<{ key: 'verse1' | 'verse2'; start: number; end: number }>;
 
     segments.forEach(({ key, start, end }) => {
-      // ② 현재 시각 기준 지연 계산(음악이 이미 시작되어 있을 수 있음)
+      if (end <= start) return;
+
       const now = audio.currentTime;
       const delayMs = Math.max(0, (start - now) * 1000);
 
       const timeoutId = window.setTimeout(() => {
-        // ③ 콜백 진입 시점에 다시 현재 시간을 확인(시킹/백그라운드 지연 대비)
         const cur = audio.currentTime;
-
-        // 이미 구간이 끝났으면 실행하지 않음
         if (cur >= end) return;
 
-        // 중간부터라도 시작: start가 지났다면 cur부터 캡처 시작
         const effectiveStart = Math.max(cur, start);
 
         startStream(effectiveStart, end, (blob, { t, idx }) => {
           send(blob, {
-            sessionId,
-            songTitle,
+            sessionId: sid,
+            songTitle: title,
             section: key,
             frameIndex: idx,
             musicTime: Number(t.toFixed(3)),
@@ -225,7 +233,6 @@ function GamePage() {
         });
       }, delayMs);
 
-      // ④ 타이머 ID 저장(나중에 일괄 해제)
       captureTimeoutsRef.current.push(timeoutId);
     });
   }
@@ -271,33 +278,39 @@ function GamePage() {
     navigate('/result');
   }
 
-  // === 초기화 ===
+  // === 초기화: store 기반으로만 세팅 ===
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         startCamera();
 
-        const id = Number(songId) || 1;
-        const res = await gameStartApi(id);
-        if (cancelled) return;
+        // 필수 데이터 가드
+        if (!audioUrl || !bpm || !duration || !sectionInfo) {
+          console.warn('필수 게임 데이터가 없습니다. 튜토리얼로 이동합니다.');
+          navigate('/tutorial', { replace: true });
+          return;
+        }
 
-        const { sessionId, songInfo, timeline, lyrics, videoUrls, segments } = res.data;
-        setAll({ sessionId, songInfo, timeline, lyrics, videoUrls, segments });
-
+        // 오디오 소스
         if (audioRef.current) {
-          audioRef.current.src = songInfo.audioUrl;
+          audioRef.current.src = audioUrl;
           audioRef.current.load();
         }
 
-        setLyrics(lyrics ?? []);
-        songBpmRef.current = songInfo.bpm;
+        // 가사/메타
+        setLyrics(storeLyrics ?? []);
+        songBpmRef.current = bpm;
 
-        await loadFromGameStart({
-          bpm: songInfo.bpm,
-          duration: songInfo.duration,
-          timeline,
-        });
+        // useMusicMonitor가 기대하는 timeline 형태로 매핑
+        const timeline = {
+          introStartTime: sectionInfo.introStartTime ?? 0,
+          verse1StartTime: sectionInfo.verse1StartTime ?? 0,
+          breakStartTime: sectionInfo.breakStartTime ?? 0,
+          verse2StartTime: sectionInfo.verse2StartTime ?? 0,
+        };
+
+        await loadFromGameStart({ bpm, duration, timeline });
       } catch (e) {
         console.error('게임 시작 초기화 실패:', e);
       }
@@ -311,7 +324,7 @@ function GamePage() {
       clearCaptureTimeouts();
       if (audioRef.current) audioRef.current.pause();
     };
-  }, [songId]);
+  }, []); // store에서만 세팅하므로 빈 배열
 
   // === 카메라 스트림 연결 ===
   useEffect(() => {

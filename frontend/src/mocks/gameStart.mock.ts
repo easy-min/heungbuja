@@ -1,87 +1,92 @@
-import type { GameStartResponse, LyricLine, SongTimeline } from '@/types/song';
+import type { GameStartResponse, LyricLine } from '@/types/song';
 
-// 지연 유틸 (로딩 느낌)
+// 로딩 시연용 유틸
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
-const timeline: SongTimeline = {
-  introStartTime: 4.16,
-  verse1StartTime: 33.69,
-  breakStartTime: 107.56,
-  verse2StartTime: 138.95,
-};
+export async function mockGameStart(): Promise<GameStartResponse> {
+  await delay(200);
 
-const segments = {
-  verse1: { "startTime": 41.07, "endTime": 70.62 },
-  verse2: { "startTime": 146.33, "endTime": 175.88 },
-}
-
-const lyrics: LyricLine[] = [
-  { text: '일부러 안 웃는거 맞죠', startTime: 33, endTime: 37 },
-  { text: '나에게만 차가운거 맞죠', startTime: 37, endTime: 41 },
-  { text: '알아요 그대 마음을', startTime: 41, endTime: 44 },
-  { text: '내게 빠질까봐 두려운거죠', startTime: 44, endTime: 48 },
-  { text: '그대는 그게 매력이에요', startTime: 48, endTime: 52 },
-  { text: '관심 없는 듯한 말투 눈빛', startTime: 52, endTime: 56 },
-  { text: '하지만 그대 시선은', startTime: 56, endTime: 59 },
-  { text: '나는 안보고도 느낄 수 있죠', startTime: 59, endTime: 62 },
-  { text: '집으로 들어가는 길인가요', startTime: 62, endTime: 66 },
-  { text: '그대의 어깨가 무거워 보여', startTime: 66, endTime: 70 },
-  { text: '이런 나 당돌한가요', startTime: 70, endTime: 73 },
-  { text: '술 한잔 사주실래요', startTime: 73, endTime: 77 },
-  { text: '야이야야야이 날 봐요', startTime: 77, endTime: 81 },
-  { text: '우리 마음 속이지는 말아요', startTime: 81, endTime: 85 },
-  { text: '날 기다렸다고', startTime: 85, endTime: 88 },
-  { text: '먼저 얘기하면 손해라도보나요', startTime: 88, endTime: 92 },
-  { text: '야이야이야이 말해요', startTime: 92, endTime: 96 },
-  { text: '그대 여자 되달라고 말해요', startTime: 96, endTime: 100 },
-  { text: '난 이미 오래전 그대 여자이고 싶었어요', startTime: 100, endTime: 108 },
-
-  { text: '애인이 없다는거 맞죠', startTime: 138, endTime: 142 },
-  { text: '혹시 숨겨둔거 아니겠죠', startTime: 142, endTime: 146 },
-  { text: '믿어요 그대의 말을', startTime: 146, endTime: 149 },
-  { text: '행여 있다 해도 양보는 싫어', startTime: 149, endTime: 153 },
-  { text: '그대는 그게 맘에 들어', startTime: 153, endTime: 157 },
-  { text: '여자 많은 듯한 겉모습에', startTime: 157, endTime: 161 },
-  { text: '사실은 아무에게나', startTime: 161, endTime: 164 },
-  { text: '마음주지 않는 그런 남자죠', startTime: 164, endTime: 168 },
-  { text: '집으로 들어가는 길인가요', startTime: 168, endTime: 171 },
-  { text: '그대의 어깨가 무거워 보여', startTime: 171, endTime: 175 },
-  { text: '이런 나 당돌한가요', startTime: 175, endTime: 178 },
-  { text: '술 한잔 사주실래요', startTime: 178, endTime: 183 },
-  { text: '야이야야야이 날 봐요', startTime: 183, endTime: 186 },
-  { text: '우리 마음 속이지는 말아요', startTime: 186, endTime: 190 },
-  { text: '날 기다렸다고', startTime: 190, endTime: 193 },
-  { text: '먼저 얘기하면 손해라도보나요', startTime: 193, endTime: 197 },
-  { text: '야이야이야이 말해요', startTime: 197, endTime: 201 },
-  { text: '그대 여자 되달라고 말해요', startTime: 201, endTime: 205 },
-  { text: '난 이미 오래전 그대 여자이고 싶었어요', startTime: 205, endTime: 213 },
-];
-
-export async function mockGameStart(songId: number): Promise<GameStartResponse> {
-  // 실제 API 호출처럼 약간의 지연
-  await delay(300);
+  // 가사 정보
+  const lyricsInfo: LyricLine[] = [
+    { lineIndex: 1, text: '일부러 안 웃는거 맞죠', start: 33.0, end: 37.0, sbeat: 64, ebeat: 72 },
+    { lineIndex: 2, text: '나에게만 차가운거 맞죠', start: 37.0, end: 41.0, sbeat: 72, ebeat: 81 },
+    { lineIndex: 3, text: '알아요 그대 마음을', start: 41.0, end: 44.0, sbeat: 81, ebeat: 87 },
+    { lineIndex: 4, text: '내게 빠질까봐 두려운거죠', start: 44.0, end: 48.0, sbeat: 87, ebeat: 96 },
+    { lineIndex: 5, text: '그대는 그게 매력이에요', start: 48.0, end: 52.0, sbeat: 96, ebeat: 105 },
+    { lineIndex: 6, text: '관심 없는 듯한 말투 눈빛', start: 52.0, end: 56.0, sbeat: 105, ebeat: 113 },
+    { lineIndex: 7, text: '하지만 그대 시선은', start: 56.0, end: 59.0, sbeat: 113, ebeat: 120 },
+    { lineIndex: 8, text: '나는 안보고도 느낄 수 있죠', start: 59.0, end: 62.0, sbeat: 120, ebeat: 126 },
+    { lineIndex: 9, text: '집으로 들어가는 길인가요', start: 62.0, end: 66.0, sbeat: 126, ebeat: 135 },
+    { lineIndex: 10, text: '그대의 어깨가 무거워 보여', start: 66.0, end: 70.0, sbeat: 135, ebeat: 144 },
+    { lineIndex: 11, text: '이런 나 당돌한가요', start: 70.0, end: 73.0, sbeat: 144, ebeat: 150 },
+    { lineIndex: 12, text: '술 한잔 사주실래요', start: 73.0, end: 77.0, sbeat: 150, ebeat: 159 },
+    { lineIndex: 13, text: '야이야야야이 날 봐요', start: 77.0, end: 81.0, sbeat: 159, ebeat: 167 },
+    { lineIndex: 14, text: '우리 마음 속이지는 말아요', start: 81.0, end: 85.0, sbeat: 167, ebeat: 176 },
+    { lineIndex: 15, text: '날 기다렸다고', start: 85.0, end: 88.0, sbeat: 176, ebeat: 183 },
+    { lineIndex: 16, text: '먼저 얘기하면 손해라도보나요', start: 88.0, end: 92.0, sbeat: 183, ebeat: 191 },
+    { lineIndex: 17, text: '야이야이야이 말해요', start: 92.0, end: 96.0, sbeat: 191, ebeat: 200 },
+    { lineIndex: 18, text: '그대 여자 되달라고 말해요', start: 96.0, end: 100.0, sbeat: 200, ebeat: 209 },
+    { lineIndex: 19, text: '난 이미 오래전 그대 여자이고 싶었어요', start: 100.0, end: 108.0, sbeat: 209, ebeat: 226 },
+  ];
 
   return {
     success: true,
     data: {
-      sessionId: 'mock-a1b2c3d4-e5f6-7890',
-      songInfo: {
-        audioUrl: '/당돌한여자.mp3',
-        title: '당돌한 여자',
-        artist: '서주경',
-        bpm: 129.71,
-        duration: 220.35,
-      },
-      timeline,
-      segments,
-      lyrics,
+      sessionId: '19cb4d67-07f3-400e-9dc9-6d8bc2402446',
+      songId: 1,
+      songTitle: '당돌한여자',
+      songArtist: 'Seo Jookyung',
+      audioUrl:
+        '/당돌한여자.mp3',
       videoUrls: {
-        intro: 'https://example.com/mock/video_intro.mp4',
-        verse1: 'https://example.com/mock/video_v1.mp4',
-        verse2_level1: 'https://example.com/mock/video_v2_level1.mp4',
-        verse2_level2: 'https://example.com/mock/video_v2_level2.mp4',
-        verse2_level3: 'https://example.com/mock/video_v2_level3.mp4',
+        intro:
+          'https://heungbuja-bucket.s3.ap-northeast-2.amazonaws.com/video/break.mp4',
+        verse1:
+          'https://heungbuja-bucket.s3.ap-northeast-2.amazonaws.com/video/part1.mp4',
+        verse2_level1:
+          'https://heungbuja-bucket.s3.ap-northeast-2.amazonaws.com/video/part2_level1.mp4',
+        verse2_level2:
+          'https://heungbuja-bucket.s3.ap-northeast-2.amazonaws.com/video/part2_level2.mp4',
+        verse2_level3: 'https://example.com/video_v2_level3.mp4',
       },
+      bpm: 129.71510314941406,
+      duration: 220.35736961451246,
+
+      sectionInfo: {
+        introStartTime: 4.163151927437642,
+        verse1StartTime: 33.69315192743764,
+        breakStartTime: 107.56315192743764,
+        verse2StartTime: 138.95315192743763,
+      },
+
+      segmentInfo: {
+        verse1cam: { startTime: 48.47315192743765, endTime: 92.78315192743764 },
+        verse2cam: { startTime: 153.73315192743763, endTime: 198.04315192743763 },
+      },
+
+      verse1Timeline: [
+        { time: 33.69, actionCode: 1, actionName: '손뼉 박수' },
+        { time: 35.54, actionCode: 2, actionName: '팔 치기' },
+        { time: 37.38, actionCode: 1, actionName: '손뼉 박수' },
+        { time: 41.07, actionCode: 2, actionName: '팔 치기' },
+      ],
+
+      verse2Timeline: {
+        level1: [
+          { time: 146.33, actionCode: 1, actionName: '손뼉 박수' },
+          { time: 153.73, actionCode: 2, actionName: '팔 치기' },
+        ],
+        level2: [
+          { time: 157.42, actionCode: 1, actionName: '손뼉 박수' },
+          { time: 167.57, actionCode: 2, actionName: '팔 치기' },
+        ],
+        level3: [
+          { time: 177.73, actionCode: 1, actionName: '손뼉 박수' },
+          { time: 187.89, actionCode: 2, actionName: '팔 치기' },
+        ],
+      },
+
+      lyricsInfo,
     },
   };
 }
