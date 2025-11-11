@@ -22,7 +22,7 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
  * - Redis Repository 활성화
  */
 @Configuration
-@EnableRedisRepositories(basePackages = "com.heungbuja.*.repository")
+//@EnableRedisRepositories(basePackages = "com.heungbuja.*.repository")
 public class RedisConfig {
 
     /**

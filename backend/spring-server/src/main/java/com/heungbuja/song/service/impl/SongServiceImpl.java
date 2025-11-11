@@ -3,7 +3,7 @@ package com.heungbuja.song.service.impl;
 import com.heungbuja.common.exception.CustomException;
 import com.heungbuja.common.exception.ErrorCode;
 import com.heungbuja.song.entity.Song;
-import com.heungbuja.song.repository.SongRepository;
+import com.heungbuja.song.repository.jpa.SongRepository;
 import com.heungbuja.song.service.SongService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

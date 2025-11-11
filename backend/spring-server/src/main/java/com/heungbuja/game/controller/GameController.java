@@ -21,26 +21,27 @@ public class GameController {
     private final GameService gameService;
 
     /**
-     * 게임 시작 API
-     * JWT 인증 필요, userId는 토큰에서 자동 추출 (보안 강화)
-     * @param request (songId만 전달)
+     * 게임 시작 API (디버깅용 - 인증 없음)
+     * Request Body에 포함된 userId와 songId를 그대로 사용하여 게임을 시작합니다.
+     * @param request (userId, songId)
      * @return 게임 세션 ID 및 노래 메타데이터
      */
     @PostMapping("/start")
     public ResponseEntity<GameStartResponse> startGame(@RequestBody GameStartRequest request) {
-        // JWT 토큰에서 userId 추출 (보안 강화)
-        Long authenticatedUserId = getCurrentUserId();
+        // --- ▼ (핵심 수정) 보안 관련 로직을 모두 제거하고, Service 호출만 남깁니다 ▼ ---
 
-        // Request Body의 userId 검증 (있으면 일치 여부 확인)
-        if (request.getUserId() != null && !request.getUserId().equals(authenticatedUserId)) {
-            throw new CustomException(ErrorCode.FORBIDDEN, "본인의 게임만 시작할 수 있습니다");
+        // 1. 요청 Body의 유효성 검증 (선택사항이지만 좋은 습관)
+        if (request.getUserId() == null || request.getSongId() == null) {
+            // ErrorCode에 INVALID_INPUT_VALUE가 있다고 가정
+            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "userId와 songId는 필수입니다.");
         }
 
-        // userId 강제 설정
-        request.setUserId(authenticatedUserId);
-
+        // 2. 받은 요청(request)을 그대로 GameService에 전달
         GameStartResponse response = gameService.startGame(request);
+
+        // 3. 성공 응답 반환
         return ResponseEntity.ok(response);
+        // --- ▲ ------------------------------------------------------------- ▲ ---
     }
 
     /**

@@ -5,7 +5,7 @@ import com.heungbuja.context.repository.ConversationContextRepository;
 import com.heungbuja.context.service.ConversationContextService;
 import com.heungbuja.song.entity.Song;
 import com.heungbuja.song.enums.PlaybackMode;
-import com.heungbuja.song.repository.SongRepository;
+import com.heungbuja.song.repository.jpa.SongRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

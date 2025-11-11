@@ -3,6 +3,7 @@ package com.heungbuja.game.dto;
 import com.heungbuja.song.domain.SongLyrics;
 import lombok.Builder;
 import lombok.Getter;
+
 import java.util.List;
 import java.util.Map;
 
@@ -47,4 +48,10 @@ public class GameStartResponse {
 
     /** 가사 정보 (원본 JSON 그대로 전달) */
     private SongLyrics lyricsInfo;
+
+    /** 1절의 동작 타임라인 */
+    private List<ActionTimelineEvent> verse1Timeline;
+
+    /** 2절의 레벨별 동작 타임라인을 담는 Map */
+    private Map<String, List<ActionTimelineEvent>> verse2Timelines;
 }

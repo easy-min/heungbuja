@@ -1,4 +1,4 @@
-package com.heungbuja.song.repository;
+package com.heungbuja.song.repository.jpa;
 
 import com.heungbuja.song.entity.Song;
 import org.springframework.data.jpa.repository.JpaRepository;

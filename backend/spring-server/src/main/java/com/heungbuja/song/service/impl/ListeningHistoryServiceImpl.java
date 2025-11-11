@@ -3,7 +3,7 @@ package com.heungbuja.song.service.impl;
 import com.heungbuja.song.entity.ListeningHistory;
 import com.heungbuja.song.entity.Song;
 import com.heungbuja.song.enums.PlaybackMode;
-import com.heungbuja.song.repository.ListeningHistoryRepository;
+import com.heungbuja.song.repository.jpa.ListeningHistoryRepository;
 import com.heungbuja.song.service.ListeningHistoryService;
 import com.heungbuja.user.entity.User;
 import lombok.RequiredArgsConstructor;

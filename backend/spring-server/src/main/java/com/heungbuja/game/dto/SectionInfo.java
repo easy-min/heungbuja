@@ -12,9 +12,16 @@ public class SectionInfo {
     private double breakStartTime;
     private double verse2StartTime;
 
-    /** 1절의 각 16비트 묶음(세그먼트)별 시작 시간 리스트 */
-    private List<Double> verse1SegmentStartTimes;
+    private VerseInfo verse1cam;
+    private VerseInfo verse2cam;
 
-    /** 2절의 각 16비트 묶음(세그먼트)별 시작 시간 리스트 */
-    private List<Double> verse2SegmentStartTimes;
+    /**
+     * 각 절(verse)의 시간 정보를 담는 내부 DTO
+     */
+    @Getter
+    @Builder
+    public static class VerseInfo {
+        private double startTime;
+        private double endTime;
+    }
 }
