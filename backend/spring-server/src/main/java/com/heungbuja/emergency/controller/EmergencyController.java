@@ -54,12 +54,12 @@ public class EmergencyController {
     }
 
     @PutMapping("/admins/reports/{id}")
-    public ResponseEntity<Void> handleReport(
+    public ResponseEntity<EmergencyResponse> handleReport(
             Authentication authentication,
             @PathVariable Long id,
             @RequestParam String notes) {
         Long adminId = (Long) authentication.getPrincipal();
-        emergencyService.handleReport(adminId, id, notes);
-        return ResponseEntity.noContent().build();
+        EmergencyResponse response = emergencyService.handleReport(adminId, id, notes);
+        return ResponseEntity.ok(response);
     }
 }
