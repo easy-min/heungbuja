@@ -4,26 +4,45 @@
   flex-direction: row;
   height: 100vh;
   width: 100vw;
-  background-color: #000;
-  color: var(--color-bg);
+  background-color: var(--color-bg);
   overflow: hidden;
 }
 
-/* 좌측: 비디오 컨테이너 (80%) */
-.video-container {
+/* 좌측: 비디오 컨테이너 */
+.left-container {
   flex: 7;
   display: flex;
   flex-direction: column;
-  gap: 0;
+  /* background-color: var(--color-primary); */
+}
+
+.left__top {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 10px 15px 0 60px;
+}
+
+.left__main {
+  flex: 8;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-primary);
+  border-radius: 30px;
+  margin: 0 15px 60px 60px;
 }
 
 /* 위쪽: 캐릭터 (80%) */
 .character-section {
   flex: 7;
-  background: var(--color-primary);
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.character-section video {
+  border-radius: 20px;
 }
 
 .character-section .placeholder {
@@ -48,12 +67,12 @@
   justify-content: center;
   align-items: center;
   text-align: center;
-  background-color: var(--color-primary);
+  color: var(--color-bg);
 }
 
 /* 현재 가사: 크게/진하게 */
 .lyrics-current {
-  margin-top: -15px;
+  margin-top: -10px;
   font-size: 2rem;
   font-weight: 700;
   line-height: 1.4;
@@ -73,28 +92,62 @@
 
 
 /*오른쪽: 카메라 컨테이너(30%) */
-.camera-container {
+.right-container {
   flex: 3;
   display: flex;
   flex-direction: column;
   gap: 0;
+  /* background-color: var(--color-secondary); */
+}
+
+.right__top {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 60px 0 15px;
+}
+
+.right__top .song-title,
+.right__top .song-artist {
+  color: var(--color-text) !important;
+}
+
+.song-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+}
+
+.song-artist {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.right__main {
+  flex: 8;
+  display: flex;
+  flex-direction: column;
+  margin: 0 60px 60px 15px;
+  background-color: var(--color-secondary);
+  border-radius: 30px;
 }
 
 /* 위쪽: 카메라 (80%) */
 .camera-section {
   flex: 8;
   position: relative;
-  background-color: #1a1a1a;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .camera-video {
-  width: 100%;
-  height: 100%;
+  width: 90%;
+  height: 90%;
   object-fit: cover;
   transform: scaleX(-1); /* 거울 효과 */
+  border-radius: 20px;
 }
 
 .capture-canvas {
@@ -106,7 +159,6 @@
   position: absolute;
   top: 20px;
   left: 20px;
-  background: rgba(0, 0, 0, 0.7);
   padding: 10px 20px;
   border-radius: 8px;
   display: flex;
@@ -161,20 +213,11 @@
 .feedback-section {
   flex: 2;
   position: relative;
-  background-color: var(--color-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-/* 테스트 컨트롤 */
-.test-controls {
-  background: rgba(0, 0, 0, 0.9);
-  padding: 20px;
-  border-radius: 15px;
-  border: 2px solid #fff;
-  z-index: 1000;
-  min-width: 500px;
+  font-size: 1.5rem;
+  font-weight: 600;
 }
 
 .audio-container {
@@ -183,61 +226,6 @@
 
 .audio-container audio {
   width: 100%;
-}
-
-.button-group {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 15px;
-}
-
-.button-group button {
-  flex: 1;
-  padding: 12px 20px;
-  font-size: 1rem;
-  font-weight: bold;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.3s;
-}
-
-.btn-start {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #fff;
-}
-
-.btn-start:hover:not(:disabled) {
-  transform: scale(1.05);
-  box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-}
-
-.btn-stop {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-  color: #fff;
-}
-
-.btn-stop:hover:not(:disabled) {
-  transform: scale(1.05);
-  box-shadow: 0 5px 15px rgba(245, 87, 108, 0.4);
-}
-
-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* 디버그 정보 */
-.debug-info {
-  background: rgba(255, 255, 255, 0.1);
-  padding: 10px;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  font-family: 'Courier New', monospace;
-}
-
-.debug-info div {
-  margin: 5px 0;
 }
 
 
