@@ -44,6 +44,7 @@ public class ResponseGenerator {
             // 응급 상황
             case EMERGENCY -> "괜찮으세요? 대답해주세요!";
             case EMERGENCY_CANCEL -> "괜찮으시군요. 신고를 취소했습니다";
+            case EMERGENCY_CONFIRM -> "알겠습니다. 지금 바로 신고하겠습니다";
 
             // 인식 불가
             case UNKNOWN -> "죄송합니다. 다시 한번 말씀해주세요";
