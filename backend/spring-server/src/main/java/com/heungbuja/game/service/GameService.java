@@ -60,6 +60,7 @@ public class GameService {
     /** Redis 세션 만료 시간 (분) */
     private static final int SESSION_TIMEOUT_MINUTES = 30;
     private static final int JUDGMENT_PERFECT = 3;
+    private static final double JUDGMENT_BUFFER_SECONDS = 0.2; // 앞뒤로 0.2초의 여유 시간
     // --- application.yml에서 서버 기본 주소 읽어오기 ---
     @Value("${app.base-url:http://localhost:8080/api}") // 기본값은 로컬
     private String baseUrl;
@@ -323,6 +324,9 @@ public class GameService {
                 });
     }
 
+    // ####################################################################
+    //                              채점 로직
+    // ####################################################################
 
     // --- ▼ (신규) 테스트용 URL을 받아오는 헬퍼 메소드 추가 ▼ ---
     private String getTestUrl(String path) {
@@ -344,54 +348,82 @@ public class GameService {
     }
 
     /**
-     * 2. WebSocket으로부터 받은 단일 프레임을 처리하는 메소드
+     * WebSocket으로부터 받은 단일 프레임을 처리하는 메소드 (최종 구현)
      */
     public void processFrame(WebSocketFrameRequest request) {
         String sessionId = request.getSessionId();
-
-        // 인터럽트 체크 (최우선)
-        String status = sessionStateService.getSessionStatus(sessionId);
-        if ("INTERRUPTING".equals(status) || "INTERRUPTED".equals(status)) {
-            log.info("게임 인터럽트 감지, 프레임 처리 중단: sessionId={}", sessionId);
-            // 프론트에 중단 알림
-            sendGameInterruptNotification(sessionId);
-            return; // 프레임 처리 중단
-        }
-
         GameState gameState = getGameState(sessionId);
         double currentPlayTime = request.getCurrentPlayTime();
 
-        // --- ▼ (수정) AI 서버 호출 없이, 무조건 PERFECT(3)로 판정 ▼ ---
-        int judgment = JUDGMENT_PERFECT;
+        // 1. 현재 판정해야 할 동작(Action) 정보 가져오기
+        List<ActionTimelineEvent> timeline = gameState.getActionTimeline();
+        if (timeline == null || timeline.isEmpty()) {
+            log.warn("세션 {}에 actionTimeline이 없습니다. McpToolService가 Redis에 데이터를 저장했는지 확인하세요.", sessionId);
+            return;
+        }
+        int nextActionIndex = gameState.getNextActionIndex();
 
-        // 1. 판정 결과를 프론트엔드에 WebSocket으로 발송
-        sendFeedback(sessionId, judgment, currentPlayTime);
+        // 더 이상 판정할 동작이 없으면 아무것도 하지 않음
+        if (nextActionIndex >= timeline.size()) {
+            return; // 모든 동작 판정 완료
+        }
+        ActionTimelineEvent currentAction = timeline.get(nextActionIndex);
+        double actionTime = currentAction.getTime();
 
-        // 2. 판정 결과를 Redis의 GameState에 기록
-        recordJudgment(sessionId, judgment, currentPlayTime);
+        // 2. 프레임 수집: 현재 프레임이 판정 구간(±0.2초)에 속하는지 확인
+        if (currentPlayTime >= actionTime - JUDGMENT_BUFFER_SECONDS &&
+                currentPlayTime <= actionTime + JUDGMENT_BUFFER_SECONDS) {
 
-        // TODO: findCorrectActionCodeForCurrentTime 메소드 구현 필요
-//        int correctActionCode = findCorrectActionCodeForCurrentTime(gameState.getSongId(), currentPlayTime);
+            // 판정 구간에 속하면 프레임 버퍼에 추가
+            gameState.getFrameBuffer().put(currentPlayTime, request.getFrameData());
+            saveGameState(sessionId, gameState);
+        }
+
+        // 3. AI 분석 요청 트리거: 현재 시간이 판정 구간의 '끝'을 지났는지 확인
+        if (currentPlayTime > actionTime + JUDGMENT_BUFFER_SECONDS) {
+
+            // 판정 구간이 끝났으므로, 지금까지 모인 프레임들로 AI 분석 요청
+            if (!gameState.getFrameBuffer().isEmpty()) {
+                callAiServerForJudgment(sessionId, gameState, currentAction, new ArrayList<>(gameState.getFrameBuffer().values()));
+            }
+
+            // 다음 동작을 판정하도록 상태 업데이트
+            gameState.setNextActionIndex(nextActionIndex + 1);
+            gameState.getFrameBuffer().clear(); // 프레임 버퍼 비우기
+            saveGameState(sessionId, gameState);
+        }
+    }
+
+    /**
+     * (신규) 모인 프레임 묶음을 AI 서버로 보내고, 결과를 처리하는 메소드
+     */
+    private void callAiServerForJudgment(String sessionId, GameState gameState, ActionTimelineEvent action, List<String> frames) {
+        log.info("세션 {}의 동작 '{}'에 대한 AI 분석 요청 전송. (프레임 {}개)", sessionId, action.getActionName(), frames.size());
 
         // webClient.post()
-        //         .uri("http://motion-server:8000/analyze_single_action")
-        //         .bodyValue(Map.of("frameData", request.getFrameData()))
+        //         .uri("http://motion-server:8000/analyze")
+        //         .bodyValue(Map.of(
+        //                 "actionCode", action.getActionCode(),
+        //                 "actionName", action.getActionName(),
+        //                 "frames", frames
+        //         ))
         //         .retrieve()
-        //         .bodyToMono(AiResponse.class)
+        //         .bodyToMono(AiJudgmentResponse.class) // {"judgment": 3} 같은 응답 가정
         //         .subscribe(
         //             aiResponse -> {
-        //                 int userActionCode = aiResponse.getActionCode();
-        //                 int judgment = determineJudgment(correctActionCode, userActionCode); // 1, 2, 3 점수 판정
+        //                 int judgment = aiResponse.getJudgment();
+        //                 log.info(" > AI 분석 결과 수신: {}점", judgment);
         //
-        //                 // 판정 결과를 프론트엔드에 WebSocket으로 발송
-        //                 sendFeedback(sessionId, judgment, currentPlayTime);
+        //                 // 판정 결과를 프론트에 WebSocket으로 발송
+        //                 sendFeedback(sessionId, judgment, action.getTime());
         //
-        //                 // TODO: 판정 결과를 Redis의 GameState에 기록
-        //                 // recordJudgment(sessionId, verse, judgment);
+        //                 // 판정 결과를 Redis의 GameState에 기록
+        //                 recordJudgment(sessionId, judgment, action.getTime(), findVerseByTime(gameState.getSongId(), action.getTime()));
         //             },
         //             error -> {
         //                 log.error("AI 서버 호출 실패 (세션 {}): {}", sessionId, error.getMessage());
-        //                 sendFeedback(sessionId, 1, currentPlayTime); // 1점(BAD)으로 실패 피드백 전송
+        //                 sendFeedback(sessionId, 1, action.getTime()); // 1점(BAD)으로 실패 피드백 전송
+        //                 recordJudgment(sessionId, 1, action.getTime(), findVerseByTime(gameState.getSongId(), action.getTime()));
         //             }
         //         );
     }
@@ -399,23 +431,25 @@ public class GameService {
     /**
      * 판정 결과를 Redis에 기록하는 헬퍼 메소드
      */
-    private void recordJudgment(String sessionId, int judgment, double currentPlayTime) {
+    private void recordJudgment(String sessionId, int judgment, double actionTime, int verse) {
         GameState currentState = getGameState(sessionId);
 
-        // TODO: currentPlayTime과 SongBeat 정보를 이용해 현재가 1절인지 2절인지 판단하는 로직 필요
-        //       (우선은 임시로, 1절에만 점수를 기록하도록 단순화)
-        boolean isVerse1 = true; // 임시
-
-        if (isVerse1) {
+        if (verse == 1) {
             currentState.getVerse1Judgments().add(judgment);
-        } else {
+        } else if (verse == 2) {
             currentState.getVerse2Judgments().add(judgment);
         }
 
         saveGameState(sessionId, currentState);
-        log.trace("판정 기록 완료: sessionId={}, judgment={}", sessionId, judgment);
+        log.trace("판정 기록 완료: sessionId={}, judgment={}, verse={}", sessionId, judgment, verse);
     }
 
+    // (TODO) 시간을 기준으로 현재 몇 절인지 판단하는 헬퍼 메소드
+    private int findVerseByTime(Long songId, double time) {
+        // GameStartResponse의 sectionInfo와 유사한 정보를 GameState에 저장해두거나,
+        // 매번 SongBeat을 조회하여 판단해야 함.
+        return 1; // 임시
+    }
 
     /**
      * 3. 1절 종료 시, 레벨 결정 결과를 WebSocket으로 발송하는 메소드

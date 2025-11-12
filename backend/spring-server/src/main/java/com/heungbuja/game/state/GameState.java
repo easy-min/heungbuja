@@ -8,8 +8,11 @@ import lombok.Getter;
 import lombok.Setter;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import com.heungbuja.game.dto.ActionTimelineEvent;
 
 @Getter
 @Setter
@@ -20,19 +23,23 @@ public class GameState implements Serializable {
     private Long userId;
     private Long songId;
 
-    // ===== 게임 데이터 =====
-    private String audioUrl;
-    private Map<String, String> videoUrls;
-    private Integer bpm;
-    private Double duration;
-    private SectionInfo sectionInfo;
-    private SongLyrics lyricsInfo;
+    /**
+     * 게임 전체의 동작 타임라인 (song 서비스에서 생성하여 Redis에 저장)
+     */
+    private List<ActionTimelineEvent> actionTimeline;
 
-    // 동작 타임라인
-    private List<ActionTimelineEvent> verse1Timeline;
-    private Map<String, List<ActionTimelineEvent>> verse2Timelines;
+    /**
+     * 현재 판정해야 할 다음 동작의 인덱스 (actionTimeline의 인덱스)
+     * 기본값: 0
+     */
+    private int nextActionIndex;
 
-    // ===== 게임 진행 상태 =====
+    /**
+     * 현재 판정 중인 동작(nextActionIndex에 해당하는)의 프레임들을 임시로 모아두는 버퍼
+     * Key: 프레임의 재생 시간(초), Value: 프레임 데이터(Base64)
+     */
+    private Map<Double, String> frameBuffer;
+
     /** 1절의 각 묶음(16박스)별 채점 결과를 저장하는 리스트 */
     private List<Integer> verse1Judgments;
 
@@ -64,9 +71,12 @@ public class GameState implements Serializable {
                 .sessionId(sessionId)
                 .userId(userId)
                 .songId(songId)
-                .verse1Judgments(new ArrayList<>())
-                .verse2Judgments(new ArrayList<>())
-                .tutorialSuccessCount(0)
+                .actionTimeline(new ArrayList<>())
+                .nextActionIndex(0)
+                .frameBuffer(new HashMap<>())
+                .verse1Judgments(new ArrayList<>()) // 빈 리스트로 초기화
+                .verse2Judgments(new ArrayList<>()) // 빈 리스트로 초기화
+//                .batchCompletedCount(0) // 0으로 초기화
                 .build();
     }
 }
