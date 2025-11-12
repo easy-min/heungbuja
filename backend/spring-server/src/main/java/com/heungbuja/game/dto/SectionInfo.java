@@ -1,11 +1,15 @@
 package com.heungbuja.game.dto;
 
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import java.util.List;
 
 @Getter
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class SectionInfo {
     private double introStartTime;
     private double verse1StartTime;
@@ -20,6 +24,8 @@ public class SectionInfo {
      */
     @Getter
     @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class VerseInfo {
         private double startTime;
         private double endTime;
