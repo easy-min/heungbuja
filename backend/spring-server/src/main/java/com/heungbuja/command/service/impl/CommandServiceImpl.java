@@ -9,7 +9,7 @@ import com.heungbuja.command.service.ResponseGenerator;
 import com.heungbuja.common.exception.CustomException;
 import com.heungbuja.common.exception.ErrorCode;
 import com.heungbuja.emergency.dto.EmergencyRequest;
-import com.heungbuja.emergency.service.IEmergencyService;
+import com.heungbuja.emergency.service.EmergencyService;
 import com.heungbuja.song.dto.SongInfoDto;
 import com.heungbuja.song.entity.Song;
 import com.heungbuja.song.enums.PlaybackMode;
@@ -52,7 +52,7 @@ public class CommandServiceImpl implements CommandService {
     private final UserService userService;
     private final SongService songService;
     private final ListeningHistoryService listeningHistoryService;
-    private final IEmergencyService emergencyService;
+    private final EmergencyService emergencyService;
     private final com.heungbuja.s3.service.MediaUrlService mediaUrlService;
     private final com.heungbuja.context.service.ConversationContextService conversationContextService;
     private final com.heungbuja.session.service.SessionStateService sessionStateService;

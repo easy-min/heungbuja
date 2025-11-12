@@ -2,7 +2,7 @@ package com.heungbuja.emergency.controller;
 
 import com.heungbuja.emergency.dto.EmergencyRequest;
 import com.heungbuja.emergency.dto.EmergencyResponse;
-import com.heungbuja.emergency.service.IEmergencyService;
+import com.heungbuja.emergency.service.EmergencyService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -17,7 +17,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class EmergencyController {
 
-    private final IEmergencyService emergencyService;
+    private final EmergencyService emergencyService;
 
     @PostMapping
     public ResponseEntity<EmergencyResponse> detectEmergency(
