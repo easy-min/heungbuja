@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.data.mongodb.repository.config.EnableMongoRepositories;
 import org.springframework.data.redis.repository.configuration.EnableRedisRepositories;
 import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 
 @EnableAsync
@@ -27,6 +28,7 @@ import org.springframework.scheduling.annotation.EnableAsync;
 		"com.heungbuja.context.repository", // <-- Redis Repository가 있는 실제 경로로 수정 필요
 		"com.heungbuja.session"
 })
+@EnableScheduling
 public class HeungbujaBeApplication {
 
 	public static void main(String[] args) {

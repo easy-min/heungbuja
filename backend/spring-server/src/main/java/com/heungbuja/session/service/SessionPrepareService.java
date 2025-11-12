@@ -71,8 +71,6 @@ public class SessionPrepareService {
                 .lyricsInfo(songGameData.getLyricsInfo())
                 .verse1Timeline(songGameData.getVerse1Timeline())
                 .verse2Timelines(songGameData.getVerse2Timelines())
-                .verse1Judgments(new ArrayList<>())
-                .verse2Judgments(new ArrayList<>())
                 .tutorialSuccessCount(0)
                 .build();
 

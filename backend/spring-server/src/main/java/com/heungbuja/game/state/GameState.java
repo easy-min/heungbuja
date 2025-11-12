@@ -23,7 +23,7 @@ public class GameState implements Serializable {
     // ===== 게임 데이터 =====
     private String audioUrl;
     private Map<String, String> videoUrls;
-    private Integer bpm;
+    private Double bpm;
     private Double duration;
     private SectionInfo sectionInfo;
     private SongLyrics lyricsInfo;
@@ -32,26 +32,14 @@ public class GameState implements Serializable {
     private List<ActionTimelineEvent> verse1Timeline;
     private Map<String, List<ActionTimelineEvent>> verse2Timelines;
 
-    // ===== 게임 진행 상태 =====
-    /** 1절의 각 묶음(16박스)별 채점 결과를 저장하는 리스트 */
-    private List<Integer> verse1Judgments;
-
-    /** 2절의 각 묶음별 채점 결과를 저장하는 리스트 */
-    private List<Integer> verse2Judgments;
-
-    /** 1절 종료 후 결정된 2절의 안무 레벨 */
-    private Integer nextLevel;
-
     /** 튜토리얼 성공 횟수 */
-    private Integer tutorialSuccessCount;
+    @Builder.Default
+    private Integer tutorialSuccessCount = 0;
 
     /**
      * 튜토리얼 성공 횟수 증가
      */
     public void incrementTutorialSuccess() {
-        if (this.tutorialSuccessCount == null) {
-            this.tutorialSuccessCount = 0;
-        }
         this.tutorialSuccessCount++;
     }
 
@@ -64,8 +52,6 @@ public class GameState implements Serializable {
                 .sessionId(sessionId)
                 .userId(userId)
                 .songId(songId)
-                .verse1Judgments(new ArrayList<>())
-                .verse2Judgments(new ArrayList<>())
                 .tutorialSuccessCount(0)
                 .build();
     }
