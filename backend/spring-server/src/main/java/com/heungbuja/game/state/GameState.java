@@ -23,7 +23,7 @@ public class GameState implements Serializable {
     // ===== 게임 데이터 =====
     private String audioUrl;
     private Map<String, String> videoUrls;
-    private Integer bpm;
+    private Double bpm;
     private Double duration;
     private SectionInfo sectionInfo;
     private SongLyrics lyricsInfo;
