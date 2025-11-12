@@ -27,12 +27,15 @@ public class KeywordBasedIntentClassifier implements IntentClassifier {
     private static final List<String> EMERGENCY_CANCEL_KEYWORDS = Arrays.asList(
             "괜찮아", "괜찮습니다", "괜찮아요", "괜찮네요", "아니야", "아니에요", "취소"
     );
+    private static final List<String> EMERGENCY_CONFIRM_KEYWORDS = Arrays.asList(
+            "안 괜찮아", "안괜찮아", "빨리", "지금", "빨리 신고", "신고해", "위급해", "위급", "심각해"
+    );
 
     // 재생 제어 키워드
-    private static final List<String> PAUSE_KEYWORDS = Arrays.asList("잠깐", "멈춰", "정지", "일시정지");
-    private static final List<String> RESUME_KEYWORDS = Arrays.asList("다시", "계속", "재생");
-    private static final List<String> NEXT_KEYWORDS = Arrays.asList("다음", "건너뛰기", "스킵", "넘겨");
-    private static final List<String> STOP_KEYWORDS = Arrays.asList("그만", "종료", "끝");
+    private static final List<String> PAUSE_KEYWORDS = Arrays.asList("잠깐", "멈춰", "정지", "일시정지", "멈춰줘", "정지해줘");
+    private static final List<String> RESUME_KEYWORDS = Arrays.asList("다시", "계속", "재생", "틀어", "틀어줘", "다시 틀어", "재개");
+    private static final List<String> NEXT_KEYWORDS = Arrays.asList("다음", "건너뛰기", "스킵", "넘겨", "다음 곡", "다음으로");
+    private static final List<String> STOP_KEYWORDS = Arrays.asList("그만", "종료", "끝", "꺼줘", "중지");
 
     // 모드 키워드 (단순화)
     private static final List<String> HOME_KEYWORDS = Arrays.asList(
@@ -79,6 +82,12 @@ public class KeywordBasedIntentClassifier implements IntentClassifier {
         if (containsAny(normalized, EMERGENCY_CANCEL_KEYWORDS)) {
             log.debug("응급 상황 취소 감지");
             return IntentResult.of(Intent.EMERGENCY_CANCEL);
+        }
+
+        // 2-1. 응급 즉시 확정
+        if (containsAny(normalized, EMERGENCY_CONFIRM_KEYWORDS)) {
+            log.debug("응급 상황 즉시 확정 감지");
+            return IntentResult.of(Intent.EMERGENCY_CONFIRM);
         }
 
         // 3. 재생 제어
