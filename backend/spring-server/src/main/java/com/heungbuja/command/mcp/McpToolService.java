@@ -10,7 +10,7 @@ import com.heungbuja.common.exception.CustomException;
 import com.heungbuja.context.entity.ConversationContext;
 import com.heungbuja.context.service.ConversationContextService;
 import com.heungbuja.emergency.dto.EmergencyRequest;
-import com.heungbuja.emergency.service.IEmergencyService;
+import com.heungbuja.emergency.service.EmergencyService;
 import com.heungbuja.game.dto.GameSessionPrepareResponse;
 import com.heungbuja.s3.service.MediaUrlService;
 import com.heungbuja.song.dto.SongInfoDto;
@@ -45,7 +45,7 @@ public class McpToolService {
     private final ListeningHistoryService listeningHistoryService;
     private final ConversationContextService conversationContextService;
     private final MediaUrlService mediaUrlService;
-    private final IEmergencyService emergencyService;
+    private final EmergencyService emergencyService;
     private final ResponseGenerator responseGenerator;
     private final com.heungbuja.session.service.SessionPrepareService sessionPrepareService;
     private final com.heungbuja.song.service.SongGameDataCache songGameDataCache;

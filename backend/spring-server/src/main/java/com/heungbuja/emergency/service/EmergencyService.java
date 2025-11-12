@@ -9,7 +9,7 @@ import java.util.List;
 /**
  * 응급 신고 서비스 인터페이스
  */
-public interface IEmergencyService {
+public interface EmergencyService {
 
     /**
      * 긴급 신고 감지 및 처리 (스케줄 포함)

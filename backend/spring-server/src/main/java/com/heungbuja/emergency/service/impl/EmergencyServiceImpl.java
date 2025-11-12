@@ -9,7 +9,7 @@ import com.heungbuja.emergency.dto.EmergencyResponse;
 import com.heungbuja.emergency.entity.EmergencyReport;
 import com.heungbuja.emergency.repository.EmergencyReportRepository;
 import com.heungbuja.emergency.service.EmergencyNotificationService;
-import com.heungbuja.emergency.service.IEmergencyService;
+import com.heungbuja.emergency.service.EmergencyService;
 import com.heungbuja.session.enums.ActivityType;
 import com.heungbuja.session.service.SessionStateService;
 import com.heungbuja.session.state.ActivityState;
@@ -34,7 +34,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class EmergencyServiceImpl implements IEmergencyService {
+public class EmergencyServiceImpl implements EmergencyService {
 
     private final EmergencyReportRepository emergencyReportRepository;
     private final UserService userService;
