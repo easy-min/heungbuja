@@ -2,8 +2,10 @@ package com.heungbuja.game.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 @Getter
+@NoArgsConstructor
 @AllArgsConstructor
 public class FeedbackData {
     /** 판정 결과 (1: SOSO, 2: GOOD, 3: PERFECT) */
