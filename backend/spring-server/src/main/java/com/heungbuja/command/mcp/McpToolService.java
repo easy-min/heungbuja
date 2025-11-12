@@ -175,7 +175,11 @@ public class McpToolService {
             default -> throw new IllegalArgumentException("알 수 없는 action: " + action);
         };
 
-        return McpToolResult.success(toolCall.getId(), toolCall.getName(), message);
+        // action 정보를 data에 포함 (McpCommandServiceImpl에서 Intent 매핑에 사용)
+        Map<String, Object> data = new HashMap<>();
+        data.put("action", action.toUpperCase());
+
+        return McpToolResult.success(toolCall.getId(), toolCall.getName(), message, data);
     }
 
     /**
@@ -327,7 +331,11 @@ public class McpToolService {
             case EXERCISE -> "체조 모드를 시작할게요";
         };
 
-        return McpToolResult.success(toolCall.getId(), toolCall.getName(), message);
+        // mode 정보를 data에 포함 (McpCommandServiceImpl에서 Intent 매핑에 사용)
+        Map<String, Object> data = new HashMap<>();
+        data.put("mode", mode.name());
+
+        return McpToolResult.success(toolCall.getId(), toolCall.getName(), message, data);
     }
 
     /**
