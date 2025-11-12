@@ -65,6 +65,11 @@ public class GameService {
     private static final int SESSION_TIMEOUT_MINUTES = 30;
     private static final int JUDGMENT_PERFECT = 3;
     private static final double JUDGMENT_BUFFER_SECONDS = 0.2; // 앞뒤로 0.2초의 여유 시간
+
+    // --- Redis Key 접두사 상수 ---
+    private static final String GAME_STATE_KEY_PREFIX = "game_state:";
+    private static final String GAME_SESSION_KEY_PREFIX = "game_session:";
+
     // --- application.yml에서 서버 기본 주소 읽어오기 ---
     @Value("${app.base-url:http://localhost:8080/api}") // 기본값은 로컬
     private String baseUrl;
@@ -93,7 +98,6 @@ public class GameService {
      */
     @Transactional
     public GameStartResponse startGame(GameStartRequest request) {
-        // --- 1-1, 1-2, 1-3. 데이터 조회 (이전과 동일) ---
         User user = userRepository.findById(request.getUserId()).orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
         if (!user.getIsActive()) throw new CustomException(ErrorCode.USER_NOT_ACTIVE);
         Song song = songRepository.findById(request.getSongId()).orElseThrow(() -> new CustomException(ErrorCode.SONG_NOT_FOUND));
@@ -104,7 +108,6 @@ public class GameService {
         ChoreographyPattern patternData = choreographyPatternRepository.findBySongId(songId).orElseThrow(() -> new CustomException(ErrorCode.GAME_METADATA_NOT_FOUND, "안무 패턴 정보를 찾을 수 없습니다."));
         log.info(" > 모든 MongoDB 데이터 조회 성공");
 
-        // --- 1-4. 데이터 가공 로직 (이전과 동일) ---
         log.info("프론트엔드 응답 데이터 가공을 시작합니다...");
         Map<Integer, Double> beatNumToTimeMap = songBeat.getBeats().stream().collect(Collectors.toMap(SongBeat.Beat::getI, SongBeat.Beat::getT));
         Map<Integer, Double> barStartTimes = songBeat.getBeats().stream().filter(b -> b.getBeat() == 1).collect(Collectors.toMap(SongBeat.Beat::getBar, SongBeat.Beat::getT));
@@ -118,7 +121,6 @@ public class GameService {
         });
         SectionInfo sectionInfo = createSectionInfo(songBeat, barStartTimes, beatNumToTimeMap);
 
-        // --- 1-5. 세션 생성, URL 발급 및 Redis 저장 (핵심 수정) ---
         String sessionId = UUID.randomUUID().toString();
         String audioUrl = getTestUrl("/media/test");
         Map<String, String> videoUrls = new HashMap<>();
@@ -128,7 +130,6 @@ public class GameService {
         videoUrls.put("verse2_level2", getTestUrl("/media/test/video/part2_2"));
         videoUrls.put("verse2_level3", "https://example.com/video_v2_level3.mp4");
 
-        // (A) '설명서' GameState 객체 생성
         GameState gameState = GameState.builder()
                 .sessionId(sessionId)
                 .userId(user.getId())
@@ -144,19 +145,18 @@ public class GameService {
                 .tutorialSuccessCount(0)
                 .build();
 
-        // (B) '점수판' GameSession 객체 생성
         GameSession gameSession = GameSession.initial(sessionId, user.getId(), song.getId());
 
-        // (C) Redis에 GameState와 GameSession을 각각 저장
-        gameStateRedisTemplate.opsForValue().set(sessionId, gameState, Duration.ofMinutes(SESSION_TIMEOUT_MINUTES));
-        gameSessionRedisTemplate.opsForValue().set(sessionId, gameSession, Duration.ofMinutes(SESSION_TIMEOUT_MINUTES));
+        // <-- (수정) Key가 중복되지 않도록 각각 다른 접두사를 붙여 저장합니다.
+        String gameStateKey = GAME_STATE_KEY_PREFIX + sessionId;
+        String gameSessionKey = GAME_SESSION_KEY_PREFIX + sessionId;
+        gameStateRedisTemplate.opsForValue().set(gameStateKey, gameState, Duration.ofMinutes(SESSION_TIMEOUT_MINUTES));
+        gameSessionRedisTemplate.opsForValue().set(gameSessionKey, gameSession, Duration.ofMinutes(SESSION_TIMEOUT_MINUTES));
         log.info("Redis에 GameState와 GameSession 저장 완료: sessionId={}", sessionId);
 
-        // Redis: 활동 상태 설정 (기존 로직 유지)
         sessionStateService.setCurrentActivity(user.getId(), ActivityState.game(sessionId));
         sessionStateService.setSessionStatus(sessionId, "IN_PROGRESS");
 
-        // MySQL: 게임 결과 초기 레코드 생성 (기존 로직 유지)
         GameResult gameResult = GameResult.builder()
                 .user(user)
                 .song(song)
@@ -167,7 +167,6 @@ public class GameService {
         gameResultRepository.save(gameResult);
         log.info("새로운 게임 세션 시작: userId={}, sessionId={}", user.getId(), sessionId);
 
-        // --- 1-6. 최종 응답 생성 ---
         return GameStartResponse.builder()
                 .sessionId(sessionId)
                 .songId(song.getId())
@@ -364,61 +363,63 @@ public class GameService {
         String sessionId = request.getSessionId();
         double currentPlayTime = request.getCurrentPlayTime();
 
-        // 1. Redis에서 '설명서(GameState)'와 '점수판(GameSession)'을 모두 가져옴
         GameState gameState = getGameState(sessionId);
         GameSession gameSession = getGameSession(sessionId);
 
-        // 마지막 활동 시간을 현재 시간으로 갱신
+        // 마지막 활동 시간을 항상 최신으로 갱신
         gameSession.setLastFrameReceivedTime(Instant.now().toEpochMilli());
 
-        // 2. '설명서'에서 동작 타임라인과 다음 판정할 동작 인덱스를 가져옴
-        List<ActionTimelineEvent> timeline = gameState.getVerse1Timeline(); // 우선 1절 타임라인만 사용
-        // TODO: 2절 로직 추가 시, gameState.getNextLevel()을 보고 verse2Timelines에서 맞는 레벨의 타임라인을 가져와야 함.
-
+        List<ActionTimelineEvent> timeline = getCurrentTimeline(gameState, gameSession);
         int nextActionIndex = gameSession.getNextActionIndex();
 
         if (nextActionIndex >= timeline.size()) {
-            return; // 현재 절의 모든 동작 판정 완료
+            saveGameSession(sessionId, gameSession);
+            return;
         }
+
         ActionTimelineEvent currentAction = timeline.get(nextActionIndex);
         double actionTime = currentAction.getTime();
 
-        // 3. 프레임 수집 로직 (GameSession의 frameBuffer 사용)
+        // 프레임 수집 로직
         if (currentPlayTime >= actionTime - JUDGMENT_BUFFER_SECONDS &&
                 currentPlayTime <= actionTime + JUDGMENT_BUFFER_SECONDS) {
             gameSession.getFrameBuffer().put(currentPlayTime, request.getFrameData());
-            saveGameSession(sessionId, gameSession);
         }
 
-        // 4. 판정 트리거 로직
+        // 판정 트리거 로직
         if (currentPlayTime > actionTime + JUDGMENT_BUFFER_SECONDS) {
             if (!gameSession.getFrameBuffer().isEmpty()) {
-                // 개발자 테스트용: AI 서버 없이 무조건 3점(PERFECT)으로 판정
                 int judgment = JUDGMENT_PERFECT;
                 log.info("세션 {}의 동작 '{}' 판정 완료 (Mocking): {}점", sessionId, currentAction.getActionName(), judgment);
 
                 sendFeedback(sessionId, judgment, actionTime);
-                recordJudgment(sessionId, judgment, gameSession, gameState); // GameState도 전달
+                recordJudgment(sessionId, judgment, gameSession, gameState);
             }
 
-            // '점수판'의 다음 동작 인덱스를 업데이트
             gameSession.setNextActionIndex(nextActionIndex + 1);
             gameSession.getFrameBuffer().clear();
-            saveGameSession(sessionId, gameSession);
 
-            // 마지막 'saveGameSession' 호출 전에 갱신된 시간을 함께 저장
-            saveGameSession(sessionId, gameSession);
+            // --- ▼ (컴파일 에러 수정) endGame에 sessionId 대신 gameSession 객체를 전달합니다. ---
+            if (gameSession.getNextLevel() != null && gameSession.getNextActionIndex() >= timeline.size()) {
+                log.info("세션 {}의 2절 모든 동작 판정 완료. 게임을 즉시 종료합니다.", sessionId);
+                saveGameSession(sessionId, gameSession); // 마지막 상태를 저장하고
+                endGame(gameSession);                    // <-- 수정된 부분!
+                return;
+            }
+            // --- ▲ ------------------------------------------------------------------- ▲ ---
         }
+
+        // 모든 처리 후 마지막에 상태를 한 번만 저장합니다.
+        saveGameSession(sessionId, gameSession);
     }
 
     /**
      * (신규) 1초마다 실행되는 게임 세션 감시자
      * 프레임 수신이 1초 이상 중단된 세션을 찾아 절(verse) 종료 처리를 수행합니다.
      */
-    @Scheduled(fixedRate = 1000) // 1000ms = 1초마다 실행
+    @Scheduled(fixedRate = 1000)
     public void checkGameSessionTimeout() {
-        // "game_session:" 패턴을 가진 모든 키를 찾아옴
-        Set<String> sessionKeys = gameSessionRedisTemplate.keys("game_session:*");
+        Set<String> sessionKeys = gameSessionRedisTemplate.keys(GAME_SESSION_KEY_PREFIX + "*");
         if (sessionKeys == null || sessionKeys.isEmpty()) {
             return;
         }
@@ -427,17 +428,13 @@ public class GameService {
 
         for (String key : sessionKeys) {
             GameSession session = gameSessionRedisTemplate.opsForValue().get(key);
-            // 세션을 가져오는 데 실패했거나, 이미 처리 중인 세션은 건너뜀
             if (session == null || session.isProcessing()) {
                 continue;
             }
 
-            // 마지막 프레임 수신 후 1초 이상 지났는지 확인
-            if (now - session.getLastFrameReceivedTime() > 1000) {
+            if (session.getLastFrameReceivedTime() > 0 && now - session.getLastFrameReceivedTime() > 1000) {
 
-                // --- ▼ (핵심 수정) 2절 시작 여부 판단 로직 ▼ ---
-                boolean isVerse2Started = (session.getNextLevel() != null) && (!session.getVerse2Judgments().isEmpty());
-                // --- ▲ ---------------------------------------- ▲ ---
+                // --- ▼ (핵심 수정) 2절 시작 여부 판단 로직을 단순화합니다. ▼ ---
 
                 if (session.getNextLevel() == null) {
                     // 1절 종료: 아직 레벨이 결정되지 않았고, 타임아웃 발생
@@ -445,18 +442,21 @@ public class GameService {
 
                     // 처리 중 플래그 설정 (중복 실행 방지)
                     session.setProcessing(true);
+                    saveGameSession(session.getSessionId(), session); // 상태 변경 후 저장
 
                     decideAndSendNextLevel(session.getSessionId());
 
-                } else if (isVerse2Started) {
-                    // 2절 종료: 레벨이 결정되었고, 2절 점수가 있으며, 타임아웃 발생
+                } else { // <-- 'else if (isVerse2Started)'를 간단한 'else'로 변경
+                    // 2절 종료: 레벨이 결정된 상태에서 타임아웃이 발생하면 무조건 2절 종료로 간주합니다.
                     log.info("세션 {}의 2절 종료 감지. 게임 종료 처리를 시작합니다.", session.getSessionId());
 
                     // 처리 중 플래그 설정 (중복 실행 방지)
                     session.setProcessing(true);
+                    saveGameSession(session.getSessionId(), session); // 상태 변경 후 저장
 
-                    endGame(session.getSessionId());
+                    endGame(session);
                 }
+                // --- ▲ --------------------------------------------------- ▲ ---
             }
         }
     }
@@ -540,12 +540,15 @@ public class GameService {
         double averageScore = calculateScoreFromJudgments(gameSession.getVerse1Judgments());
         int nextLevel = determineLevel(averageScore);
 
-        // TODO: 2절 영상 URL 가져오기 (GameState에 videoUrls가 있으므로 거기서 꺼내 쓸 수 있음)
-        // GameState gameState = getGameState(sessionId);
-        // String characterVideoUrl = gameState.getVideoUrls().get("verse2_level" + nextLevel);
-        String characterVideoUrl = "https://example.com/video_v2_level" + nextLevel + ".mp4";
+        GameState gameState = getGameState(sessionId);
+        String characterVideoUrl = gameState.getVideoUrls().getOrDefault("verse2_level" + nextLevel, "https://example.com/error.mp4");
 
         gameSession.setNextLevel(nextLevel);
+
+        // --- ▼ (핵심 수정 2) 2절의 첫 동작부터 다시 판정할 수 있도록 인덱스를 0으로 초기화합니다. ---
+        gameSession.setNextActionIndex(0);
+        // --- ▲ ------------------------------------------------------------------- ▲ ---
+
         saveGameSession(sessionId, gameSession); // 변경된 '점수판' 저장
 
         LevelDecisionData levelData = new LevelDecisionData(nextLevel, characterVideoUrl);
@@ -560,43 +563,41 @@ public class GameService {
      * 4. 게임 종료 및 결과 저장
      */
     @Transactional
-    public void endGame(String sessionId) {
-        GameSession finalSession = getGameSession(sessionId);
+    public void endGame(GameSession finalSession) {
         if (finalSession == null) {
-            log.warn("이미 처리되었거나 존재하지 않는 세션 ID로 종료 요청: {}", sessionId);
+            log.warn("종료 요청에 전달된 GameSession이 null입니다.");
             return;
         }
+        String sessionId = finalSession.getSessionId(); // <-- 세션 객체에서 ID를 가져옴
 
-        // 1, 2절 판정 결과를 바탕으로 최종 점수 계산
         double verse1Avg = calculateScoreFromJudgments(finalSession.getVerse1Judgments());
         double verse2Avg = calculateScoreFromJudgments(finalSession.getVerse2Judgments());
 
-        // MongoDB: 상세 데이터 저장
         GameDetail.Statistics verse1Stats = calculateStatistics(finalSession.getVerse1Judgments());
         GameDetail.Statistics verse2Stats = calculateStatistics(finalSession.getVerse2Judgments());
 
         GameDetail gameDetail = GameDetail.builder()
                 .sessionId(sessionId)
-                // TODO: 실제 Movement 데이터는 프레임 처리 시 수집 필요
                 .verse1Stats(verse1Stats)
                 .verse2Stats(verse2Stats)
                 .build();
         gameDetailRepository.save(gameDetail);
 
-        // MySQL: 게임 결과 업데이트
         GameResult gameResult = gameResultRepository.findBySessionId(sessionId)
                 .orElseThrow(() -> new CustomException(ErrorCode.GAME_SESSION_NOT_FOUND));
 
         gameResult.setVerse1AvgScore(verse1Avg);
         gameResult.setVerse2AvgScore(verse2Avg);
         gameResult.setFinalLevel(finalSession.getNextLevel());
-        gameResult.complete(); // 상태 = COMPLETED, endTime 설정
+        gameResult.complete();
 
         gameResultRepository.save(gameResult);
         log.info("세션 {}의 게임 결과 저장 완료. 1절 점수: {}, 2절 점수: {}", sessionId, verse1Avg, verse2Avg);
 
-        // Redis: 상태 정리
-        gameSessionRedisTemplate.delete(sessionId);
+        // <-- (수정) 삭제 시에도 올바른 Key를 사용합니다.
+        gameSessionRedisTemplate.delete(GAME_SESSION_KEY_PREFIX + sessionId);
+        gameStateRedisTemplate.delete(GAME_STATE_KEY_PREFIX + sessionId); // GameState도 함께 삭제
+
         sessionStateService.clearSessionStatus(sessionId);
         sessionStateService.clearActivity(finalSession.getUserId());
         log.info("세션 {}의 Redis 데이터 삭제 완료.", sessionId);
@@ -612,12 +613,8 @@ public class GameService {
             log.warn("존재하지 않는 세션 ID로 인터럽트 요청: {}", sessionId);
             return;
         }
-
-        // 1, 2절 판정 결과를 바탕으로 점수 계산
         double verse1Avg = calculateScoreFromJudgments(finalSession.getVerse1Judgments());
         double verse2Avg = calculateScoreFromJudgments(finalSession.getVerse2Judgments());
-
-        // MongoDB: 상세 데이터 저장 (진행된 부분까지)
         GameDetail.Statistics verse1Stats = calculateStatistics(finalSession.getVerse1Judgments());
         GameDetail.Statistics verse2Stats = calculateStatistics(finalSession.getVerse2Judgments());
 
@@ -628,23 +625,23 @@ public class GameService {
                 .build();
         gameDetailRepository.save(gameDetail);
 
-        // MySQL: 게임 결과 업데이트 (중단 처리)
         GameResult gameResult = gameResultRepository.findBySessionId(sessionId)
                 .orElseThrow(() -> new CustomException(ErrorCode.GAME_SESSION_NOT_FOUND));
 
         gameResult.setVerse1AvgScore(verse1Avg);
         gameResult.setVerse2AvgScore(verse2Avg);
-        gameResult.interrupt(reason); // 상태 = INTERRUPTED, endTime, interruptReason 설정
+        gameResult.interrupt(reason);
 
         gameResultRepository.save(gameResult);
         log.info("세션 {}의 게임 중단 처리 완료. 사유: {}", sessionId, reason);
 
-        // Redis: 상태 정리
-        gameSessionRedisTemplate.delete(sessionId);
+        // <-- (수정) 삭제 시에도 올바른 Key를 사용합니다.
+        gameSessionRedisTemplate.delete(GAME_SESSION_KEY_PREFIX + sessionId);
+        gameStateRedisTemplate.delete(GAME_STATE_KEY_PREFIX + sessionId); // GameState도 함께 삭제
+
         sessionStateService.clearSessionStatus(sessionId);
         sessionStateService.clearActivity(finalSession.getUserId());
 
-        // WebSocket: 프론트에 중단 알림
         sendGameInterruptNotification(sessionId);
     }
 
@@ -703,28 +700,30 @@ public class GameService {
     }
 
     private GameState getGameState(String sessionId) {
-        GameState gameState = gameStateRedisTemplate.opsForValue().get(sessionId);
+        String key = GAME_STATE_KEY_PREFIX + sessionId; // <-- (수정) 올바른 Key를 사용합니다.
+        GameState gameState = gameStateRedisTemplate.opsForValue().get(key);
         if (gameState == null) {
-            throw new CustomException(ErrorCode.GAME_SESSION_NOT_FOUND, "GameState not found");
+            throw new CustomException(ErrorCode.GAME_SESSION_NOT_FOUND, "GameState not found for key: " + key);
         }
         return gameState;
     }
 
-    private GameSession getGameSession(String sessionId) {
-        String key = "game_session:" + sessionId; // <-- 접두사 추가
-        GameSession gameSession = gameSessionRedisTemplate.opsForValue().get(sessionId);
+    public GameSession getGameSession(String sessionId) {
+        String key = GAME_SESSION_KEY_PREFIX + sessionId; // <-- (수정) 올바른 Key를 정의합니다.
+        GameSession gameSession = gameSessionRedisTemplate.opsForValue().get(key); // <-- (수정) 정의된 Key를 사용합니다.
         if (gameSession == null) {
-            // GameSession은 게임 시작 후 생성되므로, 없으면 새로 만들어줌
-            log.warn("세션 {}에 대한 GameSession이 없어 새로 생성합니다.", sessionId);
+            log.warn("세션 {}에 대한 GameSession이 없어 새로 생성합니다. (Key: {})", sessionId, key);
             GameState gameState = getGameState(sessionId);
-            return GameSession.initial(sessionId, gameState.getUserId(), gameState.getSongId());
+            gameSession = GameSession.initial(sessionId, gameState.getUserId(), gameState.getSongId());
+            saveGameSession(sessionId, gameSession); // 새로 생성했으면 저장도 해줍니다.
+            return gameSession;
         }
         return gameSession;
     }
 
     private void saveGameSession(String sessionId, GameSession gameSession) {
-        String key = "game_session:" + sessionId; // <-- 접두사 추가
-        gameSessionRedisTemplate.opsForValue().set(sessionId, gameSession, Duration.ofMinutes(SESSION_TIMEOUT_MINUTES));
+        String key = GAME_SESSION_KEY_PREFIX + sessionId; // <-- (수정) 올바른 Key를 정의합니다.
+        gameSessionRedisTemplate.opsForValue().set(key, gameSession, Duration.ofMinutes(SESSION_TIMEOUT_MINUTES)); // <-- (수정) 정의된 Key를 사용합니다.
     }
 
     /**

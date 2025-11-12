@@ -3,9 +3,8 @@ package com.heungbuja.game.state;
 import com.heungbuja.game.dto.ActionTimelineEvent;
 import com.heungbuja.game.dto.SectionInfo;
 import com.heungbuja.song.domain.SongLyrics;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
+
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
@@ -14,6 +13,8 @@ import java.util.Map;
 @Getter
 @Setter
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class GameState implements Serializable {
     // 기본 정보
     private String sessionId;
