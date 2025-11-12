@@ -1,5 +1,8 @@
 package com.heungbuja.command.mcp;
 
+import com.heungbuja.command.adapter.GameSessionAdapter;
+import com.heungbuja.command.dto.CommandGameSession;
+import com.heungbuja.command.dto.CommandGameStart;
 import com.heungbuja.command.mcp.dto.McpToolCall;
 import com.heungbuja.command.mcp.dto.McpToolResult;
 import com.heungbuja.command.service.ResponseGenerator;
@@ -7,7 +10,8 @@ import com.heungbuja.common.exception.CustomException;
 import com.heungbuja.context.entity.ConversationContext;
 import com.heungbuja.context.service.ConversationContextService;
 import com.heungbuja.emergency.dto.EmergencyRequest;
-import com.heungbuja.emergency.service.EmergencyService;
+import com.heungbuja.emergency.service.IEmergencyService;
+import com.heungbuja.game.dto.GameSessionPrepareResponse;
 import com.heungbuja.s3.service.MediaUrlService;
 import com.heungbuja.song.dto.SongInfoDto;
 import com.heungbuja.song.entity.Song;
@@ -41,10 +45,11 @@ public class McpToolService {
     private final ListeningHistoryService listeningHistoryService;
     private final ConversationContextService conversationContextService;
     private final MediaUrlService mediaUrlService;
-    private final EmergencyService emergencyService;
+    private final IEmergencyService emergencyService;
     private final ResponseGenerator responseGenerator;
     private final com.heungbuja.session.service.SessionPrepareService sessionPrepareService;
     private final com.heungbuja.song.service.SongGameDataCache songGameDataCache;
+    private final GameSessionAdapter gameSessionAdapter;
 //    private final com.heungbuja.game.service.GameService gameService;
 
     /**
@@ -376,16 +381,19 @@ public class McpToolService {
         String audioUrl = mediaUrlService.issueUrlById(song.getMedia().getId());
 
         // 4. SessionPrepareService로 GameState 생성 (Redis 저장)
-        com.heungbuja.game.dto.GameSessionPrepareResponse prepareResponse =
+        GameSessionPrepareResponse prepareResponse =
                 sessionPrepareService.prepareGameSession(userId, song, audioUrl, songGameData);
 
-        // 5. Redis Context 업데이트
+        // 5. game DTO → command DTO 변환 (어댑터 사용)
+        CommandGameSession commandGameSession = gameSessionAdapter.toCommandGameSession(prepareResponse);
+
+        // 6. Redis Context 업데이트
         conversationContextService.changeMode(userId, PlaybackMode.EXERCISE);
         conversationContextService.setCurrentSong(userId, songId);
 
-        // 6. GameStartResponse 생성 (프론트엔드 기대 형식)
-        com.heungbuja.game.dto.GameStartResponse gameResponse = com.heungbuja.game.dto.GameStartResponse.builder()
-                .sessionId(prepareResponse.getSessionId())
+        // 7. CommandGameStart 생성 (프론트엔드 기대 형식)
+        CommandGameStart gameResponse = CommandGameStart.builder()
+                .sessionId(commandGameSession.getSessionId())
                 .songId(song.getId())
                 .songTitle(song.getTitle())
                 .songArtist(song.getArtist())
@@ -393,25 +401,25 @@ public class McpToolService {
                 .videoUrls(generateVideoUrls())
                 .bpm(songGameData.getBpm())
                 .duration(songGameData.getDuration())
-                .sectionInfo(songGameData.getSectionInfo())
+                .sectionInfo(gameSessionAdapter.toCommandSectionInfo(songGameData.getSectionInfo()))
                 .lyricsInfo(songGameData.getLyricsInfo())
-                .verse1Timeline(songGameData.getVerse1Timeline())
-                .verse2Timelines(songGameData.getVerse2Timelines())
+                .verse1Timeline(gameSessionAdapter.toCommandActionTimelineEvents(songGameData.getVerse1Timeline()))
+                .verse2Timelines(gameSessionAdapter.toCommandActionTimelinesMap(songGameData.getVerse2Timelines()))
                 .build();
 
-        // 7. 프론트엔드에 전달할 데이터 구성
+        // 8. 프론트엔드에 전달할 데이터 구성
         Map<String, Object> gameData = new HashMap<>();
         gameData.put("intent", "START_GAME_IMMEDIATELY");
-        gameData.put("gameInfo", gameResponse); // GameStartResponse 전체를 담음
+        gameData.put("gameInfo", gameResponse); // CommandGameStart 전체를 담음
 
-        // 8. GPT와 사용자에게 전달할 음성 메시지 생성
+        // 9. GPT와 사용자에게 전달할 음성 메시지 생성
         String message = String.format("%s의 '%s' 노래로 체조를 시작합니다. 화면을 봐주세요.",
                 song.getArtist(), song.getTitle());
 
         log.info("게임 시작 Tool 실행 완료: userId={}, sessionId={}, songId={}",
-                userId, prepareResponse.getSessionId(), song.getId());
+                userId, commandGameSession.getSessionId(), song.getId());
 
-        // 7. McpToolResult 반환
+        // 10. McpToolResult 반환
         return McpToolResult.success(
                 toolCall.getId(),
                 "start_game",
@@ -512,16 +520,19 @@ public class McpToolService {
             String audioUrl = mediaUrlService.issueUrlById(song.getMedia().getId());
 
             // 4. SessionPrepareService로 GameState 생성 (Redis 저장)
-            com.heungbuja.game.dto.GameSessionPrepareResponse prepareResponse =
+            GameSessionPrepareResponse prepareResponse =
                     sessionPrepareService.prepareGameSession(userId, song, audioUrl, songGameData);
 
-            // 5. Redis Context 업데이트
+            // 5. game DTO → command DTO 변환 (어댑터 사용)
+            CommandGameSession commandGameSession = gameSessionAdapter.toCommandGameSession(prepareResponse);
+
+            // 6. Redis Context 업데이트
             conversationContextService.changeMode(userId, PlaybackMode.EXERCISE);
             conversationContextService.setCurrentSong(userId, songId);
 
-            // 6. GameStartResponse 생성 (프론트엔드 기대 형식)
-            com.heungbuja.game.dto.GameStartResponse gameResponse = com.heungbuja.game.dto.GameStartResponse.builder()
-                    .sessionId(prepareResponse.getSessionId())
+            // 7. CommandGameStart 생성 (프론트엔드 기대 형식)
+            CommandGameStart gameResponse = CommandGameStart.builder()
+                    .sessionId(commandGameSession.getSessionId())
                     .songId(song.getId())
                     .songTitle(song.getTitle())
                     .songArtist(song.getArtist())
@@ -529,22 +540,22 @@ public class McpToolService {
                     .videoUrls(generateVideoUrls())
                     .bpm(songGameData.getBpm())
                     .duration(songGameData.getDuration())
-                    .sectionInfo(songGameData.getSectionInfo())
+                    .sectionInfo(gameSessionAdapter.toCommandSectionInfo(songGameData.getSectionInfo()))
                     .lyricsInfo(songGameData.getLyricsInfo())
-                    .verse1Timeline(songGameData.getVerse1Timeline())
-                    .verse2Timelines(songGameData.getVerse2Timelines())
+                    .verse1Timeline(gameSessionAdapter.toCommandActionTimelineEvents(songGameData.getVerse1Timeline()))
+                    .verse2Timelines(gameSessionAdapter.toCommandActionTimelinesMap(songGameData.getVerse2Timelines()))
                     .build();
 
-            // 7. 응답 데이터 구성
+            // 8. 응답 데이터 구성
             Map<String, Object> gameData = new HashMap<>();
             gameData.put("intent", "START_GAME_IMMEDIATELY");
-            gameData.put("gameInfo", gameResponse); // GameStartResponse 전체를 담음
+            gameData.put("gameInfo", gameResponse); // CommandGameStart 전체를 담음
 
             String message = String.format("%s의 '%s' 노래로 체조를 시작합니다. 화면을 봐주세요.",
                     song.getArtist(), song.getTitle());
 
             log.info("특정 노래로 게임 시작 완료: userId={}, sessionId={}, songId={}",
-                    userId, prepareResponse.getSessionId(), songId);
+                    userId, commandGameSession.getSessionId(), songId);
 
             return McpToolResult.success(
                     toolCall.getId(),
