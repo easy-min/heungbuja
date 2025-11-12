@@ -1,4 +1,4 @@
-import type { GameStartResponse, LyricLine } from '@/types/song';
+import type { GameStartResponse, LyricLine } from '@/types/game';
 
 // 로딩 시연용 유틸
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));

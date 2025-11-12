@@ -4,7 +4,7 @@ import type {
   LyricLine,
   SegmentRange,
   actionLine,
-} from '@/types/song';
+} from '@/types/game';
 
 export interface GameState {
   // 식별/기본 정보

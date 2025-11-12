@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { LyricLine } from '@/types/song';
+import type { LyricLine } from '@/types/game';
 
 export function useLyricsSync(
   audioRef: React.RefObject<HTMLAudioElement | null>,

@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import type { SongTimeline } from '@/types/song';
+import type { SongTimeline } from '@/types/game';
 import { GAME_CONFIG } from '@/utils/constants';
 
 type LoadFromGameStartArgs = {

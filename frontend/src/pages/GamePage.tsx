@@ -5,7 +5,7 @@ import { useFrameStreamer } from '@/hooks/useFrameStreamer';
 import { useMusicMonitor } from '@/hooks/useMusicMonitor';
 import { useLyricsSync } from '@/hooks/useLyricsSync';
 import { useWs } from '@/hooks/useWs';
-import { type LyricLine } from '@/types/song';
+import { type LyricLine } from '@/types/game';
 import { GAME_CONFIG } from '@/utils/constants';
 import { useGameStore } from '@/store/gameStore';
 import './GamePage.css';
@@ -43,7 +43,7 @@ function GamePage() {
     songTitle,
     songArtist,
     audioUrl,
-    videoUrls, // 필요 시 사용
+    //videoUrls, // 필요 시 사용
     bpm,
     duration,
     sectionInfo,
