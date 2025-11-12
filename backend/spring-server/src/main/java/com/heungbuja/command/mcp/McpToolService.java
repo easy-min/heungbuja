@@ -43,7 +43,7 @@ public class McpToolService {
     private final MediaUrlService mediaUrlService;
     private final EmergencyService emergencyService;
     private final ResponseGenerator responseGenerator;
-    private final com.heungbuja.game.service.GameService gameService;
+//    private final com.heungbuja.game.service.GameService gameService;
 
     /**
      * Tool 호출 실행
