@@ -111,7 +111,7 @@ public class SongGameDataCache {
                 .songBeat(songBeat)
                 .lyricsInfo(lyricsInfo)
                 .sectionInfo(sectionInfo)
-                .bpm((int) songBeat.getTempoMap().get(0).getBpm())
+                .bpm(songBeat.getTempoMap().get(0).getBpm())
                 .duration(songBeat.getAudio().getDurationSec())
                 .verse1Timeline(verse1Timeline)
                 .verse2Timelines(verse2Timelines)
