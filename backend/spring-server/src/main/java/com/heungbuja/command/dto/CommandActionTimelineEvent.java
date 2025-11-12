@@ -1,13 +1,15 @@
-package com.heungbuja.game.dto;
+package com.heungbuja.command.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 
+/**
+ * 동작 타임라인 이벤트 DTO (Command 전용)
+ * game 도메인의 ActionTimelineEvent를 대체
+ */
 @Getter
-@NoArgsConstructor
 @AllArgsConstructor
-public class ActionTimelineEvent {
+public class CommandActionTimelineEvent {
     /**
      * 동작이 시작되는 시간 (초)
      */

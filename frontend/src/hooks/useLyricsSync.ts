@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { LyricLine } from '@/types';
+import type { LyricLine } from '@/types/game';
 
 export function useLyricsSync(
   audioRef: React.RefObject<HTMLAudioElement | null>,
@@ -7,9 +7,20 @@ export function useLyricsSync(
   options?: { prerollSec?: number }
 ) {
   const prerollSec = options?.prerollSec ?? 0;
+
   const [index, setIndex] = useState<number>(-1);
   const [isInstrumental, setIsInstrumental] = useState<boolean>(true);
-  const lastTRef = useRef<number>(0);
+
+  const indexRef = useRef(index);
+  const isInstrumentalRef = useRef(isInstrumental);
+
+  useEffect(() => {
+    indexRef.current = index;
+  }, [index]);
+
+  useEffect(() => {
+    isInstrumentalRef.current = isInstrumental;
+  }, [isInstrumental]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -19,40 +30,40 @@ export function useLyricsSync(
       return;
     }
 
-    let raf = 0;
+    let rafId = 0;
 
     const tick = () => {
-      raf = requestAnimationFrame(tick);
+      rafId = requestAnimationFrame(tick);
 
       const t = audio.currentTime - prerollSec;
-      lastTRef.current = t;
+      const curIdx = indexRef.current;
+      const cur = curIdx >= 0 ? lyrics[curIdx] : undefined;
 
-      const cur = index >= 0 ? lyrics[index] : undefined;
       if (cur && t >= cur.start && t <= cur.end) {
-        if (isInstrumental) setIsInstrumental(false);
+        if (isInstrumentalRef.current) setIsInstrumental(false);
         return;
       }
 
       // 다음 라인 탐색
-      let i = Math.max(index, 0);
-      while (i < lyrics.length && t > lyrics[i].end) i++;
-      while (i > 0 && t < lyrics[i].start) i--;
-
       let nextIdx = -1;
-      if (i >= 0 && i < lyrics.length && t >= lyrics[i].start && t <= lyrics[i].end) {
-        nextIdx = i;
+      for (let i = 0; i < lyrics.length; i++) {
+        const l = lyrics[i];
+        if (t >= l.start && t <= l.end) {
+          nextIdx = i;
+          break;
+        }
       }
 
-      // 변경 감지
-      if (nextIdx !== index) {
+      // 상태 업데이트
+      if (nextIdx !== curIdx) {
         setIndex(nextIdx);
         setIsInstrumental(nextIdx === -1);
       }
     };
 
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [audioRef, lyrics, index, isInstrumental, prerollSec]);
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [audioRef, lyrics, prerollSec]);
 
   const current = index >= 0 ? lyrics[index] : undefined;
   const next = index + 1 < lyrics.length ? lyrics[index + 1] : undefined;

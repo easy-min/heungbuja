@@ -1,16 +1,15 @@
-package com.heungbuja.game.dto;
+package com.heungbuja.command.dto;
 
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
-import java.util.List;
 
+/**
+ * 노래 섹션 정보 DTO (Command 전용)
+ * game 도메인의 SectionInfo를 대체
+ */
 @Getter
 @Builder
-@NoArgsConstructor
-@AllArgsConstructor
-public class SectionInfo {
+public class CommandSectionInfo {
     private double introStartTime;
     private double verse1StartTime;
     private double breakStartTime;
@@ -24,8 +23,6 @@ public class SectionInfo {
      */
     @Getter
     @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
     public static class VerseInfo {
         private double startTime;
         private double endTime;
