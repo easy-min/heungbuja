@@ -56,8 +56,8 @@ public class SecurityConfig {
                         .requestMatchers("/admins/users/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPER_ADMIN", "ROLE_USER")
                         .requestMatchers("/emergency/admins/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPER_ADMIN")
 
-                        .requestMatchers("/api/game/**").permitAll()  // ---- 우선 game 요청 허용
-                        
+                        .requestMatchers("/game/**").permitAll()  // ---- 우선 game 요청 허용
+
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
@@ -94,3 +94,4 @@ public class SecurityConfig {
         return source;
     }
 }
+

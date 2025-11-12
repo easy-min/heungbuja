@@ -5,35 +5,34 @@ import { type Device } from '../types/device';
 // Mock 신고 데이터
 export const mockEmergencyReports: EmergencyReport[] = [
   {
-    id: 1,
+    reportId: 1,
     userId: 1,
     userName: '김영희',
-    userRoom: '101호',
-    status: 'PENDING',
+    status: 'CONFIRMED',
     reportedAt: new Date(Date.now() - 1000 * 60 * 10).toISOString(), // 10분 전
-    location: '화장실',
-    description: '낙상 사고 발생',
+    triggerWord: '도와주세요',
+    isConfirmed: true,
+    message: '낙상 사고 발생',
   },
   {
-    id: 2,
+    reportId: 2,
     userId: 2,
     userName: '이철수',
-    userRoom: '102호',
     status: 'CONFIRMED',
     reportedAt: new Date(Date.now() - 1000 * 60 * 30).toISOString(), // 30분 전
-    location: '침실',
-    description: '심장 통증 호소',
+    triggerWord: '살려줘',
+    isConfirmed: true,
+    message: '심장 통증 호소',
   },
   {
-    id: 3,
+    reportId: 3,
     userId: 3,
     userName: '박순자',
-    userRoom: '103호',
     status: 'RESOLVED',
     reportedAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(), // 2시간 전
-    resolvedAt: new Date(Date.now() - 1000 * 60 * 50).toISOString(), // 50분 전
-    location: '거실',
-    description: '어지러움 증상',
+    triggerWord: '아파요',
+    isConfirmed: true,
+    message: '어지러움 증상',
   },
 ];
 

@@ -1,17 +1,16 @@
 // 신고 상태 타입
-export type EmergencyStatus = 'PENDING' | 'CONFIRMED' | 'RESOLVED' | 'FALSE_ALARM';
+export type EmergencyStatus = 'CONFIRMED' | 'RESOLVED' | 'FALSE_ALARM';
 
 // 신고 타입
 export interface EmergencyReport {
-  id: number;
+  reportId: number;
   userId: number;
   userName: string;
-  userRoom?: string;
+  triggerWord?: string;
+  isConfirmed?: boolean;
   status: EmergencyStatus;
   reportedAt: string;
-  resolvedAt?: string;
-  location?: string;
-  description?: string;
+  message?: string;
 }
 
 // 신고 해결 요청

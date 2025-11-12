@@ -1,6 +1,7 @@
 package com.heungbuja.song.domain;
 
 import lombok.Getter;
+import lombok.Setter;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 import java.util.List;
@@ -10,6 +11,7 @@ import java.util.List;
  * 노래의 비트, 섹션 등 시간 정보를 담고 있음
  */
 @Getter
+@Setter
 @Document(collection = "song_beats") // MongoDB의 컬렉션 이름을 지정
 public class SongBeat {
 
@@ -25,12 +27,14 @@ public class SongBeat {
 
     // JSON 내부의 객체들은 내부 클래스로 표현하면 편리합니다.
     @Getter
+    @Setter
     public static class Audio {
         private String title;
         private double durationSec;
     }
 
     @Getter
+    @Setter
     public static class Beat {
         private int i;
         private int bar;
@@ -39,6 +43,7 @@ public class SongBeat {
     }
 
     @Getter
+    @Setter
     public static class Section {
         private String label; // "intro", "part1", "part2" 등
         private int startBeat;
@@ -48,6 +53,7 @@ public class SongBeat {
     }
 
     @Getter
+    @Setter
     public static class Tempo {
         private double t;
         private double bpm;

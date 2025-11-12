@@ -137,14 +137,11 @@ const DashboardPage = () => {
         await new Promise(resolve => setTimeout(resolve, 500));
         updateReport(reportId, {
           status: 'RESOLVED',
-          resolvedAt: new Date().toISOString(),
         });
       } else {
-        const response = await resolveEmergency(reportId);
-        updateReport(reportId, {
-          status: response.status,
-          resolvedAt: response.resolvedAt,
-        });
+        const updatedReport = await resolveEmergency(reportId);
+        // 백엔드에서 받은 업데이트된 신고 정보로 상태 갱신
+        updateReport(reportId, updatedReport);
       }
     } catch (error) {
       console.error('신고 처리 실패:', error);
@@ -161,7 +158,7 @@ const DashboardPage = () => {
   useEffect(() => {
     // 가장 최근 PENDING/CONFIRMED 신고가 있으면 알림 표시
     const latestEmergency = reports.find(
-      (r) => r.status === 'PENDING' || r.status === 'CONFIRMED'
+      (r) => r.status === 'CONFIRMED'
     );
     
     if (latestEmergency && !currentEmergencyAlert) {

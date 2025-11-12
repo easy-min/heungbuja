@@ -26,7 +26,7 @@ const EmergencyCard = ({ report, onResolve, isResolving }: EmergencyCardProps) =
   return (
     <div className={`emergency-card ${report.status.toLowerCase()}`}>
       <div className="card-header">
-        <span className="report-id">신고 #{report.id}</span>
+        <span className="report-id">신고 #{report.reportId}</span>
         <Badge status={report.status} />
       </div>
 
@@ -34,32 +34,26 @@ const EmergencyCard = ({ report, onResolve, isResolving }: EmergencyCardProps) =
         <div className="card-row">
           <strong>어르신:</strong> {report.userName}
         </div>
-        
-        {report.userRoom && (
-          <div className="card-row">
-            <strong>위치:</strong> {report.userRoom}
-          </div>
-        )}
-        
+
         <div className="card-row">
           <strong>신고시간:</strong> {formatDate(report.reportedAt)}
         </div>
 
-        {report.location && (
+        {report.triggerWord && (
           <div className="card-row">
-            <strong>장소:</strong> {report.location}
+            <strong>트리거 단어:</strong> {report.triggerWord}
           </div>
         )}
 
-        {report.description && (
+        {report.message && (
           <div className="card-row">
-            <strong>상세:</strong> {report.description}
+            <strong>메시지:</strong> {report.message}
           </div>
         )}
 
-        {isResolved && report.resolvedAt && (
-          <div className="card-row resolved-info">
-            <strong>처리완료:</strong> {formatDate(report.resolvedAt)}
+        {report.isConfirmed !== undefined && (
+          <div className="card-row">
+            <strong>확인됨:</strong> {report.isConfirmed ? '예' : '아니오'}
           </div>
         )}
       </div>
@@ -68,7 +62,7 @@ const EmergencyCard = ({ report, onResolve, isResolving }: EmergencyCardProps) =
         <Button
           variant="success"
           fullWidth
-          onClick={() => onResolve(report.id)}
+          onClick={() => onResolve(report.reportId)}
           disabled={isResolving}
         >
           {isResolving ? '처리 중...' : '처리 완료'}

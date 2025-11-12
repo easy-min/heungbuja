@@ -284,14 +284,16 @@ public class EmergencyService {
      * 관리자가 신고 처리
      */
     @Transactional
-    public void handleReport(Long adminId, Long reportId, String notes) {
+    public EmergencyResponse handleReport(Long adminId, Long reportId, String notes) {
         // Lazy Loading 방지: User와 Admin까지 fetch
         EmergencyReport report = emergencyReportRepository.findByIdWithUserAndAdmin(reportId)
                 .orElseThrow(() -> new CustomException(ErrorCode.EMERGENCY_NOT_FOUND));
         Admin admin = adminService.findById(adminId);
 
         report.handle(admin, notes);
-        emergencyReportRepository.save(report);
+        EmergencyReport savedReport = emergencyReportRepository.save(report);
+
+        return EmergencyResponse.from(savedReport, null);
     }
 
     /**

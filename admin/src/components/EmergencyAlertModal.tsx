@@ -18,7 +18,7 @@ const EmergencyAlertModal = ({
 
   const handleAcknowledge = () => {
     if (onAcknowledge) {
-      onAcknowledge(report.id);
+      onAcknowledge(report.reportId);
     }
     onClose();
   };
@@ -42,27 +42,22 @@ const EmergencyAlertModal = ({
       
       <div className="modal-detail" style={{ textAlign: 'left' }}>
         <div style={{ marginBottom: '10px' }}>
-          <strong>신고 번호:</strong> #{report.id}
+          <strong>신고 번호:</strong> #{report.reportId}
         </div>
         <div style={{ marginBottom: '10px' }}>
           <strong>어르신:</strong> {report.userName}
         </div>
-        {report.userRoom && (
-          <div style={{ marginBottom: '10px' }}>
-            <strong>위치:</strong> {report.userRoom}
-          </div>
-        )}
         <div style={{ marginBottom: '10px' }}>
           <strong>신고 시간:</strong> {formatTime(report.reportedAt)}
         </div>
-        {report.location && (
+        {report.triggerWord && (
           <div style={{ marginBottom: '10px' }}>
-            <strong>장소:</strong> {report.location}
+            <strong>트리거 단어:</strong> {report.triggerWord}
           </div>
         )}
-        {report.description && (
+        {report.message && (
           <div style={{ marginBottom: '10px' }}>
-            <strong>상세 내용:</strong> {report.description}
+            <strong>메시지:</strong> {report.message}
           </div>
         )}
       </div>

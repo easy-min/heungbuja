@@ -1,4 +1,4 @@
-package com.heungbuja.song.repository;
+package com.heungbuja.song.repository.mongo;
 
 import com.heungbuja.song.domain.SongBeat;
 import org.springframework.data.mongodb.repository.MongoRepository;
