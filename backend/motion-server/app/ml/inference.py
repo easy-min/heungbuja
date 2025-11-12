@@ -15,6 +15,12 @@ if TYPE_CHECKING:  # pragma: no cover - 정적 타입 체크 용도
 logger = logging.getLogger(__name__)
 
 
+DEFAULT_LABEL_MAP: Mapping[str, str] = {
+    "CLAP": "박수 동작",
+    "ELBOW": "팔꿈치 동작",
+}
+
+
 class PoseExtractionError(RuntimeError):
     """MediaPipe Pose 추출 과정에서 발생하는 예외."""
 
@@ -184,22 +190,38 @@ def predict_action_from_image(
     top_k = max(1, top_k)
     top_indices = np.argsort(probabilities)[::-1][:top_k]
 
+    effective_label_map = label_map if label_map is not None else DEFAULT_LABEL_MAP
     predictions = []
     for idx in top_indices:
         int_idx = int(idx)
         label = artifacts.index_to_label.get(int_idx, str(int_idx))
-        description = label_map.get(label, label) if label_map is not None else label
+        description = effective_label_map.get(label, label)
         predictions.append(
             {
                 "class_index": int_idx,
                 "class_label": label,
                 "description": description,
                 "confidence": float(probabilities[int_idx]),
+                "confidence_percent": float(probabilities[int_idx] * 100.0),
             }
         )
 
+    top_prediction = predictions[0]
+    logger.info(
+        "Top prediction - class: %s, description: %s, confidence: %.2f%%",
+        top_prediction["class_label"],
+        top_prediction["description"],
+        top_prediction["confidence_percent"],
+    )
+
     return {
         "predictions": predictions,
+        "top_prediction": {
+            "class_label": top_prediction["class_label"],
+            "description": top_prediction["description"],
+            "confidence": top_prediction["confidence"],
+            "confidence_percent": top_prediction["confidence_percent"],
+        },
         "probabilities": probabilities.tolist(),
         "label_to_index": artifacts.label_to_index,
         "sequence_length": sequence_length,
