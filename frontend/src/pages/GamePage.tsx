@@ -4,15 +4,13 @@ import { useCamera } from '@/hooks/useCamera';
 import { useFrameStreamer } from '@/hooks/useFrameStreamer';
 import { useMusicMonitor } from '@/hooks/useMusicMonitor';
 import { useLyricsSync } from '@/hooks/useLyricsSync';
-import { useWs } from '@/hooks/useWs';
+import { useGameWs } from '@/hooks/useGameWs';
 import { type LyricLine } from '@/types/game';
-import { GAME_CONFIG } from '@/utils/constants';
 import { useGameStore } from '@/store/gameStore';
 import './GamePage.css';
 
 function GamePage() {
-  // === WS + Streamer ===
-  const { send } = useWs(import.meta.env.VITE_WS_URL);
+  const navigate = useNavigate();
 
   // === 상태 / 참조 ===
   const motionVideoRef = useRef<HTMLVideoElement | null>(null); // 동작 영상
@@ -26,13 +24,24 @@ function GamePage() {
   const currentSectionRef = useRef<'intro' | 'break' | 'verse1' | 'verse2'>('break');
   const announcedSectionRef = useRef<SectionKey | null>(null);
 
-  const navigate = useNavigate();
-
   const [isCounting, setIsCounting] = useState(false);
   const [count, setCount] = useState(5);
   const [isGameStarted, setIsGameStarted] = useState(false);
   const [lyrics, setLyrics] = useState<LyricLine[]>([]);
   const [sectionMessage, setSectionMessage] = useState<string | null>(null);
+  const [wsMessage, setWsMessage] = useState<string | null>(null);
+  const [redirectReason, setRedirectReason] = useState<null | 'wsError' | 'timeout'>(null);
+
+  const { connect, disconnect, sendFrame, isConnected } = useGameWs({
+    // onFeedback: (msg) => {
+    //   // msg = { type: 'FEEDBACK', data: { judgment: 2, timestamp: 35.80 } }
+    //   // TODO: 화면에 판정 표시
+    // },
+    onError: () => {
+      setWsMessage('웹소켓 연결 실패');   // 문구 먼저 노출
+      setRedirectReason('wsError');       // 이동은 별도 effect에서 지연 처리
+    },
+  });
 
   const { isCapturing, start: startStream, stop: stopStream } = useFrameStreamer({
     videoRef, audioRef, canvasRef,
@@ -65,7 +74,6 @@ function GamePage() {
   } as const;
   type SectionKey = keyof typeof VIDEO_META;
 
-
   // === 수동 루프 파라미터 ===
   const LOOP_EPS = 0.02;     // 경계 여유
   const LOOP_RESTART = 0.05; // 되감을 위치(싱크 보정)
@@ -97,13 +105,37 @@ function GamePage() {
     },
   });
 
+  // 웹소켓 연결 확인
+  useEffect(() => {
+    if (isConnected || redirectReason) {
+      if (isConnected) setWsMessage(null);
+      return;
+    }
+    setWsMessage('웹소켓 연결 중…');
+    const timer = window.setTimeout(() => {
+      setWsMessage('연결이 지연되어 튜토리얼로 이동합니다.');
+      setRedirectReason('timeout');
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [isConnected, redirectReason]);
+
+  // 안내 문구를 화면에 보여준 다음 1.2초 뒤 라우팅
+  useEffect(() => {
+    if (!redirectReason) return;
+    const timer = window.setTimeout(() => {
+      navigate('/tutorial', { replace: true });
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [redirectReason, navigate]);
+
+
   // 자동 카운트다운
   useEffect(() => {
-    const readyToStart = !!(isReady && audioRef.current?.src);
+    const readyToStart = !!(isReady && audioRef.current?.src && isConnected);
     if (readyToStart && !isGameStarted && !isCounting && !countdownTimerRef.current) {
       startCountdown();
     }
-  }, [isReady, isGameStarted, isCounting]);
+  }, [isReady, isGameStarted, isCounting, isConnected]);
 
   // 노래 끝 → 결과로
   useEffect(() => {
@@ -214,7 +246,7 @@ function GamePage() {
 
   // === 게임 시작 ===
   async function beginGame() {
-    if (!audioRef.current || !isReady) return;
+    if (!isConnected || !audioRef.current || !isReady) return;
     startMonitoring();
 
     // 오디오 먼저 재생
@@ -232,7 +264,6 @@ function GamePage() {
     clearCaptureTimeouts();
 
     const sid = sessionId!;
-    const title = songTitle ?? 'unknown';
 
     const verse1 = segmentInfo.verse1cam;
     const verse2 = segmentInfo.verse2cam;
@@ -241,7 +272,7 @@ function GamePage() {
       verse2 ? { key: 'verse2' as const, start: verse2.startTime, end: verse2.endTime } : null,
     ].filter(Boolean) as Array<{ key: 'verse1' | 'verse2'; start: number; end: number }>;
 
-    segments.forEach(({ key, start, end }) => {
+    segments.forEach(({ start, end }) => {
       if (end <= start) return;
 
       const now = audio.currentTime;
@@ -252,17 +283,9 @@ function GamePage() {
         if (cur >= end) return;
 
         const effectiveStart = Math.max(cur, start);
-
-        startStream(effectiveStart, end, (blob, { t, idx }) => {
-          send(blob, {
-            sessionId: sid,
-            songTitle: title,
-            section: key,
-            frameIndex: idx,
-            musicTime: Number(t.toFixed(3)),
-            fps: GAME_CONFIG.FPS,
-          });
-        });
+      startStream(effectiveStart, end, (blob, { t /*, idx*/ }) => {
+        void sendFrame({ sessionId: sid, blob, currentPlayTime: t });
+      });
       }, delayMs);
 
       captureTimeoutsRef.current.push(timeoutId);
@@ -276,7 +299,7 @@ function GamePage() {
 
   // === 카운트다운 ===
   function startCountdown() {
-    if (isGameStarted || isCounting) return;
+    if (isGameStarted || isCounting || !isConnected ) return;
     setIsCounting(true);
     setCount(5);
 
@@ -287,7 +310,6 @@ function GamePage() {
           clearInterval(countdownTimerRef.current!);
           countdownTimerRef.current = null;
           setIsCounting(false);
-          setIsGameStarted(true);
           void beginGame();
           return 0;
         }
@@ -304,6 +326,7 @@ function GamePage() {
     stopCamera();
     stopStream();
     clearCaptureTimeouts();
+    disconnect();
     if (audioRef.current) audioRef.current.pause();
 
     navigate('/result');
@@ -317,7 +340,7 @@ function GamePage() {
         startCamera();
 
         // 필수 데이터 가드
-        if (!audioUrl || !bpm || !duration || !sectionInfo) {
+        if (!audioUrl || !bpm || !duration || !sectionInfo || !sessionId) {
           console.warn('필수 게임 데이터가 없습니다. 튜토리얼로 이동합니다.');
           navigate('/tutorial', { replace: true });
           return;
@@ -347,6 +370,8 @@ function GamePage() {
           breakStartTime: sectionInfo.breakStartTime ?? 0,
           verse2StartTime: sectionInfo.verse2StartTime ?? 0,
         };
+
+        connect(sessionId);
 
         await loadFromGameStart({ bpm, duration, timeline });
         switchSectionVideo('break');
@@ -379,6 +404,12 @@ function GamePage() {
           </div>
         </div>
       )}
+      {wsMessage && (
+        <div className="ws-message-overlay">
+          <div className="ws-message-bubble">{wsMessage}</div>
+        </div>
+      )}
+
       <div className="game-page">
         <div className="left-container">
           <div className="left__top">

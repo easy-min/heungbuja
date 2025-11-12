@@ -287,3 +287,19 @@
   90% { opacity: 1; }
   100% { opacity: 0; transform: translate(-50%, -10%); }
 }
+
+.ws-message-overlay {
+  position: fixed;
+  top: 20%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  background: rgba(255,80,53, 0.7);
+  padding: 24px 32px;
+  border-radius: 12px;
+  color: var(--color-bg);
+  font-size: 1.4rem;
+  font-weight: 700;
+  text-align: center;
+  animation: fadeInOut 4s ease-in-out forwards;
+}
