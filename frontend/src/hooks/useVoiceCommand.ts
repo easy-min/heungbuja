@@ -89,98 +89,91 @@ export const useVoiceCommand = (): UseVoiceCommandReturn => {
     });
   }, []);
 
-  // 음악 재생 제어 처리
-  const handleMusicControl = useCallback((response: VoiceCommandResponse) => {
-    const { intent, responseText } = response;
+  // intent 기반 통합 명령 처리
+  const handleCommand = useCallback((response: VoiceCommandResponse) => {
+    const { intent, songInfo, screenTransition } = response;
 
-    // intent 기반 처리
-    if (intent === 'MUSIC_PAUSE') {
-      console.log('음악 일시정지 (intent: MUSIC_PAUSE)');
-      pauseAudio();
-      return true; // 처리 완료
-    }
+    console.log('명령 처리 - intent:', intent);
 
-    if (intent === 'MUSIC_RESUME') {
-      console.log('음악 재생 재개 (intent: MUSIC_RESUME)');
-      playAudio();
-      return true; // 처리 완료
-    }
-
-    // responseText 기반 fallback 처리
-    if (responseText) {
-      if (responseText.includes('멈췄') || responseText.includes('일시정지') || responseText.includes('정지')) {
-        console.log('음악 일시정지 (responseText 기반):', responseText);
+    switch (intent) {
+      // 음악 제어
+      case 'MUSIC_PAUSE':
+        console.log('음악 일시정지');
         pauseAudio();
-        return true;
-      }
+        break;
 
-      if (responseText.includes('재생') || responseText.includes('계속')) {
-        console.log('음악 재생 재개 (responseText 기반):', responseText);
+      case 'MUSIC_RESUME':
+        console.log('음악 재생 재개');
         playAudio();
-        return true;
-      }
+        break;
+
+      case 'MUSIC_STOP':
+        console.log('음악 종료, 홈화면 이동');
+        navigate('/home');
+        break;
+      
+      // 화면 전환
+      case 'MODE_HOME':
+        console.log('홈 화면으로 이동');
+        navigate('/home');
+        break;
+
+      case 'MODE_LISTENING':
+        console.log('감상 모드로 이동');
+        navigate('/listening', {
+          state: songInfo ? { songInfo, autoPlay: true } : undefined
+        });
+        break;
+
+      case 'MODE_EXERCISE':
+        console.log('체조 모드로 이동');
+        navigate('/tutorial', {
+          state: screenTransition?.data
+        });
+        break;
+
+      case 'MODE_EXERCISE_END':
+        console.log('체조 종료 - 결과 화면으로 이동');
+        navigate('/result', {
+          state: screenTransition?.data
+        });
+        break;
+
+      // 노래 선택 (아티스트, 제목, 랜덤 등)
+      case 'SELECT_BY_ARTIST':
+      case 'SELECT_BY_TITLE':
+      case 'SELECT_RANDOM':
+        console.log('노래 선택 → /listening으로 이동', songInfo);
+        if (songInfo) {
+          navigate('/listening', {
+            state: {
+              songInfo,
+              autoPlay: true,
+            },
+          });
+        }
+        break;
+
+      // 게임 시작
+      case 'START_GAME':
+        console.log('게임 시작 → /tutorial로 이동');
+        navigate('/tutorial', {
+          state: screenTransition?.data,
+        });
+        break;
+
+      default:
+        console.log('처리되지 않은 intent:', intent);
+        // screenTransition이 있으면 targetScreen으로 이동
+        if (screenTransition?.targetScreen) {
+          console.log('기본 화면 전환:', screenTransition.targetScreen);
+          navigate(screenTransition.targetScreen, {
+            state: screenTransition.data,
+          });
+        }
+        break;
     }
-
-    return false; // 음악 제어 아님
-  }, [pauseAudio, playAudio]);
-
-  // 화면 전환 처리
-  const handleScreenTransition = useCallback((response: VoiceCommandResponse) => {
-    const { intent, screenTransition, responseText, songInfo } = response;
-    
-    // intent 기반 처리
-    if (intent === 'MODE_EXERCISE') {
-      console.log('체조 모드 전환');
-      navigate('/tutorial', {
-        state: screenTransition?.data || {},
-      });
-      return;
-    }
-
-    // responseText에 "게임" 또는 "체조" 키워드가 있으면 tutorial로 이동
-    if (responseText && (responseText.includes('게임') || responseText.includes('체조'))) {
-      console.log('게임/체조 키워드 감지 → /tutorial로 이동');
-      navigate('/tutorial', {
-        state: screenTransition?.data || {},
-      });
-      return;
-    }
-
-    if (!screenTransition) {
-      // 화면 전환 없음 (일시정지, 응급 상황 등)
-      return;
-    }
-
-    const { targetScreen, action, data } = screenTransition;
-
-    // 노래 재생의 경우 (/listening -> /song)
-    if (action === 'PLAY_SONG' && songInfo) {
-      console.log('노래 재생 → /listening으로 이동', songInfo);
-      navigate('/listening', {
-        state: {
-          songInfo,
-          autoPlay: data?.autoPlay || true,
-        },
-      });
-      return;
-    }
-
-    // 게임 시작의 경우 songId를 URL에 포함
-    if (action === 'START_GAME' && data?.songId) {
-      console.log('게임 시작 → /game으로 이동', data);
-      const gameUrl = `/game/${data.songId}`;
-      navigate(gameUrl, {
-        state: data,
-      });
-      return;
-    }
-
-    // 그 외의 경우 targetScreen 그대로 사용
-    console.log('화면 전환:', targetScreen, data);
-    navigate(targetScreen, {
-      state: data,
-    });
-  }, [navigate]);
+  }, [pauseAudio, playAudio, navigate]);
 
   // 음성 명령 전송
   const sendCommand = useCallback(async (audioBlob: Blob) => {
@@ -202,15 +195,10 @@ export const useVoiceCommand = (): UseVoiceCommandReturn => {
 
       // 성공 시
       if (result.success) {
-        // TTS 재생 후 음악 제어 또는 화면 전환
+        // TTS 재생 후 명령 처리
         playTTS(result.ttsAudioUrl, () => {
-          // TTS 재생 완료되면 음악 제어 시도
-          const isMusicControl = handleMusicControl(result);
-
-          // 음악 제어가 아니면 화면 전환 처리
-          if (!isMusicControl) {
-            handleScreenTransition(result);
-          }
+          // TTS 재생 완료되면 intent 기반 명령 처리
+          handleCommand(result);
         });
       } else {
         // 실패 시 에러 메시지
@@ -227,7 +215,7 @@ export const useVoiceCommand = (): UseVoiceCommandReturn => {
       // console.log('✅ setIsUploading(false) 호출됨 (finally)');
       setIsUploading(false);
     }
-  }, [playTTS, handleMusicControl, handleScreenTransition]);
+  }, [playTTS, handleCommand]);
 
   return {
     isUploading,
