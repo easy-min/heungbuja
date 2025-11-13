@@ -1,4 +1,4 @@
-import type { SongInfo } from '@/types/voiceCommand';
+import type { SongInfo } from '@/types/song';
 import './SongPage.css';
 import VoiceButton from '@/components/VoiceButton';
 import { useRef, useState, useEffect } from 'react';
