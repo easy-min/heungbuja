@@ -1,6 +1,7 @@
 package com.heungbuja.device.service;
 
 import com.heungbuja.admin.entity.Admin;
+import com.heungbuja.admin.service.AdminAuthorizationService;
 import com.heungbuja.admin.service.AdminService;
 import com.heungbuja.device.dto.DeviceRegisterRequest;
 import com.heungbuja.device.dto.DeviceResponse;
@@ -24,6 +25,7 @@ public class DeviceService {
 
     private final DeviceRepository deviceRepository;
     private final AdminService adminService;
+    private final AdminAuthorizationService adminAuthorizationService;
 
     @Transactional
     public DeviceResponse registerDevice(Long adminId, DeviceRegisterRequest request) {
@@ -47,13 +49,13 @@ public class DeviceService {
     public DeviceResponse getDeviceById(Long requesterId, Long deviceId) {
         Device device = findById(deviceId);
         // 접근 권한 확인
-        adminService.validateAdminAccess(requesterId, device.getAdmin().getId());
+        adminAuthorizationService.requireAdminAccess(requesterId, device.getAdmin().getId());
         return DeviceResponse.from(device);
     }
 
     public List<DeviceResponse> getDevicesByAdmin(Long requesterId, Long adminId, boolean availableOnly) {
         // 접근 권한 확인
-        adminService.validateAdminAccess(requesterId, adminId);
+        adminAuthorizationService.requireAdminAccess(requesterId, adminId);
 
         List<Device> devices = deviceRepository.findByAdminId(adminId);
 
@@ -79,7 +81,7 @@ public class DeviceService {
     public DeviceResponse updateDevice(Long requesterId, Long deviceId, DeviceUpdateRequest request) {
         Device device = findById(deviceId);
         // 접근 권한 확인
-        adminService.validateAdminAccess(requesterId, device.getAdmin().getId());
+        adminAuthorizationService.requireAdminAccess(requesterId, device.getAdmin().getId());
 
         if (request.getLocation() != null) {
             device.updateLocation(request.getLocation());
