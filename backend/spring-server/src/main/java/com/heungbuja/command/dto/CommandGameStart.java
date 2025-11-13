@@ -57,6 +57,11 @@ public class CommandGameStart {
     private CommandSectionInfo sectionInfo;
 
     /**
+     * 카메라 세그먼트 정보 (verse1cam, verse2cam)
+     */
+    private CommandSegmentInfo segmentInfo;
+
+    /**
      * 가사 정보 (원본 JSON 그대로 전달)
      */
     private SongLyrics lyricsInfo;

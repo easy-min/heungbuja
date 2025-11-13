@@ -402,6 +402,7 @@ public class McpToolService {
                 .bpm(songGameData.getBpm())
                 .duration(songGameData.getDuration())
                 .sectionInfo(gameSessionAdapter.toCommandSectionInfo(songGameData.getSectionInfo()))
+                .segmentInfo(gameSessionAdapter.toCommandSegmentInfo(songGameData.getSectionInfo()))
                 .lyricsInfo(songGameData.getLyricsInfo())
                 .verse1Timeline(gameSessionAdapter.toCommandActionTimelineEvents(songGameData.getVerse1Timeline()))
                 .verse2Timelines(gameSessionAdapter.toCommandActionTimelinesMap(songGameData.getVerse2Timelines()))
