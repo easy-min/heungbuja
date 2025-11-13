@@ -112,14 +112,31 @@ public class GameService {
         Map<Integer, Double> beatNumToTimeMap = songBeat.getBeats().stream().collect(Collectors.toMap(SongBeat.Beat::getI, SongBeat.Beat::getT));
         Map<Integer, Double> barStartTimes = songBeat.getBeats().stream().filter(b -> b.getBeat() == 1).collect(Collectors.toMap(SongBeat.Beat::getBar, SongBeat.Beat::getT));
         List<ActionTimelineEvent> verse1Timeline = createVerseTimeline(songBeat, choreography, patternData, beatNumToTimeMap, "verse1");
-        Map<String, List<ActionTimelineEvent>> verse2Timelines = new HashMap<>();
+
+        // 2절 타임라인을 Map으로 수집
+        Map<String, List<ActionTimelineEvent>> verse2TimelinesMap = new HashMap<>();
         choreography.getVersions().get(0).getVerse2().forEach(levelInfo -> {
             String levelKey = "level" + levelInfo.getLevel();
             List<ActionTimelineEvent> levelTimeline = createVerseTimelineForLevel(songBeat, choreography, patternData, beatNumToTimeMap, "verse2", levelInfo);
-            verse2Timelines.put(levelKey, levelTimeline);
+            verse2TimelinesMap.put(levelKey, levelTimeline);
             log.info(" > 2절 {} 타임라인 생성 완료. 엔트리 개수: {}", levelKey, levelTimeline.size());
         });
-        SectionInfo sectionInfo = createSectionInfo(songBeat, barStartTimes, beatNumToTimeMap);
+
+        // Verse2Timeline 객체로 변환
+        GameStartResponse.Verse2Timeline verse2Timeline = GameStartResponse.Verse2Timeline.builder()
+                .level1(verse2TimelinesMap.get("level1"))
+                .level2(verse2TimelinesMap.get("level2"))
+                .level3(verse2TimelinesMap.get("level3"))
+                .build();
+
+        // SectionInfo (Map)와 SegmentInfo 생성
+        Map<String, Double> sectionInfo = createSectionInfo(songBeat, barStartTimes);
+        GameStartResponse.SegmentRange verse1cam = createSegmentRange(songBeat, "verse1", beatNumToTimeMap);
+        GameStartResponse.SegmentRange verse2cam = createSegmentRange(songBeat, "verse2", beatNumToTimeMap);
+        GameStartResponse.SegmentInfo segmentInfo = GameStartResponse.SegmentInfo.builder()
+                .verse1cam(verse1cam)
+                .verse2cam(verse2cam)
+                .build();
 
         String sessionId = UUID.randomUUID().toString();
         String audioUrl = getTestUrl("/media/test");
@@ -139,9 +156,10 @@ public class GameService {
                 .bpm(songBeat.getTempoMap().get(0).getBpm())
                 .duration(songBeat.getAudio().getDurationSec())
                 .sectionInfo(sectionInfo)
-                .lyricsInfo(lyricsInfo)
+                .segmentInfo(segmentInfo)
+                .lyricsInfo(lyricsInfo.getLines())
                 .verse1Timeline(verse1Timeline)
-                .verse2Timelines(verse2Timelines)
+                .verse2Timeline(verse2Timeline)
                 .tutorialSuccessCount(0)
                 .build();
 
@@ -177,9 +195,10 @@ public class GameService {
                 .bpm(songBeat.getTempoMap().get(0).getBpm())
                 .duration(songBeat.getAudio().getDurationSec())
                 .sectionInfo(sectionInfo)
-                .lyricsInfo(lyricsInfo)
+                .segmentInfo(segmentInfo)
+                .lyricsInfo(lyricsInfo.getLines())
                 .verse1Timeline(verse1Timeline)
-                .verse2Timelines(verse2Timelines)
+                .verse2Timeline(verse2Timeline)
                 .build();
     }
 
@@ -248,41 +267,26 @@ public class GameService {
     /**
      * SectionInfo 생성을 전담하는 헬퍼 메소드
      */
-    private SectionInfo createSectionInfo(SongBeat songBeat, Map<Integer, Double> barStartTimes, Map<Integer, Double> beatNumToTimeMap) {
-        // --- ▼ (핵심 수정) 이 메소드 내부에서 beatNumToTimeMap을 생성하는 코드를 삭제하고, 파라미터를 그대로 사용합니다. ▼ ---
+    private Map<String, Double> createSectionInfo(SongBeat songBeat, Map<Integer, Double> barStartTimes) {
+        return songBeat.getSections().stream()
+                .collect(Collectors.toMap(
+                        SongBeat.Section::getLabel,
+                        s -> barStartTimes.getOrDefault(s.getStartBar(), 0.0)
+                ));
+    }
 
-        Map<String, Double> sectionStartTimes = songBeat.getSections().stream()
-                .collect(Collectors.toMap(SongBeat.Section::getLabel, s -> barStartTimes.getOrDefault(s.getStartBar(), 0.0)));
+    /**
+     * SegmentRange 생성을 전담하는 헬퍼 메소드
+     */
+    private GameStartResponse.SegmentRange createSegmentRange(SongBeat songBeat, String verseLabel, Map<Integer, Double> beatNumToTimeMap) {
+        SongBeat.Section verseSection = findSectionByLabel(songBeat, verseLabel);
+        int camStartBeat = verseSection.getStartBeat() + 32;
+        int camEndBeat = camStartBeat + (16 * 6);
 
-        SongBeat.Section verse1Section = findSectionByLabel(songBeat, "verse1");
-        SongBeat.Section verse2Section = findSectionByLabel(songBeat, "verse2");
-
-        int verse1CamStartBeat = verse1Section.getStartBeat() + 32;
-        int verse1CamEndBeat = verse1CamStartBeat + (16 * 6);
-        SectionInfo.VerseInfo verse1CamInfo = SectionInfo.VerseInfo.builder()
-                // 파라미터로 받은 beatNumToTimeMap을 사용
-                .startTime(beatNumToTimeMap.getOrDefault(verse1CamStartBeat, 0.0))
-                .endTime(beatNumToTimeMap.getOrDefault(verse1CamEndBeat, 0.0))
+        return GameStartResponse.SegmentRange.builder()
+                .startTime(beatNumToTimeMap.getOrDefault(camStartBeat, 0.0))
+                .endTime(beatNumToTimeMap.getOrDefault(camEndBeat, 0.0))
                 .build();
-
-        int verse2CamStartBeat = verse2Section.getStartBeat() + 32;
-        int verse2CamEndBeat = verse2CamStartBeat + (16 * 6);
-        SectionInfo.VerseInfo verse2CamInfo = SectionInfo.VerseInfo.builder()
-                // 파라미터로 받은 beatNumToTimeMap을 사용
-                .startTime(beatNumToTimeMap.getOrDefault(verse2CamStartBeat, 0.0))
-                .endTime(beatNumToTimeMap.getOrDefault(verse2CamEndBeat, 0.0))
-                .build();
-
-        return SectionInfo.builder()
-                .introStartTime(sectionStartTimes.getOrDefault("intro", 0.0))
-                .verse1StartTime(sectionStartTimes.getOrDefault("verse1", 0.0))
-                .breakStartTime(sectionStartTimes.getOrDefault("break", 0.0))
-                .verse2StartTime(sectionStartTimes.getOrDefault("verse2", 0.0))
-                .verse1cam(verse1CamInfo)
-                .verse2cam(verse2CamInfo)
-                .build();
-
-        // --- ▲ ------------------------------------------------------------------------------------------ ▲ ---
     }
 
     /**
@@ -520,12 +524,29 @@ public class GameService {
             // 아직 1절 -> verse1Timeline 반환
             return gameState.getVerse1Timeline();
         } else {
-            // 2절 -> 결정된 레벨에 맞는 타임라인을 verse2Timelines에서 찾아 반환
-            String levelKey = "level" + gameSession.getNextLevel();
-            List<ActionTimelineEvent> timeline = gameState.getVerse2Timelines().get(levelKey);
+            // 2절 -> 결정된 레벨에 맞는 타임라인을 verse2Timeline 객체에서 가져옴
+            int level = gameSession.getNextLevel();
+            GameStartResponse.Verse2Timeline verse2Timeline = gameState.getVerse2Timeline();
+
+            List<ActionTimelineEvent> timeline;
+            switch (level) {
+                case 1:
+                    timeline = verse2Timeline.getLevel1();
+                    break;
+                case 2:
+                    timeline = verse2Timeline.getLevel2();
+                    break;
+                case 3:
+                    timeline = verse2Timeline.getLevel3();
+                    break;
+                default:
+                    log.error("세션 {}에 대한 잘못된 레벨 {}이 설정되었습니다.", gameState.getSessionId(), level);
+                    return Collections.emptyList();
+            }
+
             if (timeline == null) {
-                log.error("세션 {}에 대한 2절 레벨 {}의 타임라인을 찾을 수 없습니다.", gameState.getSessionId(), gameSession.getNextLevel());
-                return Collections.emptyList(); // 비어있는 리스트 반환하여 에러 방지
+                log.error("세션 {}에 대한 2절 레벨 {}의 타임라인이 null입니다.", gameState.getSessionId(), level);
+                return Collections.emptyList();
             }
             return timeline;
         }

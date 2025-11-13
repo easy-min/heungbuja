@@ -1,7 +1,7 @@
 package com.heungbuja.game.state;
 
 import com.heungbuja.game.dto.ActionTimelineEvent;
-import com.heungbuja.game.dto.SectionInfo;
+import com.heungbuja.game.dto.GameStartResponse;
 import com.heungbuja.song.domain.SongLyrics;
 import lombok.*;
 
@@ -26,12 +26,13 @@ public class GameState implements Serializable {
     private Map<String, String> videoUrls;
     private Double bpm;
     private Double duration;
-    private SectionInfo sectionInfo;
-    private SongLyrics lyricsInfo;
+    private Map<String, Double> sectionInfo;
+    private GameStartResponse.SegmentInfo segmentInfo;
+    private List<SongLyrics.Line> lyricsInfo;
 
     // 동작 타임라인
     private List<ActionTimelineEvent> verse1Timeline;
-    private Map<String, List<ActionTimelineEvent>> verse2Timelines;
+    private GameStartResponse.Verse2Timeline verse2Timeline;
 
     /** 튜토리얼 성공 횟수 */
     @Builder.Default
