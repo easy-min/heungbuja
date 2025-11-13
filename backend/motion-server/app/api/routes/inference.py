@@ -8,26 +8,42 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.ml import PoseExtractionError, predict_action_from_image
+from app.ml import PoseExtractionError, predict_action_from_frames
 from app.ml.model_loader import ModelLoaderError
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/inference", tags=["inference"])
+analyze_router = APIRouter(prefix="/api/ai", tags=["inference"])
+
+ACTION_CODE_TO_LABEL = {
+    1: "CLAP",
+    2: "ELBOW",
+}
+ACTION_CODE_TO_DESCRIPTION = {
+    1: "손 박수",
+    2: "팔 치기",
+}
 
 
 class InferenceRequest(BaseModel):
-    """Base64 인코딩된 이미지로 추론 요청을 받기 위한 스키마."""
+    """다중 프레임 기반 추론 요청 스키마."""
 
-    session_id: str = Field(..., alias="sessionId")
-    frame_data: str = Field(..., alias="frameData")
-    current_play_time: float = Field(..., alias="currentPlayTime")
-    sequence_length: int | None = Field(None, alias="sequenceLength")
-    top_k: int | None = Field(None, alias="topK")
+    action_code: int = Field(..., alias="actionCode")
+    action_name: str = Field(..., alias="actionName")
+    frame_count: int = Field(..., alias="frameCount")
+    frames: list[str]
 
     model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+    @field_validator("frames")
+    @classmethod
+    def _validate_frames(cls, value: list[str], info):
+        if not value:
+            raise ValueError("frames 배열이 비어 있습니다.")
+        return value
 
 
 def _make_temp_image_file(data: bytes, suffix: str = ".jpg") -> Path:
@@ -51,46 +67,73 @@ def _decode_base64_image(data: str) -> bytes:
 @router.post("/predict/base64")
 async def predict_motion_action_base64(payload: InferenceRequest) -> dict:
     """Base64 인코딩된 이미지 데이터를 받아 동작을 추론합니다."""
-    sequence_length = payload.sequence_length or 32
-    top_k = payload.top_k or 2
+    sequence_length = 32
+    top_k = 2
 
-    image_bytes = _decode_base64_image(payload.frame_data)
-    tmp_path: Path | None = None
-
+    frame_paths: list[Path] = []
     try:
-        tmp_path = _make_temp_image_file(image_bytes)
+        try:
+            expected_label = ACTION_CODE_TO_LABEL[payload.action_code]
+        except KeyError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"지원하지 않는 actionCode입니다: {payload.action_code}",
+            ) from exc
+
+        if payload.frame_count != len(payload.frames):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"frameCount({payload.frame_count})가 frames 길이({len(payload.frames)})와 일치하지 않습니다.",
+            )
+
+        for encoded_frame in payload.frames:
+            image_bytes = _decode_base64_image(encoded_frame)
+            frame_paths.append(_make_temp_image_file(image_bytes))
 
         logger.debug(
-            "Running inference for session %s (sequence_length=%d, top_k=%d)",
-            payload.session_id,
+            "Running inference for action_code=%s, frame_count=%d (sequence_length=%d, top_k=%d)",
+            payload.action_code,
+            payload.frame_count,
             sequence_length,
             top_k,
         )
 
-        result = predict_action_from_image(
-            image_path=tmp_path,
+        result = predict_action_from_frames(
+            frame_paths=frame_paths,
             sequence_length=sequence_length,
             top_k=top_k,
             device="cuda",
         )
 
-        return {
-            "sessionId": payload.session_id,
-            "currentPlayTime": payload.current_play_time,
-            **result,
-        }
+        top_prediction_label = result["top_prediction"]["class_label"]
+        if top_prediction_label == expected_label:
+            logger.info(
+                "Inference matched expected label %s (actionCode=%s)", expected_label, payload.action_code
+            )
+            return {"judgment": 3}
 
+        logger.info(
+            "Inference mismatch: expected=%s, predicted=%s (actionCode=%s)",
+            expected_label,
+            top_prediction_label,
+            payload.action_code,
+        )
     except (PoseExtractionError, ModelLoaderError) as exc:
-        logger.exception("Inference failed: %s", exc)
+        logger.error("Inference failed (422): %s", exc, exc_info=True)
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     except RuntimeError as exc:
         logger.exception("Runtime error during inference: %s", exc)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
     finally:
-        if tmp_path is not None:
+        for path in frame_paths:
             try:
-                tmp_path.unlink()
+                path.unlink()
             except OSError:
-                logger.warning("Failed to delete temporary file %s", tmp_path)
+                logger.warning("Failed to delete temporary file %s", path)
+
+
+@analyze_router.post("/analyze")
+async def analyze_motion_action(payload: InferenceRequest) -> dict:
+    return await predict_motion_action_base64(payload)
 
 
