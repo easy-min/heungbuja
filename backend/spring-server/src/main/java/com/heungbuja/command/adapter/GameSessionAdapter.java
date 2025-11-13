@@ -33,7 +33,7 @@ public class GameSessionAdapter {
     }
 
     /**
-     * SectionInfo → CommandSectionInfo 변환
+     * SectionInfo → CommandSectionInfo 변환 (섹션 시작 시간만)
      */
     public CommandSectionInfo toCommandSectionInfo(SectionInfo sectionInfo) {
         if (sectionInfo == null) {
@@ -45,20 +45,32 @@ public class GameSessionAdapter {
                 .verse1StartTime(sectionInfo.getVerse1StartTime())
                 .breakStartTime(sectionInfo.getBreakStartTime())
                 .verse2StartTime(sectionInfo.getVerse2StartTime())
-                .verse1cam(toCommandVerseInfo(sectionInfo.getVerse1cam()))
-                .verse2cam(toCommandVerseInfo(sectionInfo.getVerse2cam()))
                 .build();
     }
 
     /**
-     * SectionInfo.VerseInfo → CommandSectionInfo.VerseInfo 변환
+     * SectionInfo → CommandSegmentInfo 변환 (카메라 세그먼트 정보만)
      */
-    private CommandSectionInfo.VerseInfo toCommandVerseInfo(SectionInfo.VerseInfo verseInfo) {
+    public CommandSegmentInfo toCommandSegmentInfo(SectionInfo sectionInfo) {
+        if (sectionInfo == null) {
+            return null;
+        }
+
+        return CommandSegmentInfo.builder()
+                .verse1cam(toCommandSegmentRange(sectionInfo.getVerse1cam()))
+                .verse2cam(toCommandSegmentRange(sectionInfo.getVerse2cam()))
+                .build();
+    }
+
+    /**
+     * SectionInfo.VerseInfo → CommandSegmentInfo.SegmentRange 변환
+     */
+    private CommandSegmentInfo.SegmentRange toCommandSegmentRange(SectionInfo.VerseInfo verseInfo) {
         if (verseInfo == null) {
             return null;
         }
 
-        return CommandSectionInfo.VerseInfo.builder()
+        return CommandSegmentInfo.SegmentRange.builder()
                 .startTime(verseInfo.getStartTime())
                 .endTime(verseInfo.getEndTime())
                 .build();
