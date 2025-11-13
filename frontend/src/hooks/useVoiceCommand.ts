@@ -154,14 +154,6 @@ export const useVoiceCommand = (): UseVoiceCommandReturn => {
         }
         break;
 
-      // 게임 시작
-      case 'START_GAME':
-        console.log('게임 시작 → /tutorial로 이동');
-        navigate('/tutorial', {
-          state: screenTransition?.data,
-        });
-        break;
-
       default:
         console.log('처리되지 않은 intent:', intent);
         // screenTransition이 있으면 targetScreen으로 이동
