@@ -39,7 +39,10 @@ export interface GameStartResponse {
       verse1cam: SegmentRange;
       verse2cam: SegmentRange;
     };
-    lyricsInfo: LyricLine[];
+    lyricsInfo: {
+      id: string;
+      lines: LyricLine[];
+    }
     verse1Timeline: actionLine[];
     verse2Timeline: {
       level1: actionLine[];

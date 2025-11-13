@@ -27,7 +27,10 @@ export interface GameState {
   };
 
   // 가사/액션 타임라인
-  lyrics: LyricLine[]; // (= API의 lyricsInfo)
+  lyricsInfo: {
+    id: string | null;
+    lines: LyricLine[]; 
+  };
   verse1Timeline: actionLine[];
   verse2Timeline: {
     level1: actionLine[];
@@ -60,7 +63,10 @@ export const useGameStore = create<GameState>((set) => ({
     verse2cam: null,
   },
 
-  lyrics: [],
+  lyricsInfo: {
+    id: null,
+    lines: [],
+  },
   verse1Timeline: [],
   verse2Timeline: {
     level1: [],
@@ -91,7 +97,7 @@ export const useGameStore = create<GameState>((set) => ({
         verse2cam: d.segmentInfo.verse2cam,
       },
 
-      lyrics: d.lyricsInfo,
+      lyricsInfo: d.lyricsInfo,
       verse1Timeline: d.verse1Timeline,
       verse2Timeline: d.verse2Timeline,
     });
@@ -116,7 +122,10 @@ export const useGameStore = create<GameState>((set) => ({
         verse2cam: null,
       },
 
-      lyrics: [],
+      lyricsInfo: {
+        id: null,
+        lines: [],
+      },
       verse1Timeline: [],
       verse2Timeline: {
         level1: [],

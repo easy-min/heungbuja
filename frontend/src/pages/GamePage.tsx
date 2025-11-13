@@ -61,7 +61,7 @@ function GamePage() {
     duration,
     sectionInfo,
     segmentInfo,
-    lyrics: storeLyrics,
+    lyricsInfo,
   } = useGameStore();
 
   const { current: currentLyric, next: nextLyric, isInstrumental } =
@@ -352,7 +352,7 @@ function GamePage() {
 
         // 오디오 소스
         if (audioRef.current) {
-          const localAudio = pub('당돌한여자.mp3');
+          const localAudio = pub(audioUrl);
           audioRef.current.src = localAudio;
           audioRef.current.onerror = () => {
             if (audioUrl) {
@@ -364,7 +364,7 @@ function GamePage() {
         }
 
         // 가사/메타
-        setLyrics(storeLyrics ?? []);
+        setLyrics(lyricsInfo.lines ?? []);
         songBpmRef.current = bpm;
 
         // useMusicMonitor가 기대하는 timeline 형태로 매핑
