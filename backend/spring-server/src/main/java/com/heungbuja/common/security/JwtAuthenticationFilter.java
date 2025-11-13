@@ -61,7 +61,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
         } catch (Exception e) {
             // JWT 처리 중 예외 발생 시 로깅하고 인증 없이 진행
-            logger.error("JWT authentication failed: {}", e.getMessage());
+            logger.error("JWT authentication failed", e);
             SecurityContextHolder.clearContext();
         }
 

@@ -1,6 +1,8 @@
 package com.heungbuja.session.service;
 
 import com.heungbuja.game.dto.GameSessionPrepareResponse;
+import com.heungbuja.game.dto.GameStartResponse;
+import com.heungbuja.game.dto.SectionInfo;
 import com.heungbuja.game.state.GameState;
 import com.heungbuja.song.dto.SongGameData;
 import com.heungbuja.song.entity.Song;
@@ -58,7 +60,19 @@ public class SessionPrepareService {
         // 2. sessionId 생성
         String sessionId = UUID.randomUUID().toString();
 
-        // 3. GameState 생성
+        // 3. SectionInfo 변환
+        SectionInfo srcSectionInfo = songGameData.getSectionInfo();
+        Map<String, Double> sectionInfoMap = convertSectionInfoToMap(srcSectionInfo);
+        GameStartResponse.SegmentInfo segmentInfo = convertToSegmentInfo(srcSectionInfo);
+
+        // 4. Verse2Timeline 변환
+        GameStartResponse.Verse2Timeline verse2Timeline = GameStartResponse.Verse2Timeline.builder()
+                .level1(songGameData.getVerse2Timelines().get("level1"))
+                .level2(songGameData.getVerse2Timelines().get("level2"))
+                .level3(songGameData.getVerse2Timelines().get("level3"))
+                .build();
+
+        // 5. GameState 생성
         GameState gameState = GameState.builder()
                 .sessionId(sessionId)
                 .userId(userId)
@@ -67,10 +81,11 @@ public class SessionPrepareService {
                 .videoUrls(videoUrls)
                 .bpm(songGameData.getBpm())
                 .duration(songGameData.getDuration())
-                .sectionInfo(songGameData.getSectionInfo())
-                .lyricsInfo(songGameData.getLyricsInfo())
+                .sectionInfo(sectionInfoMap)
+                .segmentInfo(segmentInfo)
+                .lyricsInfo(songGameData.getLyricsInfo().getLines())
                 .verse1Timeline(songGameData.getVerse1Timeline())
-                .verse2Timelines(songGameData.getVerse2Timelines())
+                .verse2Timeline(verse2Timeline)
                 .tutorialSuccessCount(0)
                 .build();
 
@@ -120,5 +135,37 @@ public class SessionPrepareService {
             log.error("테스트 URL 조회 실패: {}", path, e);
         }
         return "https://example.com/error.mp4";
+    }
+
+    /**
+     * SectionInfo → Map<String, Double> 변환
+     */
+    private Map<String, Double> convertSectionInfoToMap(SectionInfo sectionInfo) {
+        Map<String, Double> map = new HashMap<>();
+        map.put("intro", sectionInfo.getIntroStartTime());
+        map.put("verse1", sectionInfo.getVerse1StartTime());
+        map.put("break", sectionInfo.getBreakStartTime());
+        map.put("verse2", sectionInfo.getVerse2StartTime());
+        return map;
+    }
+
+    /**
+     * SectionInfo → SegmentInfo 변환
+     */
+    private GameStartResponse.SegmentInfo convertToSegmentInfo(SectionInfo sectionInfo) {
+        GameStartResponse.SegmentRange verse1cam = GameStartResponse.SegmentRange.builder()
+                .startTime(sectionInfo.getVerse1cam().getStartTime())
+                .endTime(sectionInfo.getVerse1cam().getEndTime())
+                .build();
+
+        GameStartResponse.SegmentRange verse2cam = GameStartResponse.SegmentRange.builder()
+                .startTime(sectionInfo.getVerse2cam().getStartTime())
+                .endTime(sectionInfo.getVerse2cam().getEndTime())
+                .build();
+
+        return GameStartResponse.SegmentInfo.builder()
+                .verse1cam(verse1cam)
+                .verse2cam(verse2cam)
+                .build();
     }
 }
