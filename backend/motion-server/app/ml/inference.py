@@ -144,6 +144,32 @@ def _prepare_sequence(landmarks: "np.ndarray", sequence_length: int) -> "np.ndar
     return window.astype(np.float32)
 
 
+def _prepare_sequence_from_landmark_list(
+    landmark_list: Sequence["np.ndarray"],
+    sequence_length: int,
+) -> "np.ndarray":
+    if not landmark_list:
+        raise PoseExtractionError("시퀀스를 구성할 랜드마크가 없습니다.")
+
+    if len(landmark_list) == 1:
+        return _prepare_sequence(landmark_list[0], sequence_length)
+
+    np = _import_numpy()
+    stacked = np.stack([landmarks[BODY_LANDMARK_INDICES, :] for landmarks in landmark_list], axis=0)
+
+    frame_count = stacked.shape[0]
+    if frame_count < sequence_length:
+        pad_count = sequence_length - frame_count
+        pad_source = stacked[-1:, :, :]
+        padding = np.repeat(pad_source, pad_count, axis=0)
+        stacked = np.concatenate([stacked, padding], axis=0)
+    elif frame_count > sequence_length:
+        indices = np.linspace(0, frame_count - 1, num=sequence_length, dtype=int)
+        stacked = stacked[indices, :, :]
+
+    return stacked.astype(np.float32)
+
+
 def _run_inference(
     sequence: "np.ndarray",
     *,
@@ -181,10 +207,30 @@ def predict_action_from_image(
     top_k: int = 2,
 ) -> dict:
     """기존 image_inference.py와 동일한 방식으로 단일 이미지의 동작을 추론합니다."""
+    return predict_action_from_frames(
+        [image_path],
+        sequence_length=sequence_length,
+        device=device,
+        label_map=label_map,
+        top_k=top_k,
+    )
+
+
+def predict_action_from_frames(
+    frame_paths: Sequence[Path | str],
+    *,
+    sequence_length: int = 32,
+    device: str = "cuda",
+    label_map: Mapping[str, str] | None = None,
+    top_k: int = 2,
+) -> dict:
+    if not frame_paths:
+        raise PoseExtractionError("프레임이 제공되지 않았습니다.")
+
     np = _import_numpy()
 
-    landmarks = extract_landmarks_from_image(image_path)
-    sequence = _prepare_sequence(landmarks, sequence_length=sequence_length)
+    landmarks_list = [extract_landmarks_from_image(path) for path in frame_paths]
+    sequence = _prepare_sequence_from_landmark_list(landmarks_list, sequence_length=sequence_length)
     probabilities, artifacts = _run_inference(sequence, device=device)
 
     top_k = max(1, top_k)
