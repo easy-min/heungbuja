@@ -22,6 +22,7 @@ export interface actionLine {
   actionName: string;
 }
 
+// Record 필드는 추후 수정 고민 필요
 export interface GameStartResponse {
   intent: string;
   gameInfo:  {
