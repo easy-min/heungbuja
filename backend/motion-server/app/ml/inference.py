@@ -18,6 +18,9 @@ logger = logging.getLogger(__name__)
 DEFAULT_LABEL_MAP: Mapping[str, str] = {
     "CLAP": "박수 동작",
     "ELBOW": "팔꿈치 동작",
+    "HIP": "엉덩이 동작",
+    "STRETCH": "팔 뻗기 동작",
+    "TILT": "기울이기 동작",
 }
 
 
