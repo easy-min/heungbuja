@@ -6,6 +6,7 @@ import base64
 import logging
 from pathlib import Path
 from tempfile import NamedTemporaryFile
+import asyncio
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -30,7 +31,7 @@ ACTION_CODE_TO_DESCRIPTION = {
     2: "팔 치기",
     3: "엉덩이 치기",
     4: "팔 뻗기",
-    5: "기울기기"
+    5: "기울기"
 }
 
 
@@ -104,7 +105,8 @@ async def predict_motion_action_base64(payload: InferenceRequest) -> dict:
             top_k,
         )
 
-        result = predict_action_from_frames(
+        result = await asyncio.to_thread(
+            predict_action_from_frames,
             frame_paths=frame_paths,
             sequence_length=sequence_length,
             top_k=top_k,
