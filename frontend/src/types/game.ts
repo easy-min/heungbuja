@@ -22,9 +22,10 @@ export interface actionLine {
   actionName: string;
 }
 
+// Record 필드는 추후 수정 고민 필요
 export interface GameStartResponse {
-  success: boolean;
-  data: {
+  intent: string;
+  gameInfo:  {
     sessionId: string;
     songId: number;
     songTitle: string;
@@ -46,4 +47,9 @@ export interface GameStartResponse {
       level3: actionLine[];
     };
   };
+}
+
+export interface ListeningData {
+  songId: number;
+  autoPlay: boolean;
 }
