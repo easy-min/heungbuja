@@ -1,5 +1,6 @@
 package com.heungbuja.common.security;
 
+import com.heungbuja.admin.entity.AdminRole;
 import com.heungbuja.common.util.JwtUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -27,24 +28,41 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
-        String token = extractTokenFromRequest(request);
+        try {
+            String token = extractTokenFromRequest(request);
 
-        if (token != null && jwtUtil.validateToken(token)) {
-            Long userId = jwtUtil.getUserIdFromToken(token);
-            String username = jwtUtil.getUsernameFromToken(token);
-            String role = jwtUtil.getRoleFromToken(token);
+            if (token != null && jwtUtil.validateToken(token)) {
+                Long userId = jwtUtil.getUserIdFromToken(token);
+                String username = jwtUtil.getUsernameFromToken(token);
+                String role = jwtUtil.getRoleFromToken(token);
 
-            // Spring Security는 ROLE_ prefix를 기대함
-            String authority = role.startsWith("ROLE_") ? role : "ROLE_" + role;
+                // Spring Security는 ROLE_ prefix를 기대함
+                String authority = role.startsWith("ROLE_") ? role : "ROLE_" + role;
 
-            UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                    userId,
-                    null,
-                    Collections.singletonList(new SimpleGrantedAuthority(authority))
-            );
-            authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                // Admin인 경우 AdminPrincipal 사용 (타입 안전)
+                Object principal;
+                if (authority.equals("ROLE_ADMIN")) {
+                    principal = new AdminPrincipal(userId, username, AdminRole.ADMIN);
+                } else if (authority.equals("ROLE_SUPER_ADMIN")) {
+                    principal = new AdminPrincipal(userId, username, AdminRole.SUPER_ADMIN);
+                } else {
+                    // User 로그인 (기존 방식: userId만 전달)
+                    principal = userId;
+                }
 
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+                UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                        principal,
+                        null,
+                        Collections.singletonList(new SimpleGrantedAuthority(authority))
+                );
+                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+            }
+        } catch (Exception e) {
+            // JWT 처리 중 예외 발생 시 로깅하고 인증 없이 진행
+            logger.error("JWT authentication failed", e);
+            SecurityContextHolder.clearContext();
         }
 
         filterChain.doFilter(request, response);
