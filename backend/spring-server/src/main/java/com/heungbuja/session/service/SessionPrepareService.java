@@ -3,7 +3,9 @@ package com.heungbuja.session.service;
 import com.heungbuja.game.dto.GameSessionPrepareResponse;
 import com.heungbuja.game.dto.GameStartResponse;
 import com.heungbuja.game.dto.SectionInfo;
+import com.heungbuja.game.state.GameSession;
 import com.heungbuja.game.state.GameState;
+import com.heungbuja.session.state.ActivityState;
 import com.heungbuja.song.dto.SongGameData;
 import com.heungbuja.song.entity.Song;
 import lombok.RequiredArgsConstructor;
@@ -22,16 +24,19 @@ import java.util.UUID;
 
 /**
  * 세션 준비 서비스
- * GameState 생성 + Redis 저장만!
- * ActivityState는 건드리지 않음 (Command 영역)
+ * GameState + GameSession 생성 + Redis 저장 + ActivityState 설정
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class SessionPrepareService {
 
-    // Redis (GameState만!)
+    // Redis
     private final RedisTemplate<String, GameState> gameStateRedisTemplate;
+    private final RedisTemplate<String, GameSession> gameSessionRedisTemplate;
+
+    // Session State 서비스
+    private final SessionStateService sessionStateService;
 
     // WebClient
     private final WebClient webClient;
@@ -40,6 +45,8 @@ public class SessionPrepareService {
     private String baseUrl;
 
     private static final int SESSION_TIMEOUT_MINUTES = 30;
+    private static final String GAME_STATE_KEY_PREFIX = "game_state:";
+    private static final String GAME_SESSION_KEY_PREFIX = "game_session:";
 
     /**
      * 게임 세션 준비
@@ -89,16 +96,31 @@ public class SessionPrepareService {
                 .tutorialSuccessCount(0)
                 .build();
 
-        // 4. Redis 저장 (GameState만!)
+        // 4. GameSession 생성
+        GameSession gameSession = GameSession.initial(sessionId, userId, song.getId());
+
+        // 5. Redis 저장 (GameState + GameSession)
+        String gameStateKey = GAME_STATE_KEY_PREFIX + sessionId;
+        String gameSessionKey = GAME_SESSION_KEY_PREFIX + sessionId;
         gameStateRedisTemplate.opsForValue().set(
-                sessionId,
+                gameStateKey,
                 gameState,
                 Duration.ofMinutes(SESSION_TIMEOUT_MINUTES)
         );
+        gameSessionRedisTemplate.opsForValue().set(
+                gameSessionKey,
+                gameSession,
+                Duration.ofMinutes(SESSION_TIMEOUT_MINUTES)
+        );
+        log.info("Redis에 GameState와 GameSession 저장 완료: sessionId={}", sessionId);
+
+        // 6. ActivityState 설정
+        sessionStateService.setCurrentActivity(userId, ActivityState.game(sessionId));
+        sessionStateService.setSessionStatus(sessionId, "IN_PROGRESS");
 
         log.info("게임 세션 준비 완료: sessionId={}", sessionId);
 
-        // 5. 응답 생성 (sessionId 반환)
+        // 7. 응답 생성 (sessionId 반환)
         return GameSessionPrepareResponse.builder()
                 .sessionId(sessionId)
                 .songTitle(song.getTitle())
