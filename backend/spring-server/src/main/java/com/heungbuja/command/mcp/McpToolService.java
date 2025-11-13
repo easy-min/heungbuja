@@ -387,7 +387,7 @@ public class McpToolService {
         // 5. game DTO → command DTO 변환 (어댑터 사용)
         CommandGameSession commandGameSession = gameSessionAdapter.toCommandGameSession(prepareResponse);
 
-        // 6. Redis Context 업데이트
+        // 6. Conversation Context 업데이트 (대화 컨텍스트만, ActivityState는 SessionPrepareService에서 처리)
         conversationContextService.changeMode(userId, PlaybackMode.EXERCISE);
         conversationContextService.setCurrentSong(userId, songId);
 
@@ -527,7 +527,7 @@ public class McpToolService {
             // 5. game DTO → command DTO 변환 (어댑터 사용)
             CommandGameSession commandGameSession = gameSessionAdapter.toCommandGameSession(prepareResponse);
 
-            // 6. Redis Context 업데이트
+            // 6. Conversation Context 업데이트 (대화 컨텍스트만, ActivityState는 SessionPrepareService에서 처리)
             conversationContextService.changeMode(userId, PlaybackMode.EXERCISE);
             conversationContextService.setCurrentSong(userId, songId);
 
@@ -542,6 +542,7 @@ public class McpToolService {
                     .bpm(songGameData.getBpm())
                     .duration(songGameData.getDuration())
                     .sectionInfo(gameSessionAdapter.toCommandSectionInfo(songGameData.getSectionInfo()))
+                    .segmentInfo(gameSessionAdapter.toCommandSegmentInfo(songGameData.getSectionInfo()))
                     .lyricsInfo(songGameData.getLyricsInfo())
                     .verse1Timeline(gameSessionAdapter.toCommandActionTimelineEvents(songGameData.getVerse1Timeline()))
                     .verse2Timelines(gameSessionAdapter.toCommandActionTimelinesMap(songGameData.getVerse2Timelines()))
