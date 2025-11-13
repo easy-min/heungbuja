@@ -257,7 +257,6 @@ function GamePage() {
     await audioRef.current.play().catch(e => console.warn('audio play err', e));
 
     scheduleRangeCaptures(); // 구간 캡처/스트리밍 시작
-    setIsGameStarted(true);
   }
 
   // === 구간 캡처 스케줄링(서버 segmentInfo 사용) ===
@@ -314,6 +313,7 @@ function GamePage() {
           clearInterval(countdownTimerRef.current!);
           countdownTimerRef.current = null;
           setIsCounting(false);
+          setIsGameStarted(true);
           void beginGame();
           return 0;
         }
