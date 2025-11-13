@@ -1,5 +1,6 @@
 package com.heungbuja.user.controller;
 
+import com.heungbuja.common.security.AdminPrincipal;
 import com.heungbuja.user.dto.UserRegisterRequest;
 import com.heungbuja.user.dto.UserResponse;
 import com.heungbuja.user.dto.UserUpdateRequest;
@@ -8,7 +9,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -22,28 +23,28 @@ public class UserController {
 
     @PostMapping
     public ResponseEntity<UserResponse> registerUser(
-            Authentication authentication,
+            @AuthenticationPrincipal AdminPrincipal principal,
             @Valid @RequestBody UserRegisterRequest request) {
-        Long adminId = (Long) authentication.getPrincipal();
+        Long adminId = principal.getId();
         UserResponse response = userService.registerUser(adminId, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<UserResponse> getUser(
-            Authentication authentication,
+            @AuthenticationPrincipal AdminPrincipal principal,
             @PathVariable Long id) {
-        Long requesterId = (Long) authentication.getPrincipal();
+        Long requesterId = principal.getId();
         UserResponse response = userService.getUserById(requesterId, id);
         return ResponseEntity.ok(response);
     }
 
     @GetMapping
     public ResponseEntity<List<UserResponse>> getUsers(
-            Authentication authentication,
+            @AuthenticationPrincipal AdminPrincipal principal,
             @RequestParam(required = false) Long adminId,
             @RequestParam(required = false, defaultValue = "false") boolean activeOnly) {
-        Long requesterId = (Long) authentication.getPrincipal();
+        Long requesterId = principal.getId();
 
         // adminId가 없으면 본인의 어르신만 조회
         Long targetAdminId = adminId != null ? adminId : requesterId;
@@ -60,19 +61,19 @@ public class UserController {
 
     @PutMapping("/{id}")
     public ResponseEntity<UserResponse> updateUser(
-            Authentication authentication,
+            @AuthenticationPrincipal AdminPrincipal principal,
             @PathVariable Long id,
             @Valid @RequestBody UserUpdateRequest request) {
-        Long requesterId = (Long) authentication.getPrincipal();
+        Long requesterId = principal.getId();
         UserResponse response = userService.updateUser(requesterId, id, request);
         return ResponseEntity.ok(response);
     }
 
     @PutMapping("/{id}/deactivate")
     public ResponseEntity<Void> deactivateUser(
-            Authentication authentication,
+            @AuthenticationPrincipal AdminPrincipal principal,
             @PathVariable Long id) {
-        Long requesterId = (Long) authentication.getPrincipal();
+        Long requesterId = principal.getId();
         userService.deactivateUser(requesterId, id);
         return ResponseEntity.noContent().build();
     }
