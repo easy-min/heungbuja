@@ -387,18 +387,29 @@ public class GameService {
         // 판정 트리거
         if (currentPlayTime > actionTime + JUDGMENT_BUFFER_SECONDS) {
             if (!gameSession.getFrameBuffer().isEmpty()) {
-                List<String> frames = new ArrayList<>(gameSession.getFrameBuffer().values());
-                callAiServerForJudgment(sessionId, gameSession, currentAction, frames);
+
+                // --- ▼ (핵심 수정) 4번에 1번만 AI 서버를 호출하도록 변경 ---
+                if (gameSession.getJudgmentCount() % 4 == 0) {
+                    List<String> frames = new ArrayList<>(gameSession.getFrameBuffer().values());
+                    callAiServerForJudgment(sessionId, gameSession, currentAction, frames);
+                    log.info(" > AI 서버 요청 실행 (카운트: {})", gameSession.getJudgmentCount());
+                } else {
+                    log.info(" > AI 서버 요청 건너뛰기 (카운트: {})", gameSession.getJudgmentCount());
+                    // 요청을 안 보낼 때도 피드백을 주려면 기본 점수로 처리할 수 있습니다.
+                    // handleJudgmentResult(sessionId, 1, actionTime);
+                }
+                // 카운터 증가
+                gameSession.setJudgmentCount(gameSession.getJudgmentCount() + 1);
+                // --- ▲ -------------------------------------------------- ▲ ---
+
             }
 
             gameSession.setNextActionIndex(nextActionIndex + 1);
             gameSession.getFrameBuffer().clear();
 
-            // --- ▼ (핵심 수정) 2절의 마지막 동작이 끝나면 자동 종료 대신 로그만 남김 ---
             if (gameSession.getNextLevel() != null && gameSession.getNextActionIndex() >= timeline.size()) {
                 log.info("세션 {}의 2절 모든 동작 판정 완료. 프론트엔드의 /api/game/end 호출을 대기합니다.", sessionId);
             }
-            // --- ▲ ----------------------------------------------------------- ▲ ---
         }
         saveGameSession(sessionId, gameSession);
     }
