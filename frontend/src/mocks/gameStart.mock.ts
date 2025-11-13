@@ -49,8 +49,8 @@ export async function mockGameStart(): Promise<GameStartResponse> {
   ];
 
   return {
-    success: true,
-    data: {
+    intent: 'game_start',
+    gameInfo: {
       sessionId: '19cb4d67-07f3-400e-9dc9-6d8bc2402446',
       songId: 1,
       songTitle: '당돌한 여자',
