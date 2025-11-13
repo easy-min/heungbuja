@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { gameStartApi } from '@/api/game';
 import { useGameStore } from '@/store/gameStore';
@@ -8,6 +8,20 @@ function TutorialPage(){
   const nav = useNavigate();
   const setFromApi = useGameStore(s => s.setFromApi);
   const [loading, setLoading] = useState(false);
+
+  // 페이지 진입 시 자동으로 게임 데이터 로드
+  useEffect(() => {
+    const initGameData = async () => {
+      try {
+        const res = await gameStartApi();
+        setFromApi(res);
+        console.log('게임 데이터 로드 완료:', res);
+      } catch (e) {
+        console.error('게임 데이터 로드 실패:', e);
+      }
+    };
+    initGameData();
+  }, [setFromApi]);
 
   const handleStart = async () => {
     if (loading) return;
