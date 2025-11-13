@@ -41,6 +41,7 @@ export interface GameState {
   clear: () => void;
 }
 
+
 export const useGameStore = create<GameState>((set) => ({
   // 기본값
   sessionId: null,
@@ -72,7 +73,7 @@ export const useGameStore = create<GameState>((set) => ({
 
   // API 응답 전체 주입
   setFromApi: (resp) => {
-    const d = resp.data;
+    const d = resp.gameInfo;
     set({
       sessionId: d.sessionId,
       songId: d.songId,

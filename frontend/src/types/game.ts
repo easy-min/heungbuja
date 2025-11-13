@@ -23,8 +23,8 @@ export interface actionLine {
 }
 
 export interface GameStartResponse {
-  success: boolean;
-  data: {
+  intent: string;
+  gameInfo:  {
     sessionId: string;
     songId: number;
     songTitle: string;
@@ -46,4 +46,9 @@ export interface GameStartResponse {
       level3: actionLine[];
     };
   };
+}
+
+export interface ListeningData {
+  songId: number;
+  autoPlay: boolean;
 }

@@ -2,8 +2,9 @@ import { useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { sendVoiceCommand } from '../api/voiceCommandApi';
 import type { VoiceCommandResponse } from '../types/voiceCommand';
+import { useAudioStore } from '@/store/audioStore';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://heungbuja.site/api';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
 interface UseVoiceCommandReturn {
   isUploading: boolean;
@@ -22,6 +23,7 @@ export const useVoiceCommand = (): UseVoiceCommandReturn => {
   const [responseText, setResponseText] = useState<string | null>(null);
   const navigate = useNavigate();
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const { pause: pauseAudio, play: playAudio } = useAudioStore();
 
   // TTS 재생 함수
   const playTTS = useCallback((ttsUrl: string | null, onComplete?: () => void) => {
@@ -87,54 +89,83 @@ export const useVoiceCommand = (): UseVoiceCommandReturn => {
     });
   }, []);
 
-  // 화면 전환 처리
-  const handleScreenTransition = useCallback((response: VoiceCommandResponse) => {
-    const { screenTransition, responseText, songInfo } = response;
+  // intent 기반 통합 명령 처리
+  const handleCommand = useCallback((response: VoiceCommandResponse) => {
+    const { intent, songInfo, screenTransition } = response;
 
-    // responseText에 "게임" 또는 "체조" 키워드가 있으면 tutorial로 이동
-    if (responseText && (responseText.includes('게임') || responseText.includes('체조'))) {
-      console.log('게임/체조 키워드 감지 → /tutorial로 이동');
-      navigate('/tutorial', {
-        state: screenTransition?.data || {},
-      });
-      return;
+    console.log('명령 처리 - intent:', intent);
+
+    switch (intent) {
+      // 음악 제어
+      case 'MUSIC_PAUSE':
+        console.log('음악 일시정지');
+        pauseAudio();
+        break;
+
+      case 'MUSIC_RESUME':
+        console.log('음악 재생 재개');
+        playAudio();
+        break;
+
+      case 'MUSIC_STOP':
+        console.log('음악 종료, 홈화면 이동');
+        navigate('/home');
+        break;
+      
+      // 화면 전환
+      case 'MODE_HOME':
+        console.log('홈 화면으로 이동');
+        navigate('/home');
+        break;
+
+      case 'MODE_LISTENING':
+        console.log('감상 모드로 이동');
+        navigate('/listening', {
+          state: songInfo ? { songInfo, autoPlay: true } : undefined
+        });
+        break;
+
+      case 'MODE_EXERCISE':
+        console.log('체조 모드로 이동');
+        navigate('/tutorial', {
+          state: screenTransition?.data
+        });
+        break;
+
+      case 'MODE_EXERCISE_END':
+        console.log('체조 종료 - 결과 화면으로 이동');
+        navigate('/result', {
+          state: screenTransition?.data
+        });
+        break;
+
+      // 노래 선택 (아티스트, 제목, 랜덤 등)
+      case 'SELECT_BY_ARTIST':
+      case 'SELECT_BY_TITLE':
+      case 'SELECT_RANDOM':
+        console.log('노래 선택 → /listening으로 이동', songInfo);
+        if (songInfo) {
+          navigate('/listening', {
+            state: {
+              songInfo,
+              autoPlay: true,
+            },
+          });
+        }
+        break;
+
+      default:
+        console.log('처리되지 않은 intent:', intent);
+        // screenTransition이 있으면 targetScreen으로 이동
+        if (screenTransition?.targetScreen) {
+          console.log('기본 화면 전환:', screenTransition.targetScreen);
+          navigate(screenTransition.targetScreen, {
+            state: screenTransition.data,
+          });
+        }
+        break;
     }
-
-    if (!screenTransition) {
-      // 화면 전환 없음 (일시정지, 응급 상황 등)
-      return;
-    }
-
-    const { targetScreen, action, data } = screenTransition;
-
-    // 노래 재생의 경우 (/listening -> /song)
-    if (action === 'PLAY_SONG' && songInfo) {
-      console.log('노래 재생 → /song으로 이동', songInfo);
-      navigate('/song', {
-        state: {
-          songInfo,
-          autoPlay: data?.autoPlay || true,
-        },
-      });
-      return;
-    }
-
-    // 게임 시작의 경우 songId를 URL에 포함
-    if (action === 'START_GAME' && data?.songId) {
-      console.log('게임 시작 → /game으로 이동', data);
-      const gameUrl = `/game/${data.songId}`;
-      navigate(gameUrl, {
-        state: data,
-      });
-      return;
-    }
-
-    // 그 외의 경우 targetScreen 그대로 사용
-    console.log('화면 전환:', targetScreen, data);
-    navigate(targetScreen, {
-      state: data,
-    });
-  }, [navigate]);
+  }, [pauseAudio, playAudio, navigate]);
 
   // 음성 명령 전송
   const sendCommand = useCallback(async (audioBlob: Blob) => {
@@ -156,10 +187,10 @@ export const useVoiceCommand = (): UseVoiceCommandReturn => {
 
       // 성공 시
       if (result.success) {
-        // TTS 재생 후 화면 전환
+        // TTS 재생 후 명령 처리
         playTTS(result.ttsAudioUrl, () => {
-          // TTS 재생 완료되면 화면 전환
-          handleScreenTransition(result);
+          // TTS 재생 완료되면 intent 기반 명령 처리
+          handleCommand(result);
         });
       } else {
         // 실패 시 에러 메시지
@@ -176,7 +207,7 @@ export const useVoiceCommand = (): UseVoiceCommandReturn => {
       // console.log('✅ setIsUploading(false) 호출됨 (finally)');
       setIsUploading(false);
     }
-  }, [playTTS, handleScreenTransition]);
+  }, [playTTS, handleCommand]);
 
   return {
     isUploading,
