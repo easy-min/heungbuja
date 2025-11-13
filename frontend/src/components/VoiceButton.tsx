@@ -2,14 +2,15 @@ import React, { useEffect } from 'react';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 import { useVoiceCommand } from '../hooks/useVoiceCommand';
 import VoiceOverlay from './Voiceoverlay';
+import { useAudioStore } from '@/store/audioStore';
 import './VoiceButton.css';
 
 const VoiceButton: React.FC = () => {
-  const { 
-    isRecording, 
-    countdown, 
-    audioBlob, 
-    startRecording 
+  const {
+    isRecording,
+    countdown,
+    audioBlob,
+    startRecording
   } = useVoiceRecorder();
 
   const {
@@ -18,6 +19,8 @@ const VoiceButton: React.FC = () => {
     responseText,
     sendCommand,
   } = useVoiceCommand();
+
+  const { pause } = useAudioStore();
 
   // 🔍 디버깅: 상태 변화 추적
   // console.log('🎤 VoiceButton 상태:', {
@@ -29,8 +32,15 @@ const VoiceButton: React.FC = () => {
   // });
 
   const handleClick = () => {
+    console.log('🎤 VoiceButton 클릭됨');
     if (!isRecording && !isUploading && !isPlaying) {
+      // 녹음 시작 전에 노래 멈추기
+      console.log('⏸️ 노래 일시정지 시도');
+      pause();
+      console.log('🎙️ 녹음 시작');
       startRecording();
+    } else {
+      console.log('⚠️ 버튼 비활성 상태 (isRecording:', isRecording, 'isUploading:', isUploading, 'isPlaying:', isPlaying, ')');
     }
   };
 

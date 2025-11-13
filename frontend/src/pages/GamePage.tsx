@@ -337,7 +337,7 @@ function GamePage() {
         }
 
         // 가사/메타
-        setLyrics(storeLyrics ?? []);
+        setLyrics(lyrics ?? []);
         songBpmRef.current = bpm;
 
         // useMusicMonitor가 기대하는 timeline 형태로 매핑
