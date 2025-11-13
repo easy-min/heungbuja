@@ -75,3 +75,8 @@ app:
     bucket: ${APP_S3_BUCKET:heungbuja-bucket}
     region: ${APP_S3_REGION:ap-northeast-2}
     url-ttl-minutes: ${APP_S3_URL_TTL_MINUTES:30}
+
+# python AI server
+ai:
+  server:
+    base-url: https://heungbuja.site/motion

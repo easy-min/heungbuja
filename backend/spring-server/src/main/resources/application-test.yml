@@ -36,6 +36,8 @@ logging:
     com.heungbuja: DEBUG
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql: TRACE # SQL 파라미터 값까지 확인
+#    org.springframework.messaging: TRACE
+#    org.springframework.web.socket: TRACE
 
 # 테스트를 위해 임시로 모든 API 경로 허용
 security:

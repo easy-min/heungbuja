@@ -3,101 +3,180 @@
   position: relative;
   width: 100vw;
   height: 100vh;
-  background-color: #FFFFFF;
+  background-color: var(--color-secondary);
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   overflow: hidden;
-  gap: 20px;
-}
-.gradient-blur {
-  position: absolute;
-  width: 330px;
-  height: 390px;
-  border-radius: 50%;
-  background: radial-gradient(
-    circle at 30% 30%,
-    #FFFFFF 10%,
-    #FFD166 20%,
-    #FF5035 40%,
-    #E6264F 70%,
-    transparent 100%
-  );
-  filter: blur(37px);
-  animation: rotate 10s linear infinite;
+  gap: 30px;
 }
 
-.white-circle {
-  position: relative;
-  width: 300px;
-  height: 300px;
-  background-color: rgb(255, 255, 255);
-  border-radius: 50%;
-  z-index: 1;
-  box-shadow: 0 0 60px rgba(255, 255, 255, 0.3);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  gap: 10px;
-}
-
-.song-info {
-  text-align: center;
-  padding: 20px;
-}
-
+/* 노래 제목 */
 .song-title {
-  font-size: 24px;
-  font-weight: bold;
-  color: #FF5035;
-  margin: 0 0 8px 0;
-}
-
-.song-artist {
-  font-size: 16px;
-  color: #666;
+  font-size: 48px;
+  font-weight: 700;
+  color: var(--color-text);
+  text-align: center;
+  letter-spacing: -1px;
+  line-height: 1.2;
   margin: 0;
 }
 
-.playing-indicator {
-  font-size: 14px;
-  color: #E6264F;
-  animation: pulse 1.5s ease-in-out infinite;
+/* 가수 이름 */
+.song-artist {
+  font-size: 24px;
+  font-weight: 400;
+  color: rgba(51, 51, 51, 0.7);
+  text-align: center;
+  margin: -10px 0 0 0;
+  letter-spacing: 0.5px;
 }
 
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
-}
 
-.audio-player {
-  z-index: 2;
+/* ===== LP판 턴테이블 스타일 ===== */
+.lp-container {
+  position: relative;
   width: 400px;
-  max-width: 90%;
+  height: 400px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
-.time-display {
-  z-index: 2;
-  color: #666;
-  font-size: 14px;
+/* LP판 */
+.lp-disc {
+  width: 300px;
+  height: 300px;
+  border-radius: 50%;
+  background:
+    /* 중앙 원형 그루브 */
+    radial-gradient(circle at center, #1a1a1a 0%, #1a1a1a 28%, #000 29%, #000 30%, transparent 31%),
+    /* 4등분 밝기 효과 */
+    conic-gradient(
+      from 45deg,
+      #1a1a1a 0deg,
+      #2a2a2a 45deg,
+      #2a2a2a 90deg,
+      #1a1a1a 90deg,
+      #1a1a1a 180deg,
+      #2a2a2a 225deg,
+      #2a2a2a 270deg,
+      #1a1a1a 270deg
+    );
+  position: relative;
+  animation: spin 3s linear infinite;
+  animation-play-state: paused;
+  overflow: hidden;
 }
 
-.music-icon {
-  color: #FF5035;
+/* LP판 빛 반사 효과 - 컨테이너 */
+.lp-disc .light-reflection {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  pointer-events: none;
 }
 
-/* 회전 애니메이션 */
-@keyframes rotate {
+
+/* LP판 재생 중일 때 회전 */
+.lp-container.playing .lp-disc {
+  animation-play-state: running;
+}
+
+/* LP판 회전 애니메이션 */
+@keyframes spin {
   from {
     transform: rotate(0deg);
   }
   to {
     transform: rotate(360deg);
   }
+}
+
+/* LP판 중앙 레이블 (accent) */
+.lp-disc::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100px;
+  height: 100px;
+  background:  var(--color-accent);
+  border-radius: 50%;
+}
+
+/* LP판 중앙 구멍 */
+.lp-disc::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 15px;
+  height: 15px;
+  background: #000;
+  border-radius: 50%;
+}
+
+/* 톤암 받침대 */
+.tonearm-base {
+  position: absolute;
+  top: 10%;
+  right: 4.5%;
+  width: 35px;
+  height: 35px;
+  background: linear-gradient(135deg, #555 0%, #333 100%);
+  border-radius: 50%;
+
+  z-index: 2;
+}
+
+/* 톤암 (팔) */
+.tonearm {
+  position: absolute;
+  top: calc(12% + 17.5px);
+  right: calc(5% + 17.5px);
+  width: 200px;
+  height: 6px;
+  background: linear-gradient(90deg, #666 0%, #444 50%, #333 100%);
+  border-radius: 3px;
+  transform-origin: right center;
+  transform: rotate(-90deg); /* 세로로 세움 */
+  transition: transform 0.8s ease-in-out;
+  z-index: 1;
+}
+
+/* 재생 중일 때 톤암 LP판 위로 회전 */
+.lp-container.playing .tonearm {
+  transform: rotate(-65deg); /* 세운 상태에서 LP판 쪽으로 기울임 */
+}
+
+/* 헤드쉘 (바늘 부분) */
+.tonearm::before {
+  content: '';
+  position: absolute;
+  left: -18px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 10px;
+  background: linear-gradient(90deg, #555 0%, #666 100%);
+  border-radius: 5px;
+}
+
+/* 바늘 (스타일러스) */
+.tonearm::after {
+  content: '';
+  position: absolute;
+  left: -20px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2px;
+  height: 18px;
+  background: linear-gradient(180deg, #999 0%, #666 100%);
+  border-radius: 1px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 }

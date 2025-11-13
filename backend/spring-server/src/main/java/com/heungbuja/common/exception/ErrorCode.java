@@ -16,6 +16,7 @@ public enum ErrorCode {
     // Admin
     ADMIN_NOT_FOUND(HttpStatus.NOT_FOUND, "Admin not found"),
     ADMIN_ALREADY_EXISTS(HttpStatus.CONFLICT, "Admin already exists"),
+    ADMIN_HAS_DEPENDENCIES(HttpStatus.CONFLICT, "Admin has dependencies (devices or users)"),
     INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "Invalid credentials"),
 
     // Device

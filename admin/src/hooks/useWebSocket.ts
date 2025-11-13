@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import SockJS from 'sockjs-client';
 import { Client, type IMessage } from '@stomp/stompjs';
 import type{
-  EmergencyReportMessage,
   UserStatusUpdateMessage,
   EmergencyResolvedMessage,
 } from '../types/websocket';
@@ -118,21 +117,26 @@ export const useWebSocket = (options?: UseWebSocketOptions) => {
   // 신고 메시지 처리
   const handleEmergencyReport = (message: IMessage) => {
     try {
-      const data: EmergencyReportMessage = JSON.parse(message.body);
-      console.log('🚨 New Emergency Report:', data);
+      const rawData = JSON.parse(message.body);
+      console.log('🚨 Raw WebSocket message:', rawData);
+
+      // 백엔드는 data 속성 없이 모든 필드를 최상위에 보냄
+      // type 필드를 제외한 나머지를 reportData로 사용
+      const { type, ...reportData } = rawData;
+      console.log('🚨 Report data:', reportData);
 
       // 스토어에 신고 추가
-      addReport(data.data);
+      addReport(reportData);
 
       // 활동 피드에 추가
       addActivity({
-        id: `emergency-${data.data.reportId}-${Date.now()}`,
+        id: `emergency-${reportData.reportId}-${Date.now()}`,
         type: 'EMERGENCY',
-        message: `긴급 신고 발생: ${data.data.userName}`,
-        detail: data.data.message || data.data.triggerWord,
-        userId: data.data.userId,
-        userName: data.data.userName,
-        timestamp: data.data.reportedAt,
+        message: `긴급 신고 발생: ${reportData.userName}`,
+        detail: reportData.message || reportData.triggerWord,
+        userId: reportData.userId,
+        userName: reportData.userName,
+        timestamp: reportData.reportedAt,
       });
 
       // 알림 카운트 증가
@@ -141,8 +145,7 @@ export const useWebSocket = (options?: UseWebSocketOptions) => {
       // 브라우저 알림 (권한이 있으면)
       if (Notification.permission === 'granted') {
         new Notification('🚨 긴급 신고 발생!', {
-          body: `${data.data.userName}님의 신고가 접수되었습니다.`,
-          icon: '/emergency-icon.png',
+          body: `${reportData.userName}님의 신고가 접수되었습니다.`,
         });
       }
     } catch (error) {
