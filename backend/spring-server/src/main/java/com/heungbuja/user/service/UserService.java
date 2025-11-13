@@ -1,6 +1,7 @@
 package com.heungbuja.user.service;
 
 import com.heungbuja.admin.entity.Admin;
+import com.heungbuja.admin.service.AdminAuthorizationService;
 import com.heungbuja.admin.service.AdminService;
 import com.heungbuja.device.entity.Device;
 import com.heungbuja.device.entity.Device.DeviceStatus;
@@ -29,6 +30,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final DeviceService deviceService;
     private final AdminService adminService;
+    private final AdminAuthorizationService adminAuthorizationService;
     private final VoiceCommandRepository voiceCommandRepository;
 
     @Transactional
@@ -67,13 +69,13 @@ public class UserService {
     public UserResponse getUserById(Long requesterId, Long userId) {
         User user = findById(userId);
         // 접근 권한 확인
-        adminService.validateAdminAccess(requesterId, user.getAdmin().getId());
+        adminAuthorizationService.requireAdminAccess(requesterId, user.getAdmin().getId());
         return UserResponse.from(user);
     }
 
     public List<UserResponse> getUsersByAdmin(Long requesterId, Long adminId) {
         // 접근 권한 확인
-        adminService.validateAdminAccess(requesterId, adminId);
+        adminAuthorizationService.requireAdminAccess(requesterId, adminId);
         return userRepository.findByAdminId(adminId).stream()
                 .map(this::enrichWithRecentActivities)
                 .collect(Collectors.toList());
@@ -109,7 +111,7 @@ public class UserService {
 
     public List<UserResponse> getActiveUsersByAdmin(Long requesterId, Long adminId) {
         // 접근 권한 확인
-        adminService.validateAdminAccess(requesterId, adminId);
+        adminAuthorizationService.requireAdminAccess(requesterId, adminId);
         return userRepository.findByAdminIdAndIsActive(adminId, true).stream()
                 .map(UserResponse::from)
                 .collect(Collectors.toList());
@@ -119,7 +121,7 @@ public class UserService {
     public UserResponse updateUser(Long requesterId, Long userId, UserUpdateRequest request) {
         User user = findById(userId);
         // 접근 권한 확인
-        adminService.validateAdminAccess(requesterId, user.getAdmin().getId());
+        adminAuthorizationService.requireAdminAccess(requesterId, user.getAdmin().getId());
 
         user.updateInfo(
                 request.getName(),
@@ -136,7 +138,7 @@ public class UserService {
     public void deactivateUser(Long requesterId, Long userId) {
         User user = findById(userId);
         // 접근 권한 확인
-        adminService.validateAdminAccess(requesterId, user.getAdmin().getId());
+        adminAuthorizationService.requireAdminAccess(requesterId, user.getAdmin().getId());
         user.deactivate();
     }
 

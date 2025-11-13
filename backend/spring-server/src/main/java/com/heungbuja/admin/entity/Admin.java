@@ -51,11 +51,16 @@ public class Admin {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    @OneToMany(mappedBy = "admin", cascade = CascadeType.ALL)
+    // Cascade 제거 - Admin 삭제 시 Device/User 자동 삭제 방지
+    @OneToMany(mappedBy = "admin", fetch = FetchType.LAZY)
     @Builder.Default
     private List<Device> devices = new ArrayList<>();
 
-    @OneToMany(mappedBy = "admin", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "admin", fetch = FetchType.LAZY)
     @Builder.Default
     private List<User> users = new ArrayList<>();
+
+    public boolean hasDependencies() {
+        return !devices.isEmpty() || !users.isEmpty();
+    }
 }
