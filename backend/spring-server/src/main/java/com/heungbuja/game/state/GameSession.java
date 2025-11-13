@@ -43,6 +43,12 @@ public class GameSession implements Serializable {
     private long lastFrameReceivedTime;
 
     /**
+     * (임시) AI 서버 요청 빈도를 조절하기 위한 카운터
+     */
+    @Builder.Default
+    private int judgmentCount = 0; // <-- 추가된 필드
+
+    /**
      * 현재 이 세션이 종료 처리(레벨 결정, 결과 저장 등) 중인지 여부를 나타내는 플래그
      * transient: Redis에 저장할 필요 없는, 메모리에서만 사용하는 상태값
      */
@@ -63,6 +69,7 @@ public class GameSession implements Serializable {
                 .nextActionIndex(0)
                 .frameBuffer(new HashMap<>())
                 .lastFrameReceivedTime(0L)
+                .judgmentCount(0) // <-- 빌더에 초기값 설정 추가
                 .build();
     }
 }
