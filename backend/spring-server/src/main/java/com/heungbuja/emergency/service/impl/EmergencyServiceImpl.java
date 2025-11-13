@@ -134,7 +134,7 @@ public class EmergencyServiceImpl implements EmergencyService {
             @Override
             public void afterCommit() {
                 log.info("트랜잭션 커밋 완료, 스케줄 등록: reportId={}", reportId);
-                scheduleAutoConfirm(reportId, 10);
+                scheduleAutoConfirm(reportId, 60);
             }
         });
     }
