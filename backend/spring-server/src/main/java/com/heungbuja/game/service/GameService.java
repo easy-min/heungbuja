@@ -54,16 +54,7 @@ import java.util.stream.IntStream;
 @RequiredArgsConstructor
 public class GameService {
 
-    /**
-     * 노래 ID를 Key로, 미리 계산된 '시간-동작코드 타임라인'을 Value로 갖는 캐시
-     */
-    private final Map<Long, List<ActionTimelineEvent>> choreographyCache = new HashMap<>();
-
     // --- 상수 정의 ---
-    /** 1절을 구성하는 총 세그먼트(묶음)의 수 */
-//    private static final int VERSE_1_TOTAL_SEGMENTS = 6;
-    /** 게임 전체를 구성하는 총 세그먼트의 수 (1절 + 2절) */
-//    private static final int GAME_TOTAL_SEGMENTS = 12;
     /** Redis 세션 만료 시간 (분) */
     private static final int SESSION_TIMEOUT_MINUTES = 30;
     private static final int JUDGMENT_PERFECT = 3;
@@ -89,10 +80,8 @@ public class GameService {
     private final WebClient webClient;
     private final GameResultRepository gameResultRepository;
     private final GameDetailRepository gameDetailRepository;
-//    private final MediaUrlService mediaUrlService;
     private final SimpMessagingTemplate messagingTemplate;
     private final SessionStateService sessionStateService;
-//    private final ScoringStrategyFactory scoringStrategyFactory;
     private final ChoreographyPatternRepository choreographyPatternRepository;
     private final ActionRepository actionRepository;
 
@@ -753,41 +742,11 @@ public class GameService {
         gameSessionRedisTemplate.opsForValue().set(key, gameSession, Duration.ofMinutes(SESSION_TIMEOUT_MINUTES)); // <-- (수정) 정의된 Key를 사용합니다.
     }
 
-    /**
-     * 특정 섹션(part1, part2) 내의 16비트(4마디) 묶음별 시작 시간을 계산하는 헬퍼 메소드
-     */
-    private List<Double> calculateSegmentStartTimes(SongBeat songBeat, Map<Integer, Double> barStartTimes, String sectionLabel) {
-        // 1. 해당 섹션 정보 찾기
-        SongBeat.Section targetSection = songBeat.getSections().stream()
-                .filter(s -> sectionLabel.equals(s.getLabel()))
-                .findFirst()
-                .orElse(null);
-
-        if (targetSection == null) {
-            log.warn("'{}' 섹션을 찾을 수 없어 세그먼트 시간을 계산할 수 없습니다.", sectionLabel);
-            return List.of(); // 빈 리스트 반환
-        }
-
-        int startBar = targetSection.getStartBar();
-        int endBar = targetSection.getEndBar();
-        final int BARS_PER_SEGMENT = 4; // 16비트 = 4마디
-
-        // 2. IntStream을 사용하여 4마디 간격으로 시작 마디 번호를 생성하고, 해당 마디의 시작 시간을 List로 수집
-        return IntStream.iterate(startBar, bar -> bar < endBar, bar -> bar + BARS_PER_SEGMENT)
-                .mapToObj(barNum -> barStartTimes.getOrDefault(barNum, -1.0))
-                .filter(time -> time >= 0) // 혹시 모를 오류(시작 시간을 찾지 못한 경우) 방지
-                .collect(Collectors.toList());
-    }
 
     private int determineLevel(double averageScore) {
         if (averageScore >= 80) return 3;
         if (averageScore >= 60) return 2;
         return 1;
-    }
-
-    private int findCorrectActionCodeForCurrentTime(Long songId, double currentPlayTime) {
-        // TODO: 구현 필요
-        return 0;
     }
 
     // (신규) 실시간 피드백 발송 헬퍼 메소드
