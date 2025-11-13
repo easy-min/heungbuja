@@ -535,7 +535,7 @@ public class GameService {
      * 1절 종료 시, 레벨 결정 결과를 WebSocket으로 발송하는 메소드
      */
     public void decideAndSendNextLevel(String sessionId) {
-        GameSession gameSession = getGameSession(sessionId); // '점수판'을 가져옴
+        GameSession gameSession = getGameSession(sessionId);
 
         double averageScore = calculateScoreFromJudgments(gameSession.getVerse1Judgments());
         int nextLevel = determineLevel(averageScore);
@@ -544,12 +544,15 @@ public class GameService {
         String characterVideoUrl = gameState.getVideoUrls().getOrDefault("verse2_level" + nextLevel, "https://example.com/error.mp4");
 
         gameSession.setNextLevel(nextLevel);
-
-        // --- ▼ (핵심 수정 2) 2절의 첫 동작부터 다시 판정할 수 있도록 인덱스를 0으로 초기화합니다. ---
         gameSession.setNextActionIndex(0);
+
+        // --- ▼ (핵심 수정) 세션을 '2절 대기' 상태로 되돌립니다. (타임아웃 검사 비활성화) ---
+        gameSession.setLastFrameReceivedTime(0L);
+        // 1절 종료 처리가 모두 끝났으므로, '처리 중' 상태를 해제합니다.
+        gameSession.setProcessing(false);
         // --- ▲ ------------------------------------------------------------------- ▲ ---
 
-        saveGameSession(sessionId, gameSession); // 변경된 '점수판' 저장
+        saveGameSession(sessionId, gameSession); // 모든 상태 변경사항을 한 번에 저장
 
         LevelDecisionData levelData = new LevelDecisionData(nextLevel, characterVideoUrl);
         GameWebSocketMessage<LevelDecisionData> message = new GameWebSocketMessage<>("LEVEL_DECISION", levelData);
