@@ -42,16 +42,12 @@ export function useGameWs(options?: UseGameWsOptions): UseGameWsReturn {
   const [isConnecting, setIsConnecting] = useState(false);
   const clientRef = useRef<Client | null>(null);
   const currentSessionRef = useRef<string | null>(null);
+  const everConnectedRef = useRef(false);
 
   /** 연결 */
   const connect = useCallback((sessionId: string) => {
     if (isConnected || isConnecting) return;
 
-    const token = localStorage.getItem('accessToken');
-    if (!token) {
-      console.warn('No access token found - skip WS connection');
-      return;
-    }
     setIsConnecting(true);
     currentSessionRef.current = sessionId;
 
@@ -60,12 +56,12 @@ export function useGameWs(options?: UseGameWsOptions): UseGameWsReturn {
 
       const client = new Client({
         webSocketFactory: () => socket as unknown as WebSocket,
-        connectHeaders: { Authorization: `Bearer ${token}` },
         debug: (str) => console.log('[STOMP Debug]', str),
         reconnectDelay: 5000,
         heartbeatIncoming: 4000,
         heartbeatOutgoing: 4000,
         onConnect: () => {
+          everConnectedRef.current = true;
           setIsConnected(true);
           setIsConnecting(false);
           options?.onConnect?.();
@@ -97,12 +93,23 @@ export function useGameWs(options?: UseGameWsOptions): UseGameWsReturn {
         onWebSocketClose: () => {
           setIsConnected(false);
           setIsConnecting(false);
-          options?.onError?.(new Error('WebSocket closed'));
+
+          // 최초 연결 전이면 options.onError로 알리고(=리다이렉트 대상),
+          // 그 이후라면 단순 끊김 알림 정도로만 처리(재연결은 stomp-js가 수행).
+          if (!everConnectedRef.current) {
+            options?.onError?.(new Error('WebSocket closed before first connect'));
+          } else {
+            options?.onDisconnect?.(); // 배너 등
+          }
         },
         onWebSocketError: () => {
           setIsConnected(false);
           setIsConnecting(false);
-          options?.onError?.(new Error('WebSocket error'));
+          if (!everConnectedRef.current) {
+            options?.onError?.(new Error('WebSocket error before first connect'));
+          } else {
+            options?.onDisconnect?.();
+          }
         },
       });
 

@@ -41,6 +41,10 @@ function GamePage() {
       setWsMessage('웹소켓 연결 실패');   // 문구 먼저 노출
       setRedirectReason('wsError');       // 이동은 별도 effect에서 지연 처리
     },
+    onDisconnect: () => {
+    // 최초 연결 이후 끊김: 배너만 띄우고 기다리면 stomp가 자동 재연결
+    setWsMessage('연결이 끊어졌습니다. 재시도 중…');
+  },
   });
 
   const { isCapturing, start: startStream, stop: stopStream } = useFrameStreamer({
