@@ -30,7 +30,7 @@ public class RefreshToken {
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "device_id")
+    @JoinColumn(name = "device_id", nullable = true)
     private Device device;
 
     // Admin 로그인용
