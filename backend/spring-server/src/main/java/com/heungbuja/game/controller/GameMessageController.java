@@ -35,6 +35,11 @@ public class GameMessageController {
         gameService.processFrame(request);
     }
 
+    @MessageMapping("/game/ping") // <-- 파라미터 없는 간단한 주소
+    public void handlePing() {
+        log.info("!!!!!!!! PING 메시지 수신 성공 !!!!!!!!");
+    }
+
     /**
      * 1절 종료 후, 레벨 결정을 요청하는 엔드포인트
      * 클라이언트는 "/app/game/decide-level" 주소로 sessionId만 담아 메시지를 보냅니다.

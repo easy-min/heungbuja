@@ -1,5 +1,6 @@
 package com.heungbuja.common.security;
 
+import com.heungbuja.admin.entity.AdminRole;
 import com.heungbuja.common.util.JwtUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -37,8 +38,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             // Spring Security는 ROLE_ prefix를 기대함
             String authority = role.startsWith("ROLE_") ? role : "ROLE_" + role;
 
+            // Admin인 경우 AdminPrincipal 사용 (타입 안전)
+            Object principal;
+            if (authority.equals("ROLE_ADMIN")) {
+                principal = new AdminPrincipal(userId, username, AdminRole.ADMIN);
+            } else if (authority.equals("ROLE_SUPER_ADMIN")) {
+                principal = new AdminPrincipal(userId, username, AdminRole.SUPER_ADMIN);
+            } else {
+                // User 로그인 (기존 방식: userId만 전달)
+                principal = userId;
+            }
+
             UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                    userId,
+                    principal,
                     null,
                     Collections.singletonList(new SimpleGrantedAuthority(authority))
             );

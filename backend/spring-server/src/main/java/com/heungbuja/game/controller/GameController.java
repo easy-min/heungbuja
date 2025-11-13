@@ -2,6 +2,7 @@ package com.heungbuja.game.controller;
 
 import com.heungbuja.common.exception.CustomException;
 import com.heungbuja.common.exception.ErrorCode;
+import com.heungbuja.game.state.GameSession;
 import org.springframework.http.HttpStatus;
 
 import com.heungbuja.game.dto.GameStartRequest;
@@ -50,8 +51,13 @@ public class GameController {
      */
     @PostMapping("/end")
     public ResponseEntity<Void> endGame(@RequestParam String sessionId) {
-        gameService.endGame(sessionId);
-        return ResponseEntity.status(HttpStatus.NO_CONTENT).build(); // 내용 없이 성공 상태(204) 응답
+        // 1. gameService를 이용해 sessionId에 해당하는 GameSession 객체를 먼저 조회합니다.
+        GameSession gameSession = gameService.getGameSession(sessionId);
+
+        // 2. 조회한 객체를 endGame 메소드에 전달하여 게임 종료 로직을 수행합니다.
+        gameService.endGame(gameSession); // <-- 컴파일 에러 해결!
+
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
 
     /**

@@ -1,9 +1,8 @@
 package com.heungbuja.game.state;
 
 import com.heungbuja.game.dto.ActionTimelineEvent;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
+
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -17,6 +16,8 @@ import java.time.Instant;
 @Getter
 @Setter
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class GameSession implements Serializable {
 
     private String sessionId;
@@ -46,7 +47,8 @@ public class GameSession implements Serializable {
      * transient: Redis에 저장할 필요 없는, 메모리에서만 사용하는 상태값
      */
     @Builder.Default
-    private transient boolean processing = false;
+    private boolean processing = false;
+
 
     /**
      * GameSession 객체를 처음 생성할 때 사용하는 정적 팩토리 메소드
@@ -60,7 +62,7 @@ public class GameSession implements Serializable {
                 .verse2Judgments(new ArrayList<>())
                 .nextActionIndex(0)
                 .frameBuffer(new HashMap<>())
-                .lastFrameReceivedTime(Instant.now().toEpochMilli()) // 생성 시점을 초기값으로 설정
+                .lastFrameReceivedTime(0L)
                 .build();
     }
 }
