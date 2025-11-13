@@ -47,15 +47,55 @@ public class GameStartResponse {
     /** 노래 전체 길이 (초) */
     private double duration;
 
-    /** 노래의 주요 섹션별 시작 시간 정보 */
-    private SectionInfo sectionInfo;
+    /** 노래의 주요 섹션별 시작 시간 정보 (intro, verse1, break, verse2) */
+    private Map<String, Double> sectionInfo;
 
-    /** 가사 정보 (원본 JSON 그대로 전달) */
-    private SongLyrics lyricsInfo;
+    /** 카메라 세그먼트 정보 (verse1cam, verse2cam) */
+    private SegmentInfo segmentInfo;
+
+    /** 가사 정보 (라인 배열) */
+    private List<SongLyrics.Line> lyricsInfo;
 
     /** 1절의 동작 타임라인 */
     private List<ActionTimelineEvent> verse1Timeline;
 
-    /** 2절의 레벨별 동작 타임라인을 담는 Map */
-    private Map<String, List<ActionTimelineEvent>> verse2Timelines;
+    /** 2절의 레벨별 동작 타임라인 */
+    private Verse2Timeline verse2Timeline;
+
+    /**
+     * 각 절(verse)의 카메라 타이밍 정보를 담는 내부 DTO
+     */
+    @Getter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class SegmentRange {
+        private double startTime;
+        private double endTime;
+    }
+
+    /**
+     * 세그먼트 정보 (verse1cam, verse2cam)
+     */
+    @Getter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class SegmentInfo {
+        private SegmentRange verse1cam;
+        private SegmentRange verse2cam;
+    }
+
+    /**
+     * 2절 레벨별 타임라인
+     */
+    @Getter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Verse2Timeline {
+        private List<ActionTimelineEvent> level1;
+        private List<ActionTimelineEvent> level2;
+        private List<ActionTimelineEvent> level3;
+    }
 }

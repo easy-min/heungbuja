@@ -260,7 +260,7 @@ public class SongGameDataCache {
                 .endTime(beatNumToTimeMap.getOrDefault(verse2CamEndBeat, 0.0))
                 .build();
 
-        return SectionInfo.builder()
+        SectionInfo result = SectionInfo.builder()
                 .introStartTime(sectionStartTimes.getOrDefault("intro", 0.0))
                 .verse1StartTime(sectionStartTimes.getOrDefault("verse1", 0.0))
                 .breakStartTime(sectionStartTimes.getOrDefault("break", 0.0))
@@ -268,5 +268,8 @@ public class SongGameDataCache {
                 .verse1cam(verse1CamInfo)
                 .verse2cam(verse2CamInfo)
                 .build();
+
+        log.info("SectionInfo 생성 완료 - verse1cam: {}, verse2cam: {}", verse1CamInfo, verse2CamInfo);
+        return result;
     }
 }
