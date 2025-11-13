@@ -21,10 +21,16 @@ analyze_router = APIRouter(prefix="/api/ai", tags=["inference"])
 ACTION_CODE_TO_LABEL = {
     1: "CLAP",
     2: "ELBOW",
+    3: "HIP",
+    4: "STRETCH",
+    5: "TILT"
 }
 ACTION_CODE_TO_DESCRIPTION = {
     1: "손 박수",
     2: "팔 치기",
+    3: "엉덩이 치기",
+    4: "팔 뻗기",
+    5: "기울기기"
 }
 
 
