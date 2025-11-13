@@ -1,24 +1,23 @@
 package com.heungbuja.admin.service;
 
-import com.heungbuja.admin.dto.AdminCreateRequest;
-import com.heungbuja.admin.dto.AdminLoginRequest;
-import com.heungbuja.admin.dto.AdminRegisterRequest;
-import com.heungbuja.admin.dto.AdminResponse;
 import com.heungbuja.admin.entity.Admin;
 import com.heungbuja.admin.entity.AdminRole;
 import com.heungbuja.admin.repository.AdminRepository;
-import com.heungbuja.auth.dto.TokenResponse;
 import com.heungbuja.common.exception.CustomException;
 import com.heungbuja.common.exception.ErrorCode;
-import com.heungbuja.common.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.stream.Collectors;
-
+/**
+ * Admin 엔티티 CRUD 서비스
+ * 인증/권한 검증은 AdminAuthService, AdminAuthorizationService 담당
+ */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -26,100 +25,76 @@ public class AdminService {
 
     private final AdminRepository adminRepository;
     private final PasswordEncoder passwordEncoder;
-    private final JwtUtil jwtUtil;
 
+    /**
+     * Admin 생성 (공통 로직)
+     */
     @Transactional
-    public TokenResponse register(AdminRegisterRequest request) {
-        if (adminRepository.existsByUsername(request.getUsername())) {
-            throw new CustomException(ErrorCode.ADMIN_ALREADY_EXISTS);
-        }
+    public Admin createAdmin(String username, String password, String facilityName,
+                            String contact, String email, AdminRole role) {
+        validateUniqueUsername(username);
 
         Admin admin = Admin.builder()
-                .username(request.getUsername())
-                .password(passwordEncoder.encode(request.getPassword()))
-                .facilityName(request.getFacilityName())
-                .contact(request.getContact())
-                .email(request.getEmail())
-                .role(AdminRole.ADMIN)  // 일반 회원가입은 ADMIN
+                .username(username)
+                .password(passwordEncoder.encode(password))
+                .facilityName(facilityName)
+                .contact(contact)
+                .email(email)
+                .role(role)
                 .build();
 
         Admin savedAdmin = adminRepository.save(admin);
+        log.info("Admin created: id={}, username={}, role={}", savedAdmin.getId(), savedAdmin.getUsername(), savedAdmin.getRole());
 
-        String role = "ROLE_" + savedAdmin.getRole().name();
-        String accessToken = jwtUtil.generateAccessToken(savedAdmin.getId(), savedAdmin.getUsername(), role);
-        String refreshToken = jwtUtil.generateRefreshToken(savedAdmin.getId(), savedAdmin.getUsername(), role);
-
-        return TokenResponse.of(accessToken, refreshToken, savedAdmin.getId(), role);
+        return savedAdmin;
     }
 
+    /**
+     * Admin 삭제 (의존성 체크 포함)
+     */
     @Transactional
-    public AdminResponse createAdmin(Long requesterId, AdminCreateRequest request) {
-        // 요청자가 SUPER_ADMIN인지 확인
-        Admin requester = findById(requesterId);
-        if (requester.getRole() != AdminRole.SUPER_ADMIN) {
-            throw new CustomException(ErrorCode.FORBIDDEN, "Only SUPER_ADMIN can create new admins");
+    public void deleteAdmin(Long adminId) {
+        Admin admin = findById(adminId);
+
+        // Device나 User가 연결되어 있으면 삭제 불가
+        if (admin.hasDependencies()) {
+            throw new CustomException(ErrorCode.ADMIN_HAS_DEPENDENCIES,
+                    "관리 중인 기기나 사용자가 있어 삭제할 수 없습니다");
         }
 
-        if (adminRepository.existsByUsername(request.getUsername())) {
-            throw new CustomException(ErrorCode.ADMIN_ALREADY_EXISTS);
-        }
-
-        Admin admin = Admin.builder()
-                .username(request.getUsername())
-                .password(passwordEncoder.encode(request.getPassword()))
-                .facilityName(request.getFacilityName())
-                .contact(request.getContact())
-                .email(request.getEmail())
-                .role(request.getRole())
-                .build();
-
-        Admin savedAdmin = adminRepository.save(admin);
-        return AdminResponse.from(savedAdmin);
+        adminRepository.delete(admin);
+        log.info("Admin deleted: id={}, username={}", adminId, admin.getUsername());
     }
 
-    public TokenResponse login(AdminLoginRequest request) {
-        Admin admin = adminRepository.findByUsername(request.getUsername())
-                .orElseThrow(() -> new CustomException(ErrorCode.INVALID_CREDENTIALS));
-
-        if (!passwordEncoder.matches(request.getPassword(), admin.getPassword())) {
-            throw new CustomException(ErrorCode.INVALID_CREDENTIALS);
-        }
-
-        String role = "ROLE_" + admin.getRole().name();
-        String accessToken = jwtUtil.generateAccessToken(admin.getId(), admin.getUsername(), role);
-        String refreshToken = jwtUtil.generateRefreshToken(admin.getId(), admin.getUsername(), role);
-
-        return TokenResponse.of(accessToken, refreshToken, admin.getId(), role);
-    }
-
-    public List<AdminResponse> getAllAdmins(Long requesterId) {
-        // 요청자가 SUPER_ADMIN인지 확인
-        Admin requester = findById(requesterId);
-        if (requester.getRole() != AdminRole.SUPER_ADMIN) {
-            throw new CustomException(ErrorCode.FORBIDDEN, "오직 슈퍼 어드민만이 모든 어드민을 볼 수 있습니다.");
-        }
-
-        return adminRepository.findAll().stream()
-                .map(AdminResponse::from)
-                .collect(Collectors.toList());
-    }
-
-    public void validateAdminAccess(Long requesterId, Long targetAdminId) {
-        Admin requester = findById(requesterId);
-
-        // SUPER_ADMIN은 모든 데이터 접근 가능
-        if (requester.getRole() == AdminRole.SUPER_ADMIN) {
-            return;
-        }
-
-        // 일반 ADMIN은 자신의 데이터만 접근 가능
-        if (!requesterId.equals(targetAdminId)) {
-            throw new CustomException(ErrorCode.FORBIDDEN, "Access denied to other admin's data");
-        }
-    }
-
+    /**
+     * ID로 Admin 조회
+     */
     public Admin findById(Long id) {
         return adminRepository.findById(id)
                 .orElseThrow(() -> new CustomException(ErrorCode.ADMIN_NOT_FOUND));
+    }
+
+    /**
+     * Username으로 Admin 조회
+     */
+    public Admin findByUsername(String username) {
+        return adminRepository.findByUsername(username)
+                .orElseThrow(() -> new CustomException(ErrorCode.ADMIN_NOT_FOUND));
+    }
+
+    /**
+     * 모든 Admin 조회 (페이징)
+     */
+    public Page<Admin> findAll(Pageable pageable) {
+        return adminRepository.findAll(pageable);
+    }
+
+    /**
+     * Username 중복 검증
+     */
+    private void validateUniqueUsername(String username) {
+        if (adminRepository.existsByUsername(username)) {
+            throw new CustomException(ErrorCode.ADMIN_ALREADY_EXISTS);
+        }
     }
 }

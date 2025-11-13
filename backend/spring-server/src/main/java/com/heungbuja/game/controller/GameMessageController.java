@@ -35,18 +35,23 @@ public class GameMessageController {
         gameService.processFrame(request);
     }
 
+    @MessageMapping("/game/ping") // <-- 파라미터 없는 간단한 주소
+    public void handlePing() {
+        log.info("!!!!!!!! PING 메시지 수신 성공 !!!!!!!!");
+    }
+
     /**
      * 1절 종료 후, 레벨 결정을 요청하는 엔드포인트
      * 클라이언트는 "/app/game/decide-level" 주소로 sessionId만 담아 메시지를 보냅니다.
      */
-    @MessageMapping("/game/decide-level")
-    public void decideNextLevel(Map<String, String> payload) {
-        String sessionId = payload.get("sessionId");
-        if (sessionId != null && !sessionId.isBlank()) {
-            log.info("레벨 결정 요청 수신: sessionId={}", sessionId);
-            gameService.decideAndSendNextLevel(sessionId);
-        } else {
-            log.warn("sessionId가 없는 레벨 결정 요청이 들어왔습니다.");
-        }
-    }
+//    @MessageMapping("/game/decide-level")
+//    public void decideNextLevel(Map<String, String> payload) {
+//        String sessionId = payload.get("sessionId");
+//        if (sessionId != null && !sessionId.isBlank()) {
+//            log.info("레벨 결정 요청 수신: sessionId={}", sessionId);
+//            gameService.decideAndSendNextLevel(sessionId);
+//        } else {
+//            log.warn("sessionId가 없는 레벨 결정 요청이 들어왔습니다.");
+//        }
+//    }
 }

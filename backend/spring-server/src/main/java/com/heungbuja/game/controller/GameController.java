@@ -2,6 +2,8 @@ package com.heungbuja.game.controller;
 
 import com.heungbuja.common.exception.CustomException;
 import com.heungbuja.common.exception.ErrorCode;
+import com.heungbuja.game.dto.GameEndResponse;
+import com.heungbuja.game.state.GameSession;
 import org.springframework.http.HttpStatus;
 
 import com.heungbuja.game.dto.GameStartRequest;
@@ -12,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Mono;
 
 @RestController
 @RequiredArgsConstructor
@@ -49,9 +52,9 @@ public class GameController {
      * @param sessionId 종료할 게임 세션 ID
      */
     @PostMapping("/end")
-    public ResponseEntity<Void> endGame(@RequestParam String sessionId) {
-        gameService.endGame(sessionId);
-        return ResponseEntity.status(HttpStatus.NO_CONTENT).build(); // 내용 없이 성공 상태(204) 응답
+    public ResponseEntity<GameEndResponse> endGame(@RequestParam String sessionId) {
+        GameEndResponse response = gameService.endGame(sessionId);
+        return ResponseEntity.ok(response); // 200 OK 상태와 함께 점수 정보를 body에 담아 반환
     }
 
     /**
@@ -70,4 +73,15 @@ public class GameController {
 
         throw new CustomException(ErrorCode.UNAUTHORIZED, "유효하지 않은 인증 정보입니다");
     }
+
+    // --- ▼ (테스트용 코드) AI 서버 연동을 테스트하기 위한 임시 API 엔드포인트 ---
+//    @GetMapping("/test-ai")
+//    public Mono<ResponseEntity<String>> testAiEndpoint() {
+//        return gameService.testAiServerConnection()
+//                .map(response -> ResponseEntity.ok("AI 서버 응답 성공! 판정 결과: " + response.getJudgment()))
+//                .onErrorResume(error -> Mono.just(
+//                        ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+//                                .body("AI 서버 호출 실패: " + error.getMessage())
+//                ));
+//    }
 }

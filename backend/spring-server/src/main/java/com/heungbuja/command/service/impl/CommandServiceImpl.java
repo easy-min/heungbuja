@@ -10,8 +10,6 @@ import com.heungbuja.common.exception.CustomException;
 import com.heungbuja.common.exception.ErrorCode;
 import com.heungbuja.emergency.dto.EmergencyRequest;
 import com.heungbuja.emergency.service.EmergencyService;
-import com.heungbuja.game.dto.GameStartRequest;
-import com.heungbuja.game.dto.GameStartResponse;
 import com.heungbuja.song.dto.SongInfoDto;
 import com.heungbuja.song.entity.Song;
 import com.heungbuja.song.enums.PlaybackMode;
@@ -149,11 +147,12 @@ public class CommandServiceImpl implements CommandService {
             // 응급 상황
             case EMERGENCY -> handleEmergency(user, intentResult);
             case EMERGENCY_CANCEL -> handleEmergencyCancel(user);
+            case EMERGENCY_CONFIRM -> handleEmergencyConfirm(user, intentResult);
 
             // 인식 불가
             case UNKNOWN -> handleUnknown();
 
-            default -> handleError();
+            default -> handleError(intent);
         };
     }
 
@@ -488,6 +487,18 @@ public class CommandServiceImpl implements CommandService {
     }
 
     /**
+     * 응급 상황 즉시 확정 처리
+     */
+    private CommandResponse handleEmergencyConfirm(User user, IntentResult intentResult) {
+        emergencyService.confirmRecentReport(user.getId());
+
+        String responseText = responseGenerator.generateResponse(Intent.EMERGENCY_CONFIRM);
+        String ttsUrl = ttsService.synthesize(responseText, "urgent"); // 긴급 음성 타입
+
+        return CommandResponse.success(Intent.EMERGENCY_CONFIRM, responseText, "/commands/tts/" + ttsUrl);
+    }
+
+    /**
      * 인식 불가
      */
     private CommandResponse handleUnknown() {
@@ -571,11 +582,14 @@ public class CommandServiceImpl implements CommandService {
     /**
      * 에러 처리
      */
-    private CommandResponse handleError() {
+    private CommandResponse handleError(Intent intent) {
+        log.warn("처리되지 않은 Intent: {}", intent);
+
         String errorMsg = responseGenerator.errorMessage();
         String ttsUrl = ttsService.synthesize(errorMsg);
 
-        return CommandResponse.failure(Intent.UNKNOWN, errorMsg, "/commands/tts/" + ttsUrl);
+        // 원래 intent를 유지하면서 실패 응답 반환
+        return CommandResponse.failure(intent, errorMsg, "/commands/tts/" + ttsUrl);
     }
 
     /**

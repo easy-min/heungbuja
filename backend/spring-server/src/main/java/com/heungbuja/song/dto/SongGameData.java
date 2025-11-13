@@ -34,7 +34,7 @@ public class SongGameData implements Serializable {
 
     // 가공된 데이터
     private SectionInfo sectionInfo;
-    private Integer bpm;
+    private Double bpm;
     private Double duration;
 
     // 동작 타임라인
