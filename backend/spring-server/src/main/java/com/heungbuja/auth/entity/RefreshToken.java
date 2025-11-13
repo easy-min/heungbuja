@@ -26,7 +26,7 @@ public class RefreshToken {
 
     // User 로그인용 (Device 기반)
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id")
+    @JoinColumn(name = "user_id", nullable = true)
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -35,7 +35,7 @@ public class RefreshToken {
 
     // Admin 로그인용
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "admin_id")
+    @JoinColumn(name = "admin_id", nullable = true)
     private Admin admin;
 
     @Column(name = "expires_at", nullable = false)
