@@ -105,19 +105,43 @@ async def predict_motion_action_base64(payload: InferenceRequest) -> dict:
             device="cuda",
         )
 
-        top_prediction_label = result["top_prediction"]["class_label"]
-        if top_prediction_label == expected_label:
-            logger.info(
-                "Inference matched expected label %s (actionCode=%s)", expected_label, payload.action_code
+        label_to_index = result.get("label_to_index", {})
+        if expected_label not in label_to_index:
+            logger.error("Expected label %s not present in label_to_index", expected_label)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"예상 레이블({expected_label})을 확인할 수 없습니다.",
             )
-            return {"judgment": 3}
+
+        expected_index = label_to_index[expected_label]
+        probabilities = result.get("probabilities", [])
+        try:
+            expected_probability = float(probabilities[expected_index])
+        except (IndexError, TypeError, ValueError) as exc:
+            logger.error("Cannot read probability for expected label %s: %s", expected_label, exc)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="예상 레이블 확률 계산 중 오류가 발생했습니다.",
+            ) from exc
+
+        top_prediction = result.get("top_prediction", {})
+        top_prediction_label = top_prediction.get("class_label", "UNKNOWN")
+        top_prediction_confidence = float(top_prediction.get("confidence", 0.0))
 
         logger.info(
-            "Inference mismatch: expected=%s, predicted=%s (actionCode=%s)",
-            expected_label,
-            top_prediction_label,
+            "Inference summary (actionCode=%s) expected=%s(prob=%.4f) top=%s(prob=%.4f)",
             payload.action_code,
+            expected_label,
+            expected_probability,
+            top_prediction_label,
+            top_prediction_confidence,
         )
+
+        if expected_probability >= 0.9:
+            return {"judgment": 3}
+        if expected_probability < 0.5:
+            return {"judgment": 1}
+        return {"judgment": 2}
     except (PoseExtractionError, ModelLoaderError) as exc:
         logger.error("Inference failed (422): %s", exc, exc_info=True)
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
