@@ -4,6 +4,7 @@ import com.heungbuja.command.dto.*;
 import com.heungbuja.game.dto.ActionTimelineEvent;
 import com.heungbuja.game.dto.GameSessionPrepareResponse;
 import com.heungbuja.game.dto.SectionInfo;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -13,6 +14,7 @@ import java.util.stream.Collectors;
 /**
  * game 도메인 DTO를 command 전용 DTO로 변환하는 어댑터
  */
+@Slf4j
 @Component
 public class GameSessionAdapter {
 
@@ -53,13 +55,21 @@ public class GameSessionAdapter {
      */
     public CommandSegmentInfo toCommandSegmentInfo(SectionInfo sectionInfo) {
         if (sectionInfo == null) {
+            log.error("ERROR: sectionInfo is null!");
             return null;
         }
 
-        return CommandSegmentInfo.builder()
+        log.info("DEBUG: verse1cam={}", sectionInfo.getVerse1cam());
+        log.info("DEBUG: verse2cam={}", sectionInfo.getVerse2cam());
+
+        CommandSegmentInfo result = CommandSegmentInfo.builder()
                 .verse1cam(toCommandSegmentRange(sectionInfo.getVerse1cam()))
                 .verse2cam(toCommandSegmentRange(sectionInfo.getVerse2cam()))
                 .build();
+
+        log.info("DEBUG: CommandSegmentInfo created - verse1cam={}, verse2cam={}",
+                result.getVerse1cam(), result.getVerse2cam());
+        return result;
     }
 
     /**
