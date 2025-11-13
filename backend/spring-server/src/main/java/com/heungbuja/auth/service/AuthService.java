@@ -82,18 +82,35 @@ public class AuthService {
             throw new CustomException(ErrorCode.EXPIRED_TOKEN);
         }
 
-        // 3. 사용자 활성 상태 확인
-        User user = refreshToken.getUser();
-        if (!user.getIsActive()) {
-            refreshTokenRepository.delete(refreshToken);
-            throw new CustomException(ErrorCode.USER_NOT_ACTIVE);
+        // 3. User 또는 Admin 확인 및 Access Token 발급
+        String role = jwtUtil.getRoleFromToken(refreshToken.getToken());
+
+        // User 로그인인 경우
+        if (refreshToken.getUser() != null) {
+            User user = refreshToken.getUser();
+            if (!user.getIsActive()) {
+                refreshTokenRepository.delete(refreshToken);
+                throw new CustomException(ErrorCode.USER_NOT_ACTIVE);
+            }
+
+            String newAccessToken = jwtUtil.generateAccessToken(user.getId(), user.getName(), role);
+            return TokenResponse.of(newAccessToken, refreshToken.getToken(), user.getId(), role);
         }
 
-        // 4. 새로운 Access Token 발급
-        String role = jwtUtil.getRoleFromToken(refreshToken.getToken());
-        String newAccessToken = jwtUtil.generateAccessToken(user.getId(), user.getName(), role);
+        // Admin 로그인인 경우
+        else if (refreshToken.getAdmin() != null) {
+            var admin = refreshToken.getAdmin();
+            // Admin은 항상 활성 상태로 가정 (필요시 isActive 필드 추가 가능)
 
-        return TokenResponse.of(newAccessToken, refreshToken.getToken(), user.getId(), role);
+            String newAccessToken = jwtUtil.generateAccessToken(admin.getId(), admin.getUsername(), role);
+            return TokenResponse.of(newAccessToken, refreshToken.getToken(), admin.getId(), role);
+        }
+
+        // User도 Admin도 아닌 경우 (데이터 무결성 오류)
+        else {
+            refreshTokenRepository.delete(refreshToken);
+            throw new CustomException(ErrorCode.REFRESH_TOKEN_NOT_FOUND, "Invalid refresh token: no associated user or admin");
+        }
     }
 
     @Transactional
