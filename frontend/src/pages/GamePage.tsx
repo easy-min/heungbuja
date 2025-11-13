@@ -1,139 +1,85 @@
 import { useRef, useState, useEffect } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useCamera } from '@/hooks/useCamera';
-import { useFrameCapture } from '@/hooks/useFrameCapture';
+import { useFrameStreamer } from '@/hooks/useFrameStreamer';
 import { useMusicMonitor } from '@/hooks/useMusicMonitor';
 import { useLyricsSync } from '@/hooks/useLyricsSync';
-import { useSegmentUpload } from '@/hooks/useSegmentUpload';
-import { generateSessionId } from '@/utils/gameHelpers';
-import { type UploadResponse, type LyricLine } from '@/types';
+import { useWs } from '@/hooks/useWs';
+import { type LyricLine } from '@/types/game';
+import { GAME_CONFIG } from '@/utils/constants';
+import { useGameStore } from '@/store/gameStore';
 import './GamePage.css';
-const BASE_URL = import.meta.env.BASE_URL;
 
 function GamePage() {
+  // === WS + Streamer ===
+  const { send } = useWs(import.meta.env.VITE_WS_URL);
 
-  function switchSectionVideo(next: SectionKey) {
-    const mv = motionVideoRef.current;
-    const au = audioRef.current;
-    if (!mv) return;
+  // === 상태 / 참조 ===
+  const motionVideoRef = useRef<HTMLVideoElement | null>(null); // 동작 영상
+  const videoRef = useRef<HTMLVideoElement | null>(null);       // 카메라 영상
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const captureTimeoutsRef = useRef<number[]>([]);
+  const countdownTimerRef = useRef<number | null>(null);
+  const hasNavigatedRef = useRef(false);
+  const songBpmRef = useRef<number>(120);
+  const currentSectionRef = useRef<'intro' | 'break' | 'verse1' | 'verse2'>('break');
+  const announcedSectionRef = useRef<SectionKey | null>(null);
 
-    // 같은 섹션이면 스킵
-    if (currentSectionRef.current === next) return;
-    currentSectionRef.current = next;
+  const navigate = useNavigate();
 
-    const { src, bpm: videoBpm } = VIDEO_META[next];
+  const [isCounting, setIsCounting] = useState(false);
+  const [count, setCount] = useState(5);
+  const [isGameStarted, setIsGameStarted] = useState(false);
+  const [lyrics, setLyrics] = useState<LyricLine[]>([]);
+  const [sectionMessage, setSectionMessage] = useState<string | null>(null);
 
-    // 현재 재생중인지 보관
-    const shouldPlay = !mv.paused;
+  const { isCapturing, start: startStream, stop: stopStream } = useFrameStreamer({
+    videoRef, audioRef, canvasRef,
+  });
+  const { stream, isReady, error, startCamera, stopCamera } = useCamera();
+  const {
+    sessionId,
+    songTitle,
+    songArtist,
+    audioUrl,
+    //videoUrls, // 필요 시 사용
+    bpm,
+    duration,
+    sectionInfo,
+    segmentInfo,
+    lyrics: storeLyrics,
+  } = useGameStore();
 
-    // 소스 갈아끼우고 로드
-    mv.src = src;
-    mv.load();
+  const { current: currentLyric, next: nextLyric, isInstrumental } =
+    useLyricsSync(audioRef, lyrics, { prerollSec: 0.04 });
 
-    // 메타 로드 후 배속 반영 + 재생
-    const applyAndPlay = async () => {
-        // 오디오 BPM 대비 영상 배속
-        const songBpm = songBpmRef.current || 120;
-        mv.playbackRate = songBpm / videoBpm;
-
-        mv.currentTime = LOOP_RESTART;
-
-        if (shouldPlay || (au && !au.paused)) {
-          await mv.play().catch(() => {});
-        }
-    };
-
-    if (mv.readyState < 2) {
-      const onCanPlay = () => {
-        mv.removeEventListener('canplay', onCanPlay);
-        applyAndPlay();
-      };
-      mv.addEventListener('canplay', onCanPlay, { once: true });
-    } else {
-      void applyAndPlay();
-    }
-  }
-
-  // === 섹션별 메타 (영상 BPM/루프 박자 수) ===
+  // === 영상 메타 ===
+  // 필요 시 videoUrls를 활용해 교체 가능합니다.
+  const pub = (p: string) => `${import.meta.env.BASE_URL}${p}`;
   const VIDEO_META = {
-    intro: { src: `${BASE_URL}break.mp4`, bpm: 100, loopBeats: 8 },
-    break: { src: `${BASE_URL}break.mp4`, bpm: 100, loopBeats: 8 },
-    part1: { src: `${BASE_URL}part1.mp4`, bpm: 98.5, loopBeats: 16 },
-    part2: { src: `${BASE_URL}part2.mp4`, bpm: 99, loopBeats: 16 },
+    intro:  { src: pub('break.mp4'),      bpm: 100,  loopBeats: 8  },
+    break:  { src: pub('break.mp4'),      bpm: 100,  loopBeats: 8  },
+    verse1: { src: pub('part1.mp4'),      bpm: 98.5, loopBeats: 16 },
+    verse2: { src: pub('part2_level2.mp4'), bpm: 99, loopBeats: 16 },
   } as const;
-
   type SectionKey = keyof typeof VIDEO_META;
 
-  // === BPM, 싱크 상태 Ref ===
-  const songBpmRef = useRef<number>(120); // JSON에서 갱신
-  const currentSectionRef = useRef<SectionKey>('break');
 
-  // 수동 루프용
-  const LOOP_EPS = 0.02;          // 끝 경계 여유 (초) - 10~30ms 권장
-  const LOOP_RESTART = 0.005;     // 되감을 위치 (초)
+  // === 수동 루프 파라미터 ===
+  const LOOP_EPS = 0.02;     // 경계 여유
+  const LOOP_RESTART = 0.05; // 되감을 위치(싱크 보정)
 
-  /** 현재 섹션 루프 길이(초) */
   const getLoopLenSec = (section: SectionKey) => {
     const { bpm, loopBeats } = VIDEO_META[section];
     return (60 / bpm) * loopBeats;
   };
 
-  // URL 파라미터 및 state
-  const { songId } = useParams<{ songId: string }>();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const gameData = location.state as any; // 음성 명령으로 전달받은 게임 데이터
-
-  // Refs
-  const motionVideoRef = useRef<HTMLVideoElement | null>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const startTimerRef = useRef<number | null>(null);
-  const [isCounting, setIsCounting] = useState(false);
-  const [count, setCount] = useState(5);
-  const countdownTimerRef = useRef<number | null>(null);
-  const hasNavigatedRef = useRef(false);
-  const announcedSectionRef = useRef<SectionKey | null>(null);
-
-  // 상태
-  const [isGameStarted, setIsGameStarted] = useState(false);
-  const [, setCurrentSegment] = useState(0);
-  // sessionId: 음성 명령으로 받은 데이터 우선, 없으면 생성
-  const [sessionId] = useState(() => gameData?.sessionId || generateSessionId());
-  const [testMode] = useState(false);  // ✅ testMode 설정
-  const [sectionMessage, setSectionMessage] = useState<string | null>(null);
-
-  // 가사
-  const [lyrics, setLyrics] = useState<LyricLine[]>([]);
-  const { current: currentLyric, next: nextLyric, isInstrumental } =
-  useLyricsSync(audioRef, lyrics, { prerollSec: 0.04 });
-
-
-  // 카메라 훅
-  const { stream, isReady, error, startCamera, stopCamera } = useCamera();
-
-  // 음악 모니터링 훅
-  const {
-    barGroups,
-    currentSegmentIndex,
-    songBpm,
-    // sectionTimes,
-    loadSongData,
-    startMonitoring,
-    stopMonitoring,
-  } = useMusicMonitor({
+  // === 모니터링 (섹션 감지 → 영상 전환) ===
+  const { loadFromGameStart, startMonitoring, stopMonitoring } = useMusicMonitor({
     audioRef,
-    onSegmentStart: handleSegmentStart,
-    onSegmentEnd: handleSegmentEnd,
-    onAllComplete: handleAllComplete,
     onSectionEnter: (label) => {
-      const map: Record<string, SectionKey> = {
-        intro: 'intro',
-        break: 'break',
-        part1: 'part1',
-        part2: 'part2',
-      };
+      const map = { intro: 'intro', break: 'break', verse1: 'verse1', verse2: 'verse2' } as const;
       const nextSection = map[label] ?? 'break';
       switchSectionVideo(nextSection);
 
@@ -151,123 +97,21 @@ function GamePage() {
     },
   });
 
-  // 프레임 캡처 훅
-  const {
-    isCapturing,
-    startCapture,
-    stopCapture,
-  } = useFrameCapture({
-    videoRef,
-    audioRef,
-    canvasRef,
-  });
-
-  // 세그먼트 업로드 훅
-  const {
-    isUploading,
-    queueSegmentUpload,
-  } = useSegmentUpload({
-    sessionId,
-    songId: songId || 'test-song',
-    musicTitle: '당돌한 여자',
-    verse: 1,
-    testMode,  // ✅ testMode state 사용
-    onUploadSuccess: handleUploadSuccess,
-    onUploadError: handleUploadError,
-  });
-
   // 자동 카운트다운
   useEffect(() => {
-    if (isReady && !isGameStarted && !isCounting) {
+    const readyToStart = !!(isReady && audioRef.current?.src);
+    if (readyToStart && !isGameStarted && !isCounting && !countdownTimerRef.current) {
       startCountdown();
     }
-  }, [isReady]);
+  }, [isReady, isGameStarted, isCounting]);
 
-  // 컴포넌트 마운트
-  useEffect(() => {
-    console.log('🎮 GamePage 마운트');
-    console.log('📋 Session ID:', sessionId);
-    console.log('🎵 Song ID:', songId);
-
-    // 카메라 시작
-    startCamera();
-
-    // JSON 로드
-    loadSongData(`${BASE_URL}당돌한여자.json`);
-
-    // ✅ 수정: 언마운트/정리 useEffect 내
-    return () => {
-      console.log('🎮 GamePage 언마운트');
-      if (startTimerRef.current !== null) {
-        clearTimeout(startTimerRef.current);
-        startTimerRef.current = null;
-      }
-      stopCamera();
-      stopMonitoring();
-      if (audioRef.current) audioRef.current.pause();
-
-      if (countdownTimerRef.current !== null) {
-        clearInterval(countdownTimerRef.current);
-        countdownTimerRef.current = null;
-      }
-    };
-  }, []);
-
-  // 카메라 스트림 연결
-  useEffect(() => {
-    if (stream && videoRef.current && !videoRef.current.srcObject) {
-      videoRef.current.srcObject = stream;
-      console.log('📹 카메라 스트림 연결 완료');
-    }
-  }, [stream]);
-
-  // 캔버스 크기 설정
-  useEffect(() => {
-    if (videoRef.current && canvasRef.current) {
-      const video = videoRef.current;
-      video.addEventListener('loadedmetadata', () => {
-        if (canvasRef.current) {
-          canvasRef.current.width = video.videoWidth || 320;
-          canvasRef.current.height = video.videoHeight || 240;
-          console.log(`🎨 Canvas 크기: ${canvasRef.current.width}x${canvasRef.current.height}`);
-        }
-      });
-    }
-  }, []);
-
-  // 노래 bpm 업데이트
-  useEffect(() => {
-    if (songBpm) songBpmRef.current = songBpm;
-  }, [songBpm]);
-
-  // 세그먼트 인덱스 업데이트
-  useEffect(() => {
-    setCurrentSegment(currentSegmentIndex + 1);
-  }, [currentSegmentIndex]);
-
-  // 가사 업데이트
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(`${BASE_URL}당돌한여자_가사.json`);
-        const data: { lines: LyricLine[] } = await res.json();
-        if (!cancelled) setLyrics(data.lines ?? []);
-      } catch (e) {
-        console.warn('가사 로드 실패', e);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
-  // 오디오 끝나면 게임 종료
+  // 노래 끝 → 결과로
   useEffect(() => {
     const audio = audioRef.current;
     const mv = motionVideoRef.current;
     if (!audio || !mv) return;
 
     const handleEnded = () => {
-      console.log('🎵 노래 재생 완료 → 영상 정지');
       mv.pause();
       mv.currentTime = 0;
       goToResultOnce();
@@ -279,18 +123,72 @@ function GamePage() {
     };
   }, []);
 
-  // 수동 루프
+  // === 카메라 스트림 연결 ===
+  useEffect(() => {
+    if (stream && videoRef.current && !videoRef.current.srcObject) {
+      videoRef.current.srcObject = stream;
+      console.log('📹 카메라 스트림 연결 완료');
+    }
+  }, [stream]);
+
+  // === Canvas 크기 ===
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !canvasRef.current) return;
+
+    const onMeta = () => {
+      if (!canvasRef.current) return;
+      canvasRef.current.width = video.videoWidth || 320;
+      canvasRef.current.height = video.videoHeight || 240;
+    };
+    video.addEventListener('loadedmetadata', onMeta);
+    return () => video.removeEventListener('loadedmetadata', onMeta);
+  }, []);
+
+  // === 섹션별 영상 전환 ===
+  function switchSectionVideo(next: SectionKey) {
+    const mv = motionVideoRef.current;
+    const au = audioRef.current;
+    if (!mv) return;
+
+    currentSectionRef.current = next;
+
+    const { src, bpm: videoBpm } = VIDEO_META[next];
+    const shouldPlayNow = !!au && !au.paused;
+    const needSrcSwap = mv.src !== src;
+
+    const applyAndPlay = async () => {
+      const songBpm = songBpmRef.current || 120;
+      mv.loop = false;
+      mv.pause(); // 소스 교체 직후 잔여 재생 방지
+      mv.playbackRate = songBpm / videoBpm;
+      mv.currentTime = LOOP_RESTART;
+      if (shouldPlayNow) await mv.play().catch(() => {});
+    };
+
+    if (needSrcSwap) {
+      mv.src = src;
+      mv.load();
+      if (mv.readyState < 1) {
+        mv.addEventListener('loadedmetadata', applyAndPlay, { once: true });
+      } else {
+        void applyAndPlay();
+      }
+    } else {
+      void applyAndPlay();
+    }
+  }
+
+  // === 수동 루프 러너(한 번만 설치) ===
   useEffect(() => {
     const mv = motionVideoRef.current;
     if (!mv) return;
 
     let raf = 0;
-
     const tick = () => {
       raf = requestAnimationFrame(tick);
-      if (mv.readyState < 1) return; // 메타데이터 아직 X
+      if (mv.readyState < 2) return;
 
-      // 이론 루프 길이(섹션 bpm & loopBeats) vs 실제 소스 duration 중 작은 값 사용
       const nominal = getLoopLenSec(currentSectionRef.current);
       const dur = Number.isFinite(mv.duration) ? mv.duration : nominal;
       const loopEnd = Math.min(nominal, dur);
@@ -301,7 +199,6 @@ function GamePage() {
       }
     };
 
-    // 혹시 duration이 더 짧아 실제로 ended가 발생해도 복구
     const onEnded = () => {
       mv.currentTime = LOOP_RESTART;
       mv.play().catch(() => {});
@@ -309,17 +206,77 @@ function GamePage() {
 
     mv.addEventListener('ended', onEnded);
     raf = requestAnimationFrame(tick);
-
     return () => {
       mv.removeEventListener('ended', onEnded);
       cancelAnimationFrame(raf);
     };
   }, []);
 
-  // 카운트 다운
+  // === 게임 시작 ===
+  async function beginGame() {
+    if (!audioRef.current || !isReady) return;
+    startMonitoring();
+
+    // 오디오 먼저 재생
+    await audioRef.current.play().catch(e => console.warn('audio play err', e));
+
+    scheduleRangeCaptures(); // 구간 캡처/스트리밍 시작
+    setIsGameStarted(true);
+  }
+
+  // === 구간 캡처 스케줄링(서버 segmentInfo 사용) ===
+  function scheduleRangeCaptures() {
+    const audio = audioRef.current;
+    if (!audio || !segmentInfo) return;
+
+    clearCaptureTimeouts();
+
+    const sid = sessionId!;
+    const title = songTitle ?? 'unknown';
+
+    const verse1 = segmentInfo.verse1cam;
+    const verse2 = segmentInfo.verse2cam;
+    const segments = [
+      verse1 ? { key: 'verse1' as const, start: verse1.startTime, end: verse1.endTime } : null,
+      verse2 ? { key: 'verse2' as const, start: verse2.startTime, end: verse2.endTime } : null,
+    ].filter(Boolean) as Array<{ key: 'verse1' | 'verse2'; start: number; end: number }>;
+
+    segments.forEach(({ key, start, end }) => {
+      if (end <= start) return;
+
+      const now = audio.currentTime;
+      const delayMs = Math.max(0, (start - now) * 1000);
+
+      const timeoutId = window.setTimeout(() => {
+        const cur = audio.currentTime;
+        if (cur >= end) return;
+
+        const effectiveStart = Math.max(cur, start);
+
+        startStream(effectiveStart, end, (blob, { t, idx }) => {
+          send(blob, {
+            sessionId: sid,
+            songTitle: title,
+            section: key,
+            frameIndex: idx,
+            musicTime: Number(t.toFixed(3)),
+            fps: GAME_CONFIG.FPS,
+          });
+        });
+      }, delayMs);
+
+      captureTimeoutsRef.current.push(timeoutId);
+    });
+  }
+
+  function clearCaptureTimeouts() {
+    captureTimeoutsRef.current.forEach(id => clearTimeout(id));
+    captureTimeoutsRef.current = [];
+  }
+
+  // === 카운트다운 ===
   function startCountdown() {
     if (isGameStarted || isCounting) return;
-
     setIsCounting(true);
     setCount(5);
 
@@ -327,12 +284,11 @@ function GamePage() {
       setCount((prev) => {
         const next = prev - 1;
         if (next <= 0) {
-          if (countdownTimerRef.current !== null) {
-            clearInterval(countdownTimerRef.current);
-            countdownTimerRef.current = null;
-          }
+          clearInterval(countdownTimerRef.current!);
+          countdownTimerRef.current = null;
           setIsCounting(false);
-          void beginGame(); // 카운트다운이 끝나면 실제 시작
+          setIsGameStarted(true);
+          void beginGame();
           return 0;
         }
         return next;
@@ -340,255 +296,137 @@ function GamePage() {
     }, 1000);
   }
 
-  // 게임 마무리하고 결과 페이지로 이동
+  // === 종료 시 결과 페이지 이동 ===
   function goToResultOnce() {
     if (hasNavigatedRef.current) return;
     hasNavigatedRef.current = true;
+    stopMonitoring();
+    stopCamera();
+    stopStream();
+    clearCaptureTimeouts();
+    if (audioRef.current) audioRef.current.pause();
 
-    try {
-      stopMonitoring();
-      if (audioRef.current) audioRef.current.pause();
+    navigate('/result');
+  }
+
+  // === 초기화: store 기반으로만 세팅 ===
+  useEffect(() => {
+    // let cancelled = false;
+    (async () => {
+      try {
+        startCamera();
+
+        // 필수 데이터 가드
+        if (!audioUrl || !bpm || !duration || !sectionInfo) {
+          console.warn('필수 게임 데이터가 없습니다. 튜토리얼로 이동합니다.');
+          navigate('/tutorial', { replace: true });
+          return;
+        }
+
+        // 오디오 소스
+        if (audioRef.current) {
+          const localAudio = pub('당돌한여자.mp3');
+          audioRef.current.src = localAudio;
+          audioRef.current.onerror = () => {
+            if (audioUrl) {
+              audioRef.current!.src = audioUrl;
+              audioRef.current!.load();
+            }
+          };
+          audioRef.current.load();
+        }
+
+        // 가사/메타
+        setLyrics(storeLyrics ?? []);
+        songBpmRef.current = bpm;
+
+        // useMusicMonitor가 기대하는 timeline 형태로 매핑
+        const timeline = {
+          introStartTime: sectionInfo.introStartTime ?? 0,
+          verse1StartTime: sectionInfo.verse1StartTime ?? 0,
+          breakStartTime: sectionInfo.breakStartTime ?? 0,
+          verse2StartTime: sectionInfo.verse2StartTime ?? 0,
+        };
+
+        await loadFromGameStart({ bpm, duration, timeline });
+        switchSectionVideo('break');
+      } catch (e) {
+        console.error('게임 시작 초기화 실패:', e);
+      }
+    })();
+
+    return () => {
+      // cancelled = true;
       stopCamera();
-      setIsGameStarted(false);
-    } finally {
-      navigate('/result');
-    }
-  }
-
-  // 이벤트 핸들러
-  async function beginGame() {
-    if (!audioRef.current || !isReady) {
-      console.warn('⚠️  카메라 또는 오디오가 준비되지 않았습니다');
-      return;
-    }
-
-    switchSectionVideo('break');
-
-    console.log('🎬 테스트 시작');
-    const currentSection = currentSectionRef.current;
-    const sectionVideoBpm = VIDEO_META[currentSection].bpm;
-    const mv = motionVideoRef.current;
-
-    await audioRef.current.play().catch(e => console.warn('audio play err', e));
-
-    if (mv) {
-      if (mv.readyState < 1) {
-        await new Promise<void>((resolve) => {
-          const onMeta = () => { mv.removeEventListener('loadedmetadata', onMeta); resolve(); };
-          mv.addEventListener('loadedmetadata', onMeta, { once: true });
-        });
-      }
-      mv.currentTime = 0;
-      mv.playbackRate = songBpm / sectionVideoBpm;
-      await mv.play().catch(e => console.warn('video play err', e));
-    } else {
-      console.warn('⚠️ motionVideoRef 없음');
-    }
-
-    startMonitoring();
-    setIsGameStarted(true);
-  }
-
-  // function handleTestStop() {
-    // console.log('⏹ 테스트 중지');
-    // if (audioRef.current) {
-    //   audioRef.current.pause();
-    // }
-    // stopMonitoring();
-    // setIsGameStarted(false);
-
-    // if (countdownTimerRef.current !== null) {
-    //   clearInterval(countdownTimerRef.current);
-    //   countdownTimerRef.current = null;
-    // }
-    // setIsCounting(false);
-  // }
-
-  // ✅ 수정: 오디오 현재시간 기준으로 예약 호출
-  function handleSegmentStart(segmentIndex: number) {
-    console.log(`▶️  세그먼트 ${segmentIndex + 1} 시작`);
-    const group = barGroups[segmentIndex];
-    const audio = audioRef.current;
-    if (!group || !audio) return;
-
-    const now = audio.currentTime;
-    const preRoll = 0.04; // 40ms 정도 앞당겨 시작해 지터 흡수
-    const delayMs = Math.max(0, (group.startTime - now - preRoll) * 1000);
-
-    // 이전 예약이 남아있으면 취소
-    if (startTimerRef.current !== null) {
-      clearTimeout(startTimerRef.current);
-      startTimerRef.current = null;
-    }
-
-    startTimerRef.current = window.setTimeout(() => {
-      console.log('⏱ 예약 캡처 시작', { delayMs, nowAtFire: audio.currentTime.toFixed(3) });
-      startCapture(group.startTime, group.endTime);
-      startTimerRef.current = null;
-    }, delayMs);
-  }
-
-  function handleSegmentEnd(segmentIndex: number) {
-      console.log(`⏹ 세그먼트 ${segmentIndex + 1} 종료`);
-      if (startTimerRef.current !== null) {
-        clearTimeout(startTimerRef.current);
-        startTimerRef.current = null;
-      }
-    // 캡처 중지 및 프레임 가져오기
-    const capturedFrames = stopCapture();
-    
-    console.log(`📦 세그먼트 ${segmentIndex + 1} 프레임: ${capturedFrames.length}개`);
-
-    // 업로드 큐에 추가
-    if (capturedFrames.length > 0) {
-      queueSegmentUpload({
-        index: segmentIndex,
-        frames: capturedFrames,
-      });
-    } else {
-      console.warn(`⚠️  세그먼트 ${segmentIndex + 1}에 프레임이 없습니다`);
-    }
-  }
-
-  function handleAllComplete() {
-    console.log('🎉 모든 세그먼트 완료!');    
-  }
-
-  function handleUploadSuccess(segmentIndex: number, response?: UploadResponse) {
-    console.log(`✅ 세그먼트 ${segmentIndex} 업로드 성공`, response);
-  }
-
-  function handleUploadError(segmentIndex: number, error: Error) {
-    console.error(`❌ 세그먼트 ${segmentIndex} 업로드 실패:`, error);
-  }
+      stopMonitoring();
+      stopStream();
+      clearCaptureTimeouts();
+      if (audioRef.current) audioRef.current.pause();
+    };
+  }, []);
 
   return (
     <>
-    {isCounting && (
-      <div className="countdown-overlay">
-        <div className="countdown-bubble">
-          {count > 0 ? count : 'Go!'}
+      {isCounting && (
+        <div className="countdown-overlay">
+          <div className="countdown-bubble">{count > 0 ? count : 'Go!'}</div>
         </div>
-      </div>
-    )}
-    {sectionMessage && (
-      <div className="section-message-overlay">
-        <div className="section-message-bubble">
-          {sectionMessage}
-        </div>
-      </div>
-    )}
-    <div className="game-page">
-      {/* 좌측: 동작 시연 및 가사 */}
-      <div className="video-container">
-        {/* 위쪽: 캐릭터 영상 자리 */}
-        <div className="character-section">
-          <video
-            ref={motionVideoRef}
-            id="motion"
-            // loop
-            preload="auto"
-            muted
-            playsInline
-            src={`${BASE_URL}break.mp4`}
-            className="motion-video"
-            style={{width: '900px'}}
-          />
-        </div>
-        {/* 아래쪽: 가사 자리 */}
-        <div className="lyrics-container">
-          {/* 오디오 (항상 렌더링, testMode일 때만 보임) */}
-          <audio
-            controls
-            ref={audioRef}
-            src={`${BASE_URL}당돌한여자.mp3`}
-            style={{ display: testMode ? 'block' : 'none', width: '40%', height: '20%' }}
-          />
-
-          {/* === 가사 표시 === */}
-          <div className="lyrics-display">
-            <div className="lyrics-current">
-              {isInstrumental
-                ? '(간주 중)'
-                : currentLyric?.text ?? '\u00A0'}
-            </div>
-            <div className="lyrics-next">
-              {!isInstrumental
-              ? nextLyric?.text ?? '\u00A0'
-              : '\u00A0'}
-            </div>
+      )}
+      {sectionMessage && (
+        <div className="section-message-overlay">
+          <div className="section-message-bubble">
+            {sectionMessage}
           </div>
-        </div>       
-      </div>
-
-      {/* 우측: 카메라 촬영 및 피드백 */}
-      <div className="camera-container">
-        {/* 위쪽: 카메라 */}
-        <div className="camera-section">
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            className="camera-video"
-          />
-          <canvas ref={canvasRef} className="capture-canvas" />
-          
-          {/* 세그먼트 정보 */}
-          <div className="segment-info">
-            <span className="segment-number">
-              {/* 세그먼트 {currentSegment}/6 */}
-              사용자 화면
-            </span>
-            {isCapturing && (
-              <span className="capturing-badge">📹 동작 인식 중</span>
-            )}
-            {isUploading && (
-              <span className="uploading-badge">📤 업로드 중</span>
-            )}
-          </div>
-
-          {/* 에러 표시 */}
-          {error && (
-            <div className="error-message">
-              ❌ {error}
-            </div>
-          )}
-
-          {/* 카메라 준비 중 */}
-          {!isReady && !error && (
-            <div className="loading-message">
-              📹 카메라 준비 중...
-            </div>
-          )}
         </div>
-
-        {/* 아래쪽: 피드백 */}
-        {/* <div className="feedback-section"> */}
-          {/* 테스트용 컨트롤 */}
-          {/* {testMode && (
-            <div className="test-controls">
-              <div className="button-group">
-                <button
-                  onClick={handleTestStop}
-                  disabled={!isGameStarted}
-                  className="btn-stop"
-                >
-                  ⏹ 테스트 중지
-                </button>
-              </div>
-
-              <div className="debug-info">
-                <div>카메라: {isReady ? '✅ 준비' : '⏳ 대기'}</div>
-                <div>세그먼트: {barGroups.length}개 로드</div>
-                <div>모니터링: {isMonitoring ? '✅ 진행 중' : '⏸ 대기'}</div>
-                <div>캡처: {isCapturing ? '✅ 진행 중' : '⏸ 대기'}</div>
-                <div>업로드 큐: {uploadQueue.length}개</div>
+      )}
+      <div className="game-page">
+        <div className="left-container">
+          <div className="left__top">
+            <audio controls ref={audioRef} style={{ display: 'block', width: '40%', height: '20%' }} />
+          </div>
+          <div className="left__main">
+            <div className="character-section">
+              <video
+                ref={motionVideoRef}
+                preload="auto"
+                muted
+                playsInline
+                src={VIDEO_META.break.src}
+                className="motion-video"
+                style={{ width: '800px' }}
+              />
+            </div>
+            <div className="lyrics-container">
+              <div className="lyrics-display">
+                <div className="lyrics-current">{isInstrumental ? '(간주 중)' : currentLyric?.text ?? '\u00A0'}</div>
+                <div className="lyrics-next">{!isInstrumental ? nextLyric?.text ?? '\u00A0' : '\u00A0'}</div>
               </div>
             </div>
-          )}
-          </div> */}
+          </div>
         </div>
+
+          <div className="right-container">
+            <div className="right__top">
+              <div className="song-title">{songTitle}</div>
+              <div className="song-artist">{songArtist}</div>
+            </div>
+            <div className="right__main">
+              <div className="camera-section">
+                <video ref={videoRef} autoPlay playsInline muted className="camera-video" />
+                <canvas ref={canvasRef} className="capture-canvas" />
+
+                <div className="segment-info">
+                  {isCapturing && <span className="capturing-badge">📹 캡처 중</span>}
+                </div>
+
+                {error && <div className="error-message">❌ {error}</div>}
+                {!isReady && !error && <div className="loading-message">📹 카메라 준비 중...</div>}
+              </div>
+              <div className="feedback-section">
+                ( 동작인식 피드백 )
+              </div>
+            </div>
+          </div>
       </div>
     </>
   );

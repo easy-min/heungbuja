@@ -1,14 +1,18 @@
 package com.heungbuja.game.dto;
 
 import com.heungbuja.song.domain.SongLyrics;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.util.List;
 import java.util.Map;
 
 @Getter
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class GameStartResponse {
     private String sessionId;
 
