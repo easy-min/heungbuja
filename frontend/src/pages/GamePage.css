@@ -39,6 +39,23 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
+}
+
+/* 동작 이름 말풍선(예시) */
+.action-label-overlay {
+  position: absolute;
+  top: 40px;
+  left: 20%;
+  transform: translateX(-50%);
+  padding: 12px 24px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--color-text);
+  font-size: 1.2rem;
+  font-weight: 600;
+  backdrop-filter: blur(4px);
+  pointer-events: none;   /* 클릭 방해 X */
 }
 
 .character-section video {

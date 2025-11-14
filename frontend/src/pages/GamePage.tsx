@@ -5,8 +5,10 @@ import { useFrameStreamer } from '@/hooks/useFrameStreamer';
 import { useMusicMonitor } from '@/hooks/useMusicMonitor';
 import { useLyricsSync } from '@/hooks/useLyricsSync';
 import { useGameWs } from '@/hooks/useGameWs';
+import { useActionTimelineSync } from '@/hooks/useActionTimelineSync';
 import { type LyricLine } from '@/types/game';
 import { useGameStore } from '@/store/gameStore';
+import { gameEndApi } from '@/api/game';
 import './GamePage.css';
 
 function GamePage() {
@@ -51,6 +53,7 @@ function GamePage() {
     videoRef, audioRef, canvasRef,
   });
   const { stream, isReady, error, startCamera, stopCamera } = useCamera();
+
   const {
     sessionId,
     songTitle,
@@ -62,10 +65,21 @@ function GamePage() {
     sectionInfo,
     segmentInfo,
     lyricsInfo,
+    verse1Timeline,
+    verse2Timelines,
   } = useGameStore();
 
   const { current: currentLyric, next: nextLyric, isInstrumental } =
     useLyricsSync(audioRef, lyrics, { prerollSec: 0.04 });
+
+  const currentActionName = useActionTimelineSync({
+    audioRef,
+    currentSectionRef,
+    verse1Timeline,
+    verse2Timelines,
+    sectionInfo,
+    verse2Level: 'level2',  // 또는 상태 기반으로 동적으로 설정 가능
+  });
 
   // === 영상 메타 ===
   // 필요 시 videoUrls를 활용해 교체 가능합니다.
@@ -73,14 +87,14 @@ function GamePage() {
   const VIDEO_META = {
     intro:  { src: pub('break.mp4'),      bpm: 100,  loopBeats: 8  },
     break:  { src: pub('break.mp4'),      bpm: 100,  loopBeats: 8  },
-    verse1: { src: pub('part1.mp4'),      bpm: 98.5, loopBeats: 16 },
+    verse1: { src: pub('part1.mp4'),      bpm: 98.6, loopBeats: 16 },
     verse2: { src: pub('part2_level2.mp4'), bpm: 99, loopBeats: 16 },
   } as const;
   type SectionKey = keyof typeof VIDEO_META;
 
   // === 수동 루프 파라미터 ===
   const LOOP_EPS = 0.02;     // 경계 여유
-  const LOOP_RESTART = 0.05; // 되감을 위치(싱크 보정)
+  const LOOP_RESTART = 0.04; // 되감을 위치(싱크 보정)
 
   const getLoopLenSec = (section: SectionKey) => {
     const { bpm, loopBeats } = VIDEO_META[section];
@@ -333,6 +347,7 @@ function GamePage() {
     disconnect();
     if (audioRef.current) audioRef.current.pause();
 
+    gameEndApi();
     navigate('/result');
   }
 
@@ -430,6 +445,11 @@ function GamePage() {
                 className="motion-video"
                 style={{ width: '800px' }}
               />
+              {currentActionName && (
+                <div className="action-label-overlay">
+                  {currentActionName}
+                </div>
+              )}
             </div>
             <div className="lyrics-container">
               <div className="lyrics-display">

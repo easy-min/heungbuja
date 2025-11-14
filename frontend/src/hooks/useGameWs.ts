@@ -56,7 +56,7 @@ export function useGameWs(options?: UseGameWsOptions): UseGameWsReturn {
 
       const client = new Client({
         webSocketFactory: () => socket as unknown as WebSocket,
-        debug: (str) => console.log('[STOMP Debug]', str),
+        // debug: (str) => console.log('[STOMP Debug]', str),
         reconnectDelay: 5000,
         heartbeatIncoming: 4000,
         heartbeatOutgoing: 4000,

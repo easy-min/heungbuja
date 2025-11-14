@@ -16,8 +16,8 @@ export const WAKE_WORD = '흥부야';
 
 // ===== 카메라 설정 =====
 export const CAMERA_CONFIG = {
-  width: 320,
-  height: 240,
+  width: 240,
+  height: 180,
   fps: GAME_CONFIG.FPS,
 };
 

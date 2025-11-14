@@ -22,6 +22,13 @@ export interface actionLine {
   actionName: string;
 }
 
+export interface SongTimeline {
+  introStartTime: number;
+  verse1StartTime: number;
+  breakStartTime: number;
+  verse2StartTime: number;
+}
+
 // Record 필드는 추후 수정 고민 필요
 export interface GameStartResponse {
   intent: string;
@@ -34,7 +41,7 @@ export interface GameStartResponse {
     videoUrls: Record<string, string>;
     bpm: number;
     duration: number;
-    sectionInfo: Record<string, number>
+    sectionInfo: SongTimeline;
     segmentInfo: {
       verse1cam: SegmentRange;
       verse2cam: SegmentRange;
@@ -44,7 +51,7 @@ export interface GameStartResponse {
       lines: LyricLine[];
     }
     verse1Timeline: actionLine[];
-    verse2Timeline: {
+    verse2Timelines: {
       level1: actionLine[];
       level2: actionLine[];
       level3: actionLine[];
@@ -55,4 +62,9 @@ export interface GameStartResponse {
 export interface ListeningData {
   songId: number;
   autoPlay: boolean;
+}
+
+export interface GameEndResponse {
+  finalScore: number;
+  message: string;
 }
