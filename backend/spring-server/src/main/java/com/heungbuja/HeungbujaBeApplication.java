@@ -18,7 +18,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 		"com.heungbuja.device.repository", "com.heungbuja.emergency.repository",
 		"com.heungbuja.game.repository.jpa", "com.heungbuja.s3.repository",
 		"com.heungbuja.song.repository.jpa", // <-- 수정된 경로
-		"com.heungbuja.user.repository", "com.heungbuja.voice.repository"
+		"com.heungbuja.user.repository", "com.heungbuja.voice.repository",
+		"com.heungbuja.performance.repository" // <-- 성능 측정 Repository 추가
 })
 @EnableMongoRepositories(basePackages = {
 		"com.heungbuja.song.repository.mongo", // <-- 수정된 경로
