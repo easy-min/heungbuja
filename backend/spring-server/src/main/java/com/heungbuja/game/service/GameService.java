@@ -585,11 +585,29 @@ public class GameService {
      */
     @Transactional
     public GameEndResponse endGame(String sessionId) { // <-- 파라미터를 String으로, 반환 타입을 DTO로 변경
-        GameSession finalSession = getGameSession(sessionId);
+        // --- ▼ (핵심 수정) getGameSession의 '자동 생성' 로직을 신뢰하지 않고 직접 처리 ---
+        String sessionKey = GAME_SESSION_KEY_PREFIX + sessionId;
+        GameSession finalSession = gameSessionRedisTemplate.opsForValue().get(sessionKey);
+        // --- ▲ ------------------------------------------------------------------- ▲ ---
+
         if (finalSession == null) {
-            // Redis에 세션이 만료/삭제된 경우, DB에서 기록을 찾아 반환
+            // --- ▼ 디버깅 로그 추가 ▼ ---
+            log.error("endGame 호출 시 Redis에서 GameSession을 찾지 못했습니다. Key: '{}'", sessionKey);
+            log.warn("프론트에서 전달된 sessionId: \"{}\" (길이: {})", sessionId, sessionId.length());
+
+            // Redis에 있는 모든 game_session 키들을 출력하여 비교
+            Set<String> allSessionKeys = gameSessionRedisTemplate.keys(GAME_SESSION_KEY_PREFIX + "*");
+            if (allSessionKeys != null && !allSessionKeys.isEmpty()) {
+                log.info("현재 Redis에 있는 game_session 키 목록:");
+                allSessionKeys.forEach(existingKey -> log.info(" > \"{}\" (길이: {})", existingKey, existingKey.length()));
+            } else {
+                log.warn("현재 Redis에 game_session:* 패턴의 키가 하나도 없습니다.");
+            }
+            // --- ▲ -------------------- ▲ ---
+
+            // Redis에 없으면 DB에서 기록을 찾아 반환하는 기존 로직은 유지
             GameResult existingResult = gameResultRepository.findBySessionId(sessionId)
-                    .orElseThrow(() -> new CustomException(ErrorCode.GAME_SESSION_NOT_FOUND));
+                    .orElseThrow(() -> new CustomException(ErrorCode.GAME_SESSION_NOT_FOUND, "Redis와 DB 모두에서 세션을 찾을 수 없습니다: " + sessionId));
 
             log.warn("Redis에서 세션 {}을 찾을 수 없었으나, DB 기록을 바탕으로 결과를 반환합니다.", sessionId);
             double finalScore = calculateFinalScore(existingResult.getVerse1AvgScore(), existingResult.getVerse2AvgScore());
@@ -755,16 +773,9 @@ public class GameService {
     }
 
     public GameSession getGameSession(String sessionId) {
-        String key = GAME_SESSION_KEY_PREFIX + sessionId; // <-- (수정) 올바른 Key를 정의합니다.
-        GameSession gameSession = gameSessionRedisTemplate.opsForValue().get(key); // <-- (수정) 정의된 Key를 사용합니다.
-        if (gameSession == null) {
-            log.warn("세션 {}에 대한 GameSession이 없어 새로 생성합니다. (Key: {})", sessionId, key);
-            GameState gameState = getGameState(sessionId);
-            gameSession = GameSession.initial(sessionId, gameState.getUserId(), gameState.getSongId());
-            saveGameSession(sessionId, gameSession); // 새로 생성했으면 저장도 해줍니다.
-            return gameSession;
-        }
-        return gameSession;
+        String key = GAME_SESSION_KEY_PREFIX + sessionId;
+        // 이제 이 메소드는 순수하게 조회만 담당. 없으면 null 반환.
+        return gameSessionRedisTemplate.opsForValue().get(key);
     }
 
     private void saveGameSession(String sessionId, GameSession gameSession) {
