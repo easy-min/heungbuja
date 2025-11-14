@@ -3,6 +3,7 @@ package com.heungbuja.voice.service.impl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.heungbuja.common.exception.CustomException;
 import com.heungbuja.common.exception.ErrorCode;
+import com.heungbuja.performance.annotation.MeasurePerformance;
 import com.heungbuja.voice.service.SttService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -48,6 +49,7 @@ public class OpenAiWhisperSttServiceImpl implements SttService {
     }
 
     @Override
+    @MeasurePerformance(component = "STT")
     public String transcribe(MultipartFile audioFile) {
         if (!isSupportedFormat(audioFile)) {
             throw new CustomException(ErrorCode.INVALID_INPUT_VALUE,
