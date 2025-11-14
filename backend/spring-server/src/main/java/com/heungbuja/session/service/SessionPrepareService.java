@@ -1,13 +1,20 @@
 package com.heungbuja.session.service;
 
+import com.heungbuja.common.exception.CustomException;
+import com.heungbuja.common.exception.ErrorCode;
 import com.heungbuja.game.dto.GameSessionPrepareResponse;
 import com.heungbuja.game.dto.GameStartResponse;
 import com.heungbuja.game.dto.SectionInfo;
+import com.heungbuja.game.entity.GameResult;
+import com.heungbuja.game.enums.GameSessionStatus;
+import com.heungbuja.game.repository.jpa.GameResultRepository;
 import com.heungbuja.game.state.GameSession;
 import com.heungbuja.game.state.GameState;
 import com.heungbuja.session.state.ActivityState;
 import com.heungbuja.song.dto.SongGameData;
 import com.heungbuja.song.entity.Song;
+import com.heungbuja.user.entity.User;
+import com.heungbuja.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -30,6 +38,9 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class SessionPrepareService {
+
+    private final UserRepository userRepository;
+    private final GameResultRepository gameResultRepository;
 
     // Redis
     private final RedisTemplate<String, GameState> gameStateRedisTemplate;
@@ -60,6 +71,7 @@ public class SessionPrepareService {
             SongGameData songGameData) {
 
         log.info("게임 세션 준비: userId={}, songId={}", userId, song.getId());
+        User user = userRepository.findById(userId).orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
         // 1. 비디오 URL 생성
         Map<String, String> videoUrls = generateVideoUrls();
@@ -118,6 +130,14 @@ public class SessionPrepareService {
         sessionStateService.setCurrentActivity(userId, ActivityState.game(sessionId));
         sessionStateService.setSessionStatus(sessionId, "IN_PROGRESS");
 
+        GameResult gameResult = GameResult.builder()
+                .user(user)
+                .song(song)
+                .sessionId(sessionId)
+                .status(GameSessionStatus.IN_PROGRESS)
+                .startTime(LocalDateTime.now())
+                .build();
+        gameResultRepository.save(gameResult);
         log.info("게임 세션 준비 완료: sessionId={}", sessionId);
 
         // 7. 응답 생성 (sessionId 반환)
