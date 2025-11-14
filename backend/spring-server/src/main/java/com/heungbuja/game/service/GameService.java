@@ -589,7 +589,8 @@ public class GameService {
         String sessionKey = GAME_SESSION_KEY_PREFIX + sessionId;
         GameSession finalSession = gameSessionRedisTemplate.opsForValue().get(sessionKey);
         // --- ▲ ------------------------------------------------------------------- ▲ ---
-
+        log.info("endGame 호출 완료", sessionId);
+        log.info("endGame 관련 finalSesssion", finalSession);
         if (finalSession == null) {
             // --- ▼ 디버깅 로그 추가 ▼ ---
             log.error("endGame 호출 시 Redis에서 GameSession을 찾지 못했습니다. Key: '{}'", sessionKey);
@@ -617,11 +618,10 @@ public class GameService {
                     .message(message)
                     .build();
         }
-
         // Redis에 세션이 있는 경우 점수 계산
         Double verse1Avg = calculateScoreFromJudgments(finalSession.getVerse1Judgments());
         Double verse2Avg = null; // 기본값 null
-
+        log.info("verse1Avg", verse1Avg);
         // 2절을 시작했거나(nextLevel != null), 2절 판정 기록이 있으면 2절 점수 계산
         if (finalSession.getNextLevel() != null || (finalSession.getVerse2Judgments() != null && !finalSession.getVerse2Judgments().isEmpty())) {
             verse2Avg = calculateScoreFromJudgments(finalSession.getVerse2Judgments());
