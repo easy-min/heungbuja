@@ -389,14 +389,12 @@ public class GameService {
             if (!gameSession.getFrameBuffer().isEmpty()) {
 
                 // --- ▼ (핵심 수정) 2번에 1번만 AI 서버를 호출하도록 변경 ---
-                if (gameSession.getJudgmentCount() % 2 == 0) {
+                if (gameSession.getJudgmentCount() % 1 == 0) {
                     List<String> frames = new ArrayList<>(gameSession.getFrameBuffer().values());
                     callAiServerForJudgment(sessionId, gameSession, currentAction, frames);
                     log.info(" > AI 서버 요청 실행 (카운트: {})", gameSession.getJudgmentCount());
                 } else {
                     log.info(" > AI 서버 요청 건너뛰기 (카운트: {})", gameSession.getJudgmentCount());
-                    // 요청을 안 보낼 때도 피드백을 주려면 기본 점수로 처리할 수 있습니다.
-                    // handleJudgmentResult(sessionId, 1, actionTime);
                 }
                 // 카운터 증가
                 gameSession.setJudgmentCount(gameSession.getJudgmentCount() + 1);

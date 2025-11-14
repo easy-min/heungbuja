@@ -110,7 +110,7 @@ async def predict_motion_action_base64(payload: InferenceRequest) -> dict:
             frame_paths=frame_paths,
             sequence_length=sequence_length,
             top_k=top_k,
-            device="cuda",
+            device="cpu",
         )
 
         label_to_index = result.get("label_to_index", {})
