@@ -9,6 +9,7 @@ import { useActionTimelineSync } from '@/hooks/useActionTimelineSync';
 import type  { LyricLine, FeedbackMessage } from '@/types/game';
 import { useGameStore } from '@/store/gameStore';
 import { gameEndApi } from '@/api/game';
+import  VoiceButton from '@/components/VoiceButton'
 import './GamePage.css';
 
 function GamePage() {
@@ -532,6 +533,7 @@ function GamePage() {
               </div>
             </div>
           </div>
+        <VoiceButton />
       </div>
     </>
   );
