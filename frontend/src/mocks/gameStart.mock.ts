@@ -7,7 +7,7 @@ export async function mockGameStart(): Promise<GameStartResponse> {
   await delay(200);
 
   // 가사 정보
-  const lyricsInfo: LyricLine[] = [
+  const line: LyricLine[] = [
     { lineIndex: 1, text: '일부러 안 웃는거 맞죠', start: 33.0, end: 37.0, sbeat: 64, ebeat: 72 },
     { lineIndex: 2, text: '나에게만 차가운거 맞죠', start: 37.0, end: 41.0, sbeat: 72, ebeat: 81 },
     { lineIndex: 3, text: '알아요 그대 마음을', start: 41.0, end: 44.0, sbeat: 81, ebeat: 87 },
@@ -90,7 +90,7 @@ export async function mockGameStart(): Promise<GameStartResponse> {
         { time: 41.07, actionCode: 2, actionName: '팔 치기' },
       ],
 
-      verse2Timeline: {
+      verse2Timelines: {
         level1: [
           { time: 146.33, actionCode: 1, actionName: '손뼉 박수' },
           { time: 153.73, actionCode: 2, actionName: '팔 치기' },
@@ -105,7 +105,10 @@ export async function mockGameStart(): Promise<GameStartResponse> {
         ],
       },
 
-      lyricsInfo,
+      lyricsInfo: {
+        id: "1",
+        lines: line,
+      },
     },
   };
 }

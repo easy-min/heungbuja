@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 
 from app.api.routes.health import router as health_router
-from app.api.routes.inference import router as inference_router
+from app.api.routes.inference import analyze_router, router as inference_router
 
 
 def create_app() -> FastAPI:
@@ -10,6 +10,7 @@ def create_app() -> FastAPI:
     # Routers
     app.include_router(health_router)
     app.include_router(inference_router)
+    app.include_router(analyze_router)
 
     @app.get("/")
     async def root():
