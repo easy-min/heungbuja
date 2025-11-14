@@ -2,6 +2,7 @@ package com.heungbuja.voice.service.impl;
 
 import com.heungbuja.common.exception.CustomException;
 import com.heungbuja.common.exception.ErrorCode;
+import com.heungbuja.performance.annotation.MeasurePerformance;
 import com.heungbuja.voice.service.TtsService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -152,6 +153,7 @@ public class OpenAiTtsServiceImpl implements TtsService {
     }
 
     @Override
+    @MeasurePerformance(component = "TTS")
     public byte[] synthesizeBytes(String text, String voiceType) {
         log.info("OpenAI TTS (직접 반환) 시작: text='{}', voiceType='{}'", text, voiceType);
 
