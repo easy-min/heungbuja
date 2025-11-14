@@ -1,9 +1,8 @@
-// useGameWs.ts
 import { useEffect, useRef, useState, useCallback } from 'react';
 import SockJS from 'sockjs-client';
 import { Client, type IMessage } from '@stomp/stompjs';
 
-const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL || 'http://localhost:8080/ws';
+const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL || 'https://localhost:8080/ws';
 
 type Judgment = 1 | 2 | 3; // 1: SOSO, 2: GOOD, 3: PERFECT
 interface FeedbackMessage {
@@ -61,6 +60,7 @@ export function useGameWs(options?: UseGameWsOptions): UseGameWsReturn {
         heartbeatIncoming: 4000,
         heartbeatOutgoing: 4000,
         onConnect: () => {
+          console.log('[STOMP] connected');
           everConnectedRef.current = true;
           setIsConnected(true);
           setIsConnecting(false);
@@ -90,16 +90,15 @@ export function useGameWs(options?: UseGameWsOptions): UseGameWsReturn {
           setIsConnecting(false);
           options?.onError?.(err);
         },
-        onWebSocketClose: () => {
+        onWebSocketClose: (evt) => {
+          console.warn('[STOMP] websocket closed', evt.code, evt.reason);
           setIsConnected(false);
           setIsConnecting(false);
 
-          // 최초 연결 전이면 options.onError로 알리고(=리다이렉트 대상),
-          // 그 이후라면 단순 끊김 알림 정도로만 처리(재연결은 stomp-js가 수행).
           if (!everConnectedRef.current) {
             options?.onError?.(new Error('WebSocket closed before first connect'));
           } else {
-            options?.onDisconnect?.(); // 배너 등
+            options?.onDisconnect?.();
           }
         },
         onWebSocketError: () => {
@@ -137,7 +136,7 @@ export function useGameWs(options?: UseGameWsOptions): UseGameWsReturn {
   const sendFrame = useCallback(
     async ({ sessionId, blob, currentPlayTime }: { sessionId: string; blob: Blob; currentPlayTime: number }) => {
       const client = clientRef.current;
-      if (!client || !client.active) return;
+      if (!client || !client.connected) return;
 
       const frameData = await blobToBase64(blob);
       const body = JSON.stringify({
