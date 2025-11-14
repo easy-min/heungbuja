@@ -2,6 +2,7 @@ package com.heungbuja.song.service.impl;
 
 import com.heungbuja.common.exception.CustomException;
 import com.heungbuja.common.exception.ErrorCode;
+import com.heungbuja.performance.annotation.MeasurePerformance;
 import com.heungbuja.song.entity.Song;
 import com.heungbuja.song.repository.jpa.SongRepository;
 import com.heungbuja.song.service.RedisSongCacheService;
@@ -36,6 +37,7 @@ public class SongServiceImpl implements SongService {
     }
 
     @Override
+    @MeasurePerformance(component = "SongSearch")
     public Song searchByArtist(String artist) {
         log.info("🔍 가수 검색 시작: '{}'", artist);
 
@@ -81,6 +83,7 @@ public class SongServiceImpl implements SongService {
     }
 
     @Override
+    @MeasurePerformance(component = "SongSearch")
     public Song searchByTitle(String title) {
         log.info("🔍 제목 검색 시작: '{}'", title);
 
@@ -142,6 +145,7 @@ public class SongServiceImpl implements SongService {
     }
 
     @Override
+    @MeasurePerformance(component = "SongSearch")
     public Song searchByArtistAndTitle(String artist, String title) {
         log.info("🔍 가수+제목 검색: artist='{}', title='{}'", artist, title);
 
