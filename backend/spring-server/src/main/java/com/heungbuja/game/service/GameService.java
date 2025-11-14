@@ -622,32 +622,43 @@ public class GameService {
         Double verse1Avg = calculateScoreFromJudgments(finalSession.getVerse1Judgments());
         Double verse2Avg = null; // 기본값 null
         log.info("verse1Avg: {}", verse1Avg);
+        log.info("endGame - 2절 점수 계산 시작");
         // 2절을 시작했거나(nextLevel != null), 2절 판정 기록이 있으면 2절 점수 계산
         if (finalSession.getNextLevel() != null || (finalSession.getVerse2Judgments() != null && !finalSession.getVerse2Judgments().isEmpty())) {
             verse2Avg = calculateScoreFromJudgments(finalSession.getVerse2Judgments());
+            log.info("verse2Avg: {}", verse2Avg);
         }
 
+        log.info("endGame - MongoDB 상세 데이터 저장 시작");
         // MongoDB 상세 데이터 저장
         GameDetail.Statistics verse1Stats = calculateStatistics(finalSession.getVerse1Judgments());
+        log.info("endGame - verse1Stats 계산 완료");
         GameDetail.Statistics verse2Stats = calculateStatistics(finalSession.getVerse2Judgments());
+        log.info("endGame - verse2Stats 계산 완료");
         GameDetail gameDetail = GameDetail.builder()
                 .sessionId(sessionId)
                 .verse1Stats(verse1Stats)
                 .verse2Stats(verse2Stats)
                 .build();
+        log.info("endGame - GameDetail 객체 생성 완료, MongoDB 저장 시작");
         gameDetailRepository.save(gameDetail);
+        log.info("endGame - MongoDB 저장 완료");
 
+        log.info("endGame - MySQL 게임 결과 조회 시작");
         // MySQL 게임 결과 업데이트
         GameResult gameResult = gameResultRepository.findBySessionId(sessionId)
                 .orElseThrow(() -> new CustomException(ErrorCode.GAME_SESSION_NOT_FOUND));
+        log.info("endGame - MySQL 게임 결과 조회 완료");
 
         gameResult.setVerse1AvgScore(verse1Avg);
         gameResult.setVerse2AvgScore(verse2Avg); // 1절만 했으면 null이 저장됨
         gameResult.setFinalLevel(finalSession.getNextLevel());
         gameResult.complete(); // 상태를 'COMPLETED'로 변경
+        log.info("endGame - MySQL 게임 결과 저장 시작");
         gameResultRepository.save(gameResult);
         log.info("세션 {}의 게임 결과 저장 완료. 1절 점수: {}, 2절 점수: {}", sessionId, verse1Avg, verse2Avg);
 
+        log.info("endGame - Redis 데이터 정리 시작");
         // Redis 데이터 정리
         gameSessionRedisTemplate.delete(GAME_SESSION_KEY_PREFIX + sessionId);
         gameStateRedisTemplate.delete(GAME_STATE_KEY_PREFIX + sessionId);
@@ -657,10 +668,13 @@ public class GameService {
         }
         log.info("세션 {}의 Redis 데이터 삭제 완료.", sessionId);
 
+        log.info("endGame - 최종 점수 계산 시작");
         // 최종 점수와 메시지 계산하여 반환
         double finalScore = calculateFinalScore(verse1Avg, verse2Avg);
         String message = getResultMessage(finalScore);
+        log.info("endGame - 최종 점수: {}, 메시지: {}", finalScore, message);
 
+        log.info("endGame - 응답 객체 생성 및 반환");
         return GameEndResponse.builder()
                 .finalScore(finalScore)
                 .message(message)
