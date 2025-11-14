@@ -27,6 +27,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.Optional;
 
 /**
  * 응급 신고 서비스 구현체
@@ -52,18 +53,29 @@ public class EmergencyServiceImpl implements EmergencyService {
         // 1. 현재 진행 중인 활동 중단
         interruptCurrentActivity(userId);
 
-        // 2. 응급 신고 생성 및 저장
+        // 2. 기존 PENDING 신고가 있는지 확인
+        Optional<EmergencyReport> existingReport = emergencyReportRepository
+                .findFirstByUserIdAndStatusOrderByReportedAtDesc(userId, EmergencyReport.ReportStatus.PENDING);
+
+        if (existingReport.isPresent()) {
+            // 중복 응급 신호 = 정말 응급 상황 → 즉시 확정
+            log.info("중복 응급 신호 감지, 기존 신고 즉시 확정: reportId={}, userId={}",
+                    existingReport.get().getId(), userId);
+            return confirmRecentReport(userId);
+        }
+
+        // 3. 응급 신고 생성 및 저장
         EmergencyReport savedReport = createEmergencyReport(user, request);
 
-        // 3. 응급 상태로 설정
+        // 4. 응급 상태로 설정
         sessionStateService.setCurrentActivity(userId, ActivityState.emergency(savedReport.getId()));
 
         String message = "괜찮으세요? 정말 신고가 필요하신가요?";
 
-        log.info("응급 신고 감지: reportId={}, userId={}, 10초 후 자동 확정 스케줄",
+        log.info("응급 신고 감지: reportId={}, userId={}, 60초 후 자동 확정 스케줄",
                 savedReport.getId(), userId);
 
-        // 4. 트랜잭션 커밋 후 스케줄 등록
+        // 5. 트랜잭션 커밋 후 스케줄 등록
         scheduleAutoConfirmAfterCommit(savedReport.getId());
 
         return EmergencyResponse.from(savedReport, message);

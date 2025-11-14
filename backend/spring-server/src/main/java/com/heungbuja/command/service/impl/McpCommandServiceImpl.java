@@ -202,21 +202,26 @@ public class McpCommandServiceImpl implements CommandService {
                      * userId (필수): 사용자 ID
 
                 5. handle_emergency
-                   - 설명: 응급 상황 감지 및 신고
+                   - 설명: **최초** 응급 상황 감지 및 신고 생성
                    - 파라미터:
                      * userId (필수): 사용자 ID
                      * keyword (필수): 응급 키워드
                      * fullText (필수): 전체 발화 텍스트
+                   - 사용 시점: "살려줘", "도와줘", "아파요" 등 응급 키워드를 **처음** 말할 때
+                   - 참고: 응급 신고가 이미 진행 중이라면 즉시 확정됨
 
                 6. cancel_emergency
-                   - 설명: 응급 신고 취소 (사용자가 "괜찮아", "괜찮아요" 등으로 응답할 때)
+                   - 설명: 진행 중인 응급 신고 취소
                    - 파라미터:
                      * userId (필수): 사용자 ID
+                   - 사용 시점: 응급 신고 진행 중 "괜찮아", "괜찮아요", "취소", "잘못 눌렀어" 등으로 응답할 때
 
                 7. confirm_emergency
-                   - 설명: 응급 신고 즉시 확정 (사용자가 "안 괜찮아", "빨리 신고해" 등으로 응답할 때)
+                   - 설명: **진행 중인** 응급 신고를 즉시 확정 (60초 대기 건너뛰기)
                    - 파라미터:
                      * userId (필수): 사용자 ID
+                   - 사용 시점: 응급 신고 진행 중 "안 괜찮아", "안괜찮아", "빨리 신고해", "신고해", "위급해", "심각해" 등으로 응답할 때
+                   - ⚠️ 주의: handle_emergency와 명확히 구분! confirm_emergency는 **이미 신고가 진행 중**일 때만 사용
 
                 8. change_mode
                    - 설명: 모드 변경 (홈, 감상, 체조)
@@ -280,6 +285,29 @@ public class McpCommandServiceImpl implements CommandService {
                 "체조하고 싶어" → start_game()
                 "게임할래" → start_game()
 
+                [패턴 D 예시: 응급 상황 처리]
+                ⚠️ 응급 Tool 구분 규칙:
+                - handle_emergency: 처음 응급 키워드를 말할 때 (신고 생성)
+                - cancel_emergency: 신고 진행 중 취소 의사를 밝힐 때
+                - confirm_emergency: 신고 진행 중 확정 의사를 밝힐 때
+
+                시나리오 1 (최초 응급 신고):
+                "살려줘" → handle_emergency(keyword="살려줘", fullText="살려줘")
+                "아파요 도와주세요" → handle_emergency(keyword="아파요", fullText="아파요 도와주세요")
+
+                시나리오 2 (신고 진행 중 - 취소):
+                (이미 신고 진행 중) "괜찮아" → cancel_emergency()
+                (이미 신고 진행 중) "취소해" → cancel_emergency()
+
+                시나리오 3 (신고 진행 중 - 즉시 확정):
+                (이미 신고 진행 중) "안괜찮아" → confirm_emergency()
+                (이미 신고 진행 중) "빨리 신고해" → confirm_emergency()
+                (이미 신고 진행 중) "신고해줘" → confirm_emergency()
+
+                시나리오 4 (신고 진행 중 - 중복 응급 키워드 = 즉시 확정):
+                (이미 신고 진행 중) "도와줘" → handle_emergency(keyword="도와줘", fullText="도와줘")
+                → 시스템이 자동으로 기존 신고를 즉시 확정 처리
+
                 [JSON 예시]
                 입력: "당돌한 여자로 체조하고 싶어"
                 응답:
@@ -302,6 +330,30 @@ public class McpCommandServiceImpl implements CommandService {
                 {
                   "tool_calls": [
                     {"name": "start_game", "arguments": {"userId": 1}}
+                  ]
+                }
+
+                입력: "살려줘" (최초 응급 신고)
+                응답:
+                {
+                  "tool_calls": [
+                    {"name": "handle_emergency", "arguments": {"userId": 1, "keyword": "살려줘", "fullText": "살려줘"}}
+                  ]
+                }
+
+                입력: "안괜찮아" (신고 진행 중)
+                응답:
+                {
+                  "tool_calls": [
+                    {"name": "confirm_emergency", "arguments": {"userId": 1}}
+                  ]
+                }
+
+                입력: "괜찮아" (신고 진행 중)
+                응답:
+                {
+                  "tool_calls": [
+                    {"name": "cancel_emergency", "arguments": {"userId": 1}}
                   ]
                 }
 
