@@ -1,5 +1,6 @@
 package com.heungbuja.emergency.controller;
 
+import com.heungbuja.common.security.AdminPrincipal;
 import com.heungbuja.emergency.dto.EmergencyRequest;
 import com.heungbuja.emergency.dto.EmergencyResponse;
 import com.heungbuja.emergency.service.EmergencyService;
@@ -8,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -55,10 +57,10 @@ public class EmergencyController {
 
     @PutMapping("/admins/reports/{id}")
     public ResponseEntity<EmergencyResponse> handleReport(
-            Authentication authentication,
+            @AuthenticationPrincipal AdminPrincipal principal,
             @PathVariable Long id,
             @RequestParam String notes) {
-        Long adminId = (Long) authentication.getPrincipal();
+        Long adminId = principal.getId();
         EmergencyResponse response = emergencyService.handleReport(adminId, id, notes);
         return ResponseEntity.ok(response);
     }
