@@ -6,7 +6,7 @@ import { useMusicMonitor } from '@/hooks/useMusicMonitor';
 import { useLyricsSync } from '@/hooks/useLyricsSync';
 import { useGameWs } from '@/hooks/useGameWs';
 import { useActionTimelineSync } from '@/hooks/useActionTimelineSync';
-import { type LyricLine } from '@/types/game';
+import type  { LyricLine, FeedbackMessage } from '@/types/game';
 import { useGameStore } from '@/store/gameStore';
 import { gameEndApi } from '@/api/game';
 import './GamePage.css';
@@ -33,20 +33,35 @@ function GamePage() {
   const [sectionMessage, setSectionMessage] = useState<string | null>(null);
   const [wsMessage, setWsMessage] = useState<string | null>(null);
   const [redirectReason, setRedirectReason] = useState<null | 'wsError' | 'timeout'>(null);
+  const [lastFeedback, setLastFeedback] = useState<FeedbackMessage['data'] | null>(null);
+  const feedbackHideTimerRef = useRef<number | null>(null);
 
   const { connect, disconnect, sendFrame, isConnected } = useGameWs({
-    // onFeedback: (msg) => {
-    //   // msg = { type: 'FEEDBACK', data: { judgment: 2, timestamp: 35.80 } }
-    //   // TODO: 화면에 판정 표시
-    // },
     onError: () => {
       setWsMessage('웹소켓 연결 실패');   // 문구 먼저 노출
       setRedirectReason('wsError');       // 이동은 별도 effect에서 지연 처리
     },
     onDisconnect: () => {
-    // 최초 연결 이후 끊김: 배너만 띄우고 기다리면 stomp가 자동 재연결
-    setWsMessage('연결이 끊어졌습니다. 재시도 중…');
-  },
+      // 최초 연결 이후 끊김: 배너만 띄우고 기다리면 stomp가 자동 재연결
+      setWsMessage('연결이 끊어졌습니다. 재시도 중…');
+    },
+    onFeedback: (msg) => {
+      // 기존 타이머 제거
+      if (feedbackHideTimerRef.current) {
+        clearTimeout(feedbackHideTimerRef.current);
+        feedbackHideTimerRef.current = null;
+      }
+      console.log('[피드백] ', msg.data.judgment);
+
+      // 새 피드백 저장
+      setLastFeedback(msg.data);
+
+      // 1초 정도 보여주고 자동으로 숨김
+      feedbackHideTimerRef.current = window.setTimeout(() => {
+        setLastFeedback(null);
+        feedbackHideTimerRef.current = null;
+      }, 1000);
+    },
   });
 
   const { isCapturing, start: startStream, stop: stopStream } = useFrameStreamer({
@@ -351,6 +366,26 @@ function GamePage() {
     navigate('/result');
   }
 
+  function mapJudgment(judgment: 1 | 2 | 3) {
+    switch (judgment) {
+      case 3:
+        return { label: 'PERFECT', labelKo: '퍼펙트!', level: 'perfect' as const };
+      case 2:
+        return { label: 'GOOD', labelKo: '좋아요!', level: 'good' as const };
+      case 1:
+      default:
+        return { label: 'SOSO', labelKo: '조금 더!', level: 'soso' as const };
+    }
+  }
+
+  function formatTime(sec: number) {
+    const s = Math.floor(sec);
+    const mm = String(Math.floor(s / 60)).padStart(2, '0');
+    const ss = String(s % 60).padStart(2, '0');
+    return `${mm}:${ss}`;
+  }
+
+
   // === 초기화: store 기반으로만 세팅 ===
   useEffect(() => {
     // let cancelled = false;
@@ -478,7 +513,22 @@ function GamePage() {
                 {!isReady && !error && <div className="loading-message">📹 카메라 준비 중...</div>}
               </div>
               <div className="feedback-section">
-                ( 동작인식 피드백 )
+                {lastFeedback ? (
+                  (() => {
+                    const { judgment, timestamp } = lastFeedback;
+                    const mapped = mapJudgment(judgment);
+                    return (
+                      <div className={`feedback-badge feedback-${mapped.level}`}>
+                        <div className="feedback-main-text">{mapped.labelKo}</div>
+                        <div className="feedback-sub-text">
+                          {mapped.label} · {formatTime(timestamp)}
+                        </div>
+                      </div>
+                    );
+                  })()
+                ) : (
+                  <span className="feedback-placeholder"></span>
+                )}
               </div>
             </div>
           </div>
