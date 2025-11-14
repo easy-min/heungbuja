@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.heungbuja.command.dto.CommandRequest;
 import com.heungbuja.command.dto.CommandResponse;
+import com.heungbuja.performance.annotation.MeasurePerformance;
 import com.heungbuja.command.mcp.McpToolService;
 import com.heungbuja.command.mcp.dto.McpToolCall;
 import com.heungbuja.command.mcp.dto.McpToolDefinition;
@@ -54,6 +55,7 @@ public class McpCommandServiceImpl implements CommandService {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
+    @MeasurePerformance(component = "Command")
     @Transactional(noRollbackFor = {CustomException.class, Exception.class})
     public CommandResponse processTextCommand(CommandRequest request) {
         User user = userService.findById(request.getUserId());
