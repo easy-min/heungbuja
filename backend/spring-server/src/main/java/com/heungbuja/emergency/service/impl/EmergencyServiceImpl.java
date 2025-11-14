@@ -58,10 +58,12 @@ public class EmergencyServiceImpl implements EmergencyService {
                 .findFirstByUserIdAndStatusOrderByReportedAtDesc(userId, EmergencyReport.ReportStatus.PENDING);
 
         if (existingReport.isPresent()) {
-            // 중복 응급 신호 = 정말 응급 상황 → 즉시 확정
+            // 중복 응급 신호 = 정말 응급 상황 → 기존 신고 즉시 확정
             log.info("중복 응급 신호 감지, 기존 신고 즉시 확정: reportId={}, userId={}",
                     existingReport.get().getId(), userId);
-            return confirmRecentReport(userId);
+            confirmRecentReport(userId);
+            log.info("기존 신고 확정 후 새로운 신고를 생성합니다: userId={}", userId);
+            // 새로운 신고도 생성하기 위해 아래로 계속 진행
         }
 
         // 3. 응급 신고 생성 및 저장
