@@ -7,6 +7,7 @@ import com.heungbuja.gpt.dto.GptMessage;
 import com.heungbuja.gpt.dto.GptRequest;
 import com.heungbuja.gpt.dto.GptResponse;
 import com.heungbuja.gpt.service.GptService;
+import com.heungbuja.performance.annotation.MeasurePerformance;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -47,6 +48,7 @@ public class GptServiceImpl implements GptService {
     }
 
     @Override
+    @MeasurePerformance(component = "GPT")
     public GptResponse chat(List<GptMessage> messages) {
         try {
             GptRequest request = GptRequest.builder()
