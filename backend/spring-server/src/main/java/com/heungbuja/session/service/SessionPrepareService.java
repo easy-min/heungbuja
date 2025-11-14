@@ -52,7 +52,7 @@ public class SessionPrepareService {
      * 게임 세션 준비
      * @return sessionId (Command가 ActivityState 설정에 사용)
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public GameSessionPrepareResponse prepareGameSession(
             Long userId,
             Song song,
