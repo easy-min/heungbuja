@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import SockJS from 'sockjs-client';
 import { Client, type IMessage } from '@stomp/stompjs';
 
-const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL || 'http://localhost:8080/ws';
+const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL || 'https://localhost:8080/ws';
 
 type Judgment = 1 | 2 | 3; // 1: SOSO, 2: GOOD, 3: PERFECT
 interface FeedbackMessage {
