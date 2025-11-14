@@ -71,7 +71,7 @@ async def predict_motion_action_base64(payload: InferenceRequest) -> dict:
             image_path=tmp_path,
             sequence_length=sequence_length,
             top_k=top_k,
-            device="cuda",
+            device="cpu",
         )
 
         return {
