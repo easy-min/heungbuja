@@ -68,3 +68,9 @@ export interface GameEndResponse {
   finalScore: number;
   message: string;
 }
+
+type Judgment = 1 | 2 | 3; // 1: SOSO, 2: GOOD, 3: PERFECT
+export interface FeedbackMessage {
+  type: 'FEEDBACK';
+  data: { judgment: Judgment; timestamp: number };
+}
