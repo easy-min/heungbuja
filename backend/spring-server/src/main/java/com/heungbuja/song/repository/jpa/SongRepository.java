@@ -24,4 +24,22 @@ public interface SongRepository extends JpaRepository<Song, Long> {
     // 전체 텍스트 검색 (가수 OR 제목)
     @Query("SELECT s FROM Song s WHERE s.artist LIKE %:query% OR s.title LIKE %:query%")
     List<Song> searchByQuery(@Param("query") String query);
+
+    // FULLTEXT 검색 (NATURAL LANGUAGE MODE)
+    @Query(value = """
+        SELECT * FROM songs
+        WHERE MATCH(title, artist) AGAINST(:query IN NATURAL LANGUAGE MODE)
+        ORDER BY MATCH(title, artist) AGAINST(:query IN NATURAL LANGUAGE MODE) DESC
+        LIMIT :limit
+        """, nativeQuery = true)
+    List<Song> fullTextSearch(@Param("query") String query, @Param("limit") int limit);
+
+    // FULLTEXT 검색 (BOOLEAN MODE) - 연산자 지원 (+, -, *)
+    @Query(value = """
+        SELECT * FROM songs
+        WHERE MATCH(title, artist) AGAINST(:query IN BOOLEAN MODE)
+        ORDER BY MATCH(title, artist) AGAINST(:query IN BOOLEAN MODE) DESC
+        LIMIT :limit
+        """, nativeQuery = true)
+    List<Song> fullTextSearchBoolean(@Param("query") String query, @Param("limit") int limit);
 }
