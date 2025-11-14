@@ -4,6 +4,7 @@ import type {
   LyricLine,
   SegmentRange,
   actionLine,
+  SongTimeline,
 } from '@/types/game';
 
 export interface GameState {
@@ -20,16 +21,19 @@ export interface GameState {
   duration: number | null;
 
   // 섹션/세그먼트
-  sectionInfo: Record<string, number>;
+  sectionInfo: SongTimeline;
   segmentInfo: {
     verse1cam: SegmentRange | null;
     verse2cam: SegmentRange | null;
   };
 
   // 가사/액션 타임라인
-  lyrics: LyricLine[]; // (= API의 lyricsInfo)
+  lyricsInfo: {
+    id: string | null;
+    lines: LyricLine[]; 
+  };
   verse1Timeline: actionLine[];
-  verse2Timeline: {
+  verse2Timelines: {
     level1: actionLine[];
     level2: actionLine[];
     level3: actionLine[];
@@ -54,15 +58,23 @@ export const useGameStore = create<GameState>((set) => ({
   bpm: null,
   duration: null,
 
-  sectionInfo: {},
+  sectionInfo: {
+    introStartTime: 0,
+    verse1StartTime: 0,
+    breakStartTime: 0,
+    verse2StartTime: 0,
+  },
   segmentInfo: {
     verse1cam: null,
     verse2cam: null,
   },
 
-  lyrics: [],
+  lyricsInfo: {
+    id: null,
+    lines: [],
+  },
   verse1Timeline: [],
-  verse2Timeline: {
+  verse2Timelines: {
     level1: [],
     level2: [],
     level3: [],
@@ -91,9 +103,9 @@ export const useGameStore = create<GameState>((set) => ({
         verse2cam: d.segmentInfo.verse2cam,
       },
 
-      lyrics: d.lyricsInfo,
+      lyricsInfo: d.lyricsInfo,
       verse1Timeline: d.verse1Timeline,
-      verse2Timeline: d.verse2Timeline,
+      verse2Timelines: d.verse2Timelines,
     });
   },
 
@@ -110,15 +122,23 @@ export const useGameStore = create<GameState>((set) => ({
       bpm: null,
       duration: null,
 
-      sectionInfo: {},
+      sectionInfo: {
+        introStartTime: 0,
+        verse1StartTime: 0,
+        breakStartTime: 0,
+        verse2StartTime: 0,
+      },
       segmentInfo: {
         verse1cam: null,
         verse2cam: null,
       },
 
-      lyrics: [],
+      lyricsInfo: {
+        id: null,
+        lines: [],
+      },
       verse1Timeline: [],
-      verse2Timeline: {
+      verse2Timelines: {
         level1: [],
         level2: [],
         level3: [],
