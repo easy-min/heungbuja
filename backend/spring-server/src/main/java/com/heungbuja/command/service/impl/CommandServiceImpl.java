@@ -502,7 +502,8 @@ public class CommandServiceImpl implements CommandService {
      * 인식 불가
      */
     private CommandResponse handleUnknown() {
-        String responseText = responseGenerator.generateResponse(Intent.UNKNOWN);
+//        String responseText = responseGenerator.generateResponse(Intent.UNKNOWN);
+        String responseText = "잘 듣지 못했어요. 다시 말씀해주세요";
         String ttsUrl = ttsService.synthesize(responseText);
 
         return CommandResponse.failure(Intent.UNKNOWN, responseText, "/commands/tts/" + ttsUrl);
