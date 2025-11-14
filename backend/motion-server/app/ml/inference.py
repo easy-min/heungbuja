@@ -90,9 +90,9 @@ def _resolve_device(device_arg: str):
 def extract_landmarks_from_image(
     image_path: Path | str,
     *,
-    scale_factor: int = 3,
+    scale_factor: int = 1, # 프론트에서 보내는 로직을 좀 키움
     padding_ratio: float = 0.2,
-    model_complexity: int = 2,
+    model_complexity: int = 1, # 2에서 1로 모델의 정확도를 줄임
     min_detection_confidence: float = 0.2,
 ) -> "np.ndarray":
     """단일 이미지에서 MediaPipe Pose 랜드마크를 추출합니다."""
