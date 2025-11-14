@@ -9,14 +9,14 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Redis를 활용한 Song 캐시 서비스
- * - 전체 곡 정보를 Redis Hash에 저장 (20곡 정도면 0.1MB 이하)
- * - 애플리케이션 시작 시 자동 로드
- * - DB 조회 없이 Redis에서 빠르게 조회
+ * Redis를 활용한 Song 캐시 서비스 (간단 버전)
+ * - Song ID 리스트만 Redis에 저장
+ * - 실제 Song은 DB에서 조회 (20곡이라 빠름)
+ * - 캐시는 "곡이 존재하는지" 확인 용도로만 사용
  */
 @Service
 @Slf4j
@@ -26,81 +26,72 @@ public class RedisSongCacheService {
     private final RedisTemplate<String, Object> redisTemplate;
     private final SongRepository songRepository;
 
-    private static final String CACHE_KEY = "songs:cache:all";
+    private static final String CACHE_KEY = "songs:ids:all";
 
     /**
-     * 애플리케이션 시작 시 전체 곡을 Redis에 로드
+     * 애플리케이션 시작 시 전체 곡 ID를 Redis에 로드
      */
     @PostConstruct
     public void loadAllSongsToRedis() {
-        log.info("🎵 Redis 노래 캐시 초기화 시작...");
+        log.info("🎵 Redis 노래 ID 캐시 초기화 시작...");
 
-        List<Song> allSongs = songRepository.findAll();
+        try {
+            List<Song> allSongs = songRepository.findAll();
 
-        if (allSongs.isEmpty()) {
-            log.warn("⚠️ DB에 노래가 없습니다");
-            return;
+            if (allSongs.isEmpty()) {
+                log.warn("⚠️ DB에 노래가 없습니다");
+                return;
+            }
+
+            // Redis Set에 songId 저장
+            Set<Long> songIds = allSongs.stream()
+                .map(Song::getId)
+                .collect(Collectors.toSet());
+
+            redisTemplate.delete(CACHE_KEY);
+            redisTemplate.opsForSet().add(CACHE_KEY, songIds.toArray());
+
+            log.info("✅ Redis 노래 ID 캐시 초기화 완료: {} 곡", songIds.size());
+        } catch (Exception e) {
+            log.error("❌ Redis 캐시 초기화 실패, 계속 진행합니다", e);
         }
-
-        // Redis Hash에 저장: songId → Song 객체
-        Map<String, Song> cacheMap = allSongs.stream()
-            .collect(Collectors.toMap(
-                song -> song.getId().toString(),
-                song -> song
-            ));
-
-        redisTemplate.opsForHash().putAll(CACHE_KEY, cacheMap);
-
-        log.info("✅ Redis 노래 캐시 초기화 완료: {} 곡", allSongs.size());
     }
 
     /**
-     * Redis에서 전체 곡 조회
-     * @return 전체 Song 리스트
+     * DB에서 전체 곡 조회 (20곡이라 빠름)
      */
     public List<Song> getAllSongs() {
-        Map<Object, Object> entries = redisTemplate.opsForHash().entries(CACHE_KEY);
-
-        if (entries.isEmpty()) {
-            log.warn("⚠️ Redis 캐시가 비어있음, DB에서 재로드...");
-            loadAllSongsToRedis();
-            entries = redisTemplate.opsForHash().entries(CACHE_KEY);
-        }
-
-        return entries.values().stream()
-            .map(obj -> (Song) obj)
-            .toList();
+        return songRepository.findAll();
     }
 
     /**
-     * 특정 곡 조회 (by ID)
+     * 특정 곡이 존재하는지 확인
      */
-    public Song getSongById(Long songId) {
-        Object result = redisTemplate.opsForHash().get(CACHE_KEY, songId.toString());
-        return result != null ? (Song) result : null;
+    public boolean existsSong(Long songId) {
+        Boolean isMember = redisTemplate.opsForSet().isMember(CACHE_KEY, songId);
+        return isMember != null && isMember;
     }
 
     /**
-     * 곡 추가/수정 시 Redis 캐시 갱신
+     * 곡 추가 시 Redis 캐시 갱신
      */
-    public void refreshSong(Song song) {
-        redisTemplate.opsForHash().put(CACHE_KEY, song.getId().toString(), song);
-        log.info("🔄 Redis 캐시 갱신: songId={}, title={}", song.getId(), song.getTitle());
+    public void addSong(Long songId) {
+        redisTemplate.opsForSet().add(CACHE_KEY, songId);
+        log.info("🔄 Redis 캐시 추가: songId={}", songId);
     }
 
     /**
      * 곡 삭제 시 Redis 캐시에서 제거
      */
     public void removeSong(Long songId) {
-        redisTemplate.opsForHash().delete(CACHE_KEY, songId.toString());
+        redisTemplate.opsForSet().remove(CACHE_KEY, songId);
         log.info("🗑️ Redis 캐시 삭제: songId={}", songId);
     }
 
     /**
-     * 전체 캐시 무효화 및 재로드 (수동 호출용)
+     * 전체 캐시 무효화 및 재로드
      */
     public void invalidateAndReload() {
-        redisTemplate.delete(CACHE_KEY);
         loadAllSongsToRedis();
         log.info("🔄 Redis 캐시 전체 재로드 완료");
     }
