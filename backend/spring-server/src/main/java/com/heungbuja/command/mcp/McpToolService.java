@@ -7,6 +7,7 @@ import com.heungbuja.command.mcp.dto.McpToolCall;
 import com.heungbuja.command.mcp.dto.McpToolResult;
 import com.heungbuja.command.service.ResponseGenerator;
 import com.heungbuja.common.exception.CustomException;
+import com.heungbuja.performance.annotation.MeasurePerformance;
 import com.heungbuja.context.entity.ConversationContext;
 import com.heungbuja.context.service.ConversationContextService;
 import com.heungbuja.emergency.dto.EmergencyRequest;
@@ -97,6 +98,7 @@ public class McpToolService {
      * Tool: search_song
      * 가수명, 제목, 연대, 장르, 분위기로 노래 검색
      */
+    @MeasurePerformance(component = "Tool-SearchSong", saveToDb = false)
     private McpToolResult searchSong(McpToolCall toolCall) {
         Map<String, Object> args = toolCall.getArguments();
 
@@ -350,6 +352,7 @@ public class McpToolService {
      * 주의: 이 메서드는 게임 시작만 처리하고 즉시 응답합니다 (1-2초 소요)
      *       게임 진행(3-5분)은 프론트엔드가 /game/frame으로 별도 처리합니다
      */
+    @MeasurePerformance(component = "Tool-StartGame", saveToDb = false)
     private McpToolResult startGame(McpToolCall toolCall) {
         Map<String, Object> args = toolCall.getArguments();
 
@@ -484,6 +487,7 @@ public class McpToolService {
      * Tool: start_game_with_song
      * 특정 노래로 게임(체조) 시작 - 노래 검색 + 게임 시작을 한 번에 처리
      */
+    @MeasurePerformance(component = "Tool-StartGameWithSong", saveToDb = false)
     private McpToolResult startGameWithSong(McpToolCall toolCall) {
         Map<String, Object> args = toolCall.getArguments();
 
