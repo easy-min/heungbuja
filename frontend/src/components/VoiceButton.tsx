@@ -1,7 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 import { useVoiceCommand } from '../hooks/useVoiceCommand';
-import VoiceOverlay from './Voiceoverlay';
+import VoiceOverlay from './VoiceOverlay';
 import { useAudioStore } from '@/store/audioStore';
 import './VoiceButton.css';
 
@@ -17,19 +17,39 @@ const VoiceButton: React.FC = () => {
     isUploading,
     isPlaying,
     responseText,
+    response,
     sendCommand,
   } = useVoiceCommand();
 
   const { pause } = useAudioStore();
 
-  // 🔍 디버깅: 상태 변화 추적
-  // console.log('🎤 VoiceButton 상태:', {
-  //   isRecording,
-  //   isUploading,
-  //   isPlaying,
-  //   조건: isRecording || isUploading || isPlaying,
-  //   오버레이표시: (isRecording || isUploading || isPlaying) ? 'YES' : 'NO'
-  // });
+  // Emergency 체크
+  const isEmergency = response?.intent === 'EMERGENCY';
+
+  // TTS 재생 상태 추적 (이전 값)
+  const prevIsPlayingRef = useRef(false);
+
+  // 수동 녹음(버튼 클릭)으로 시작했는지 추적
+  const isManualRecordingRef = useRef(false);
+
+  // Emergency 시 TTS 끝나면 자동으로 다시 녹음 (수동 녹음일 때만 1회)
+  useEffect(() => {
+
+    // 수동 녹음에서 시작한 경우만 자동 재녹음
+    // TTS가 재생 중 → 끝난 순간만 감지
+    if (isManualRecordingRef.current && isEmergency && prevIsPlayingRef.current === true && !isPlaying && !isRecording && !isUploading) {
+      
+      // TODO(선미니): 웹소켓/게임 영상 등 게임 리소스 정지 구현
+
+      pause(); // 노래 일시정지
+      startRecording();
+      isManualRecordingRef.current = false; // 플래그 해제 (다음 자동 녹음에서는 무시)
+    }
+
+    // 현재 isPlaying 값을 다음 렌더링을 위해 저장
+    prevIsPlayingRef.current = isPlaying;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEmergency, isPlaying, isRecording, isUploading]);
 
   const handleClick = () => {
     console.log('🎤 VoiceButton 클릭됨');
@@ -37,7 +57,8 @@ const VoiceButton: React.FC = () => {
       // 녹음 시작 전에 노래 멈추기
       console.log('⏸️ 노래 일시정지 시도');
       pause();
-      console.log('🎙️ 녹음 시작');
+      console.log('🎙️ 녹음 시작 (수동)');
+      isManualRecordingRef.current = true; // 수동 녹음 플래그 설정
       startRecording();
     } else {
       console.log('⚠️ 버튼 비활성 상태 (isRecording:', isRecording, 'isUploading:', isUploading, 'isPlaying:', isPlaying, ')');
@@ -52,19 +73,17 @@ const VoiceButton: React.FC = () => {
     }
   }, [audioBlob, sendCommand]);
 
-  // 통합 에러 메시지
-  // const error = recordError || uploadError; // unused for now
-
   return (
     <>
       {/* 음성 인식 오버레이 - 항상 렌더링 */}
-      <VoiceOverlay 
+      <VoiceOverlay
         isVisible={isRecording || isUploading || isPlaying}
         countdown={countdown}
         isRecording={isRecording}
         isUploading={isUploading}
         isPlaying={isPlaying}
         responseText={responseText}
+        isEmergency={isEmergency}
       />
 
       {/* 마이크 버튼 */}
@@ -92,10 +111,6 @@ const VoiceButton: React.FC = () => {
           
         </button>
 
-        {/* 에러 메시지 */}
-        {/* {error && (
-          <div className="error-message">{error}</div>
-        )} */}
       </div>
     </>
   );
