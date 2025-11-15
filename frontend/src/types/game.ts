@@ -29,7 +29,6 @@ export interface SongTimeline {
   verse2StartTime: number;
 }
 
-// Record 필드는 추후 수정 고민 필요
 export interface GameStartResponse {
   intent: string;
   gameInfo:  {
@@ -38,7 +37,13 @@ export interface GameStartResponse {
     songTitle: string;
     songArtist: string;
     audioUrl: string;
-    videoUrls: Record<string, string>;
+    videoUrls: {
+      intro: string,
+      verse1: string,
+      verse2_level1: string,
+      verse2_level2: string,
+      verse2_level3: string,
+    };
     bpm: number;
     duration: number;
     sectionInfo: SongTimeline;
