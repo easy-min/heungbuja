@@ -6,7 +6,7 @@ import { useMusicMonitor } from '@/hooks/useMusicMonitor';
 import { useLyricsSync } from '@/hooks/useLyricsSync';
 import { useGameWs } from '@/hooks/useGameWs';
 import { useActionTimelineSync } from '@/hooks/useActionTimelineSync';
-import type  { LyricLine, FeedbackMessage } from '@/types/game';
+import type  { LyricLine, FeedbackMessage, GameEndResponse } from '@/types/game';
 import { useGameStore } from '@/store/gameStore';
 import { gameEndApi } from '@/api/game';
 import  VoiceButton from '@/components/VoiceButton'
@@ -353,7 +353,7 @@ function GamePage() {
   }
 
   // === 종료 시 결과 페이지 이동 ===
-  function goToResultOnce() {
+  async function goToResultOnce() {
     if (hasNavigatedRef.current) return;
     hasNavigatedRef.current = true;
     stopMonitoring();
@@ -363,8 +363,14 @@ function GamePage() {
     disconnect();
     if (audioRef.current) audioRef.current.pause();
 
-    gameEndApi();
-    navigate('/result');
+    const res: GameEndResponse = await gameEndApi();
+
+    navigate('/result', {
+      state: {
+        finalScore: res.finalScore,
+        message: res.message,
+      },
+    });
   }
 
   function mapJudgment(judgment: 1 | 2 | 3) {
