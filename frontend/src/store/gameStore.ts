@@ -44,6 +44,14 @@ export interface GameState {
     level2: actionLine[];
     level3: actionLine[];
   };
+  sectionPatterns: {
+  verse1: string[];
+  verse2: {
+    level1: string[],
+    level2: string[],
+    level3: string[],
+  }
+};
 
   // 업데이트 유틸
   setAll: (p: Partial<GameState>) => void;
@@ -91,6 +99,14 @@ export const useGameStore = create<GameState>((set) => ({
     level2: [],
     level3: [],
   },
+  sectionPatterns: {
+  verse1: [],
+  verse2: {
+    level1: [],
+    level2: [],
+    level3: [],
+  }
+},
 
   // 부분 업데이트
   setAll: (p) => set(p),
@@ -98,6 +114,9 @@ export const useGameStore = create<GameState>((set) => ({
   // API 응답 전체 주입
   setFromApi: (resp) => {
     const d = resp.gameInfo;
+    const limit4 = (arr: string[] | undefined | null): string[] =>
+    Array.isArray(arr) ? arr.slice(0, 4) : [];
+    
     set({
       sessionId: d.sessionId,
       songId: d.songId,
@@ -118,6 +137,15 @@ export const useGameStore = create<GameState>((set) => ({
       lyricsInfo: d.lyricsInfo,
       verse1Timeline: d.verse1Timeline,
       verse2Timelines: d.verse2Timelines,
+      
+      sectionPatterns: {
+        verse1: limit4(d.sectionPatterns.verse1),
+        verse2: {
+          level1: limit4(d.sectionPatterns.verse2.level1),
+          level2: limit4(d.sectionPatterns.verse2.level2),
+          level3: limit4(d.sectionPatterns.verse2.level3),
+        },
+      },
     });
   },
 
@@ -160,6 +188,14 @@ export const useGameStore = create<GameState>((set) => ({
         level1: [],
         level2: [],
         level3: [],
+      },
+      sectionPatterns: {
+        verse1: [],
+        verse2: {
+          level1: [],
+          level2: [],
+          level3: [],
+        }
       },
     }),
 }));
