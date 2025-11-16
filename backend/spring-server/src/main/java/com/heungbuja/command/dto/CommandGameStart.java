@@ -75,4 +75,10 @@ public class CommandGameStart {
      * 2절의 레벨별 동작 타임라인을 담는 Map
      */
     private Map<String, List<CommandActionTimelineEvent>> verse2Timelines;
+
+    /**
+     * 섹션별로 반복되는 패턴 시퀀스 (eachRepeat 적용된 실제 반복 순서)
+     * GameStartResponse.SectionPatterns를 재사용
+     */
+    private com.heungbuja.game.dto.GameStartResponse.SectionPatterns sectionPatterns;
 }
