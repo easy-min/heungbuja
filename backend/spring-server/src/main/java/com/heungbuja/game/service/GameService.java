@@ -461,13 +461,15 @@ public class GameService {
 
             // --- ▼ (핵심 추가 1) 인터럽트 상태를 먼저 확인합니다. ---
             String status = sessionStateService.getSessionStatus(sessionId);
-            if ("INTERRUPTING".equals(status)) {
-                log.info("세션 {}에 대한 인터럽트 요청 감지. 게임 중단 처리를 시작합니다.", sessionId);
+            if ("INTERRUPTING".equals(status) || "EMERGENCY_INTERRUPT".equals(status)) {
 
-                // 중복 실행을 막기 위해 락을 해제하고, 게임 로직을 실행
+                // 어떤 이유로 인터럽트가 발생했는지 로그에 남기면 디버깅에 용이합니다.
+                log.info("세션 {}에 대한 인터럽트 요청 감지 (상태: {}). 게임 중단 처리를 시작합니다.", sessionId, status);
+
+                // 락 해제 및 게임 중단 로직 실행
                 sessionStateService.releaseInterruptLock(sessionId);
-                interruptGame(sessionId, "외부 요청에 의한 중단"); // interruptGame 호출
-                continue; // 이 세션에 대한 나머지 검사(타임아웃)는 건너뜁니다.
+                interruptGame(sessionId, "외부 요청에 의한 중단 (" + status + ")"); // 중단 사유에 상태값 포함
+                continue; // 이 세션에 대한 나머지 검사는 건너뜁니다.
             }
             // --- ▲ --------------------------------------------------- ▲ ---
 
