@@ -3,10 +3,12 @@ package com.heungbuja.game.service;
 import com.heungbuja.common.exception.CustomException;
 import com.heungbuja.common.exception.ErrorCode;
 import com.heungbuja.game.domain.GameDetail;
+import com.heungbuja.game.domain.SpringServerPerformance;
 import com.heungbuja.game.dto.*;
 import com.heungbuja.game.entity.GameResult;
 import com.heungbuja.game.enums.GameSessionStatus;
 import com.heungbuja.game.repository.mongo.GameDetailRepository;
+import com.heungbuja.game.repository.mongo.SpringServerPerformanceRepository;
 import com.heungbuja.game.repository.jpa.GameResultRepository;
 import com.heungbuja.game.state.GameState;
 import com.heungbuja.session.state.ActivityState;
@@ -104,7 +106,7 @@ public class GameService {
             // MongoDB에 저장
             if (gameServiceInstance != null) {
                 try {
-                    com.heungbuja.game.domain.SpringServerPerformance perf = com.heungbuja.game.domain.SpringServerPerformance.builder()
+                    SpringServerPerformance perf = SpringServerPerformance.builder()
                             .timestamp(LocalDateTime.now())
                             .intervalSeconds(60)
                             .totalRequests(responseTimes.size())
@@ -153,7 +155,7 @@ public class GameService {
     private final ChoreographyPatternRepository choreographyPatternRepository;
     private final ActionRepository actionRepository;
     private final MediaUrlService mediaUrlService;
-    private final com.heungbuja.game.repository.mongo.SpringServerPerformanceRepository springServerPerformanceRepository;
+    private final SpringServerPerformanceRepository springServerPerformanceRepository;
 
     @Qualifier("aiWebClient") // 여러 WebClient Bean 중 aiWebClient를 특정
     private final WebClient aiWebClient;
