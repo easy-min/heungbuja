@@ -104,8 +104,8 @@ public class EmergencyServiceImpl implements EmergencyService {
                 String sessionId = currentActivity.getSessionId();
                 if (sessionStateService.trySetInterrupt(sessionId, "EMERGENCY")) {
                     sessionStateService.setSessionStatus(sessionId, "EMERGENCY_INTERRUPT");
-                    log.info("GameService.interruptGame 호출: sessionId={}", sessionId);
-                    gameService.interruptGame(sessionId, "EMERGENCY_INTERRUPT"); // "EMERGENCY"라는 중단 사유 전달
+                    log.info("응급신호로 게임 중단: sessionId={}", sessionId);
+//                    gameService.interruptGame(sessionId, "EMERGENCY_INTERRUPT"); // "EMERGENCY"라는 중단 사유 전달
                 }
                 break;
 
