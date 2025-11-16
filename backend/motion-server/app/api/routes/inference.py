@@ -22,8 +22,10 @@ from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-# MongoDB 연결
+# 설정 로드
 settings = get_settings()
+
+# MongoDB 연결
 try:
     mongo_client = MongoClient(settings.mongodb_uri, serverSelectionTimeoutMS=5000)
     # 연결 테스트
@@ -218,7 +220,7 @@ async def predict_motion_action_base64(payload: InferenceRequest) -> dict:
             frame_paths=frame_paths,
             sequence_length=sequence_length,
             top_k=top_k,
-            device="cpu",
+            device="cuda",  # GPU 사용
         )
         inference_duration = time.time() - inference_start
         perf_stats.record("2_ai_inference_total", inference_duration)

@@ -13,6 +13,9 @@ class Settings(BaseSettings):
 
     # MongoDB 설정 (Spring과 동일한 MongoDB 사용)
     mongodb_uri: str = "mongodb://heungbu:lastdance@heungbuja-mongo:27017/heungbudb?authSource=admin"
+    
+    # AI 모델 추론 디바이스 설정 (cuda: GPU 사용)
+    inference_device: str = "cuda"
 
 
 @lru_cache
