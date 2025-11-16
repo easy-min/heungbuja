@@ -65,6 +65,49 @@ public class GameService {
     private static final String GAME_STATE_KEY_PREFIX = "game_state:";
     private static final String GAME_SESSION_KEY_PREFIX = "game_session:";
 
+    // --- AI 서버 응답 시간 통계 ---
+    private static class AiResponseStats {
+        private final List<Long> responseTimes = new ArrayList<>();
+        private long lastReportTime = System.currentTimeMillis();
+        private final long REPORT_INTERVAL_MS = 60000; // 60초마다 리포트
+
+        public synchronized void record(long responseTimeMs) {
+            responseTimes.add(responseTimeMs);
+            maybeReport();
+        }
+
+        private void maybeReport() {
+            long now = System.currentTimeMillis();
+            if (now - lastReportTime >= REPORT_INTERVAL_MS && !responseTimes.isEmpty()) {
+                report();
+                reset();
+            }
+        }
+
+        private void report() {
+            if (responseTimes.isEmpty()) return;
+
+            double avg = responseTimes.stream().mapToLong(Long::longValue).average().orElse(0.0);
+            long min = responseTimes.stream().mapToLong(Long::longValue).min().orElse(0);
+            long max = responseTimes.stream().mapToLong(Long::longValue).max().orElse(0);
+
+            log.info("================================================================================");
+            log.info("📊 AI Server Response Time Statistics (Last 60s)");
+            log.info("Total Requests: {}", responseTimes.size());
+            log.info("  - Average: {:.2f}ms", avg);
+            log.info("  - Min: {}ms", min);
+            log.info("  - Max: {}ms", max);
+            log.info("================================================================================");
+        }
+
+        private void reset() {
+            responseTimes.clear();
+            lastReportTime = System.currentTimeMillis();
+        }
+    }
+
+    private static final AiResponseStats aiResponseStats = new AiResponseStats();
+
     // --- application.yml에서 서버 기본 주소 읽어오기 ---
     @Value("${app.base-url:http://localhost:8080/api}") // 기본값은 로컬
     private String baseUrl;
@@ -469,6 +512,7 @@ public class GameService {
      * 모인 프레임 묶음을 AI 서버로 보내고, 결과를 처리하는 메소드 (비동기)
      */
     private void callAiServerForJudgment(String sessionId, GameSession gameSession, ActionTimelineEvent action, List<String> frames) {
+        long startTime = System.currentTimeMillis();
         log.info("세션 {}의 동작 '{}'에 대한 AI 분석 요청 전송. (프레임 {}개)", sessionId, action.getActionName(), frames.size());
 
         AiAnalyzeRequest requestBody = AiAnalyzeRequest.builder()
@@ -485,14 +529,18 @@ public class GameService {
                 .bodyToMono(AiJudgmentResponse.class) // {"judgment": 3} 응답을 DTO로 변환
                 .subscribe(
                         aiResponse -> { // AI 서버 응답 성공 시
+                            long responseTime = System.currentTimeMillis() - startTime;
+                            aiResponseStats.record(responseTime);
+
                             int judgment = aiResponse.getJudgment();
-                            log.info(" > AI 분석 결과 수신 (세션 {}): {}점", sessionId, judgment);
+                            log.info("⏱️ AI 분석 결과 수신 (세션 {}): {}점 (응답시간: {}ms)", sessionId, judgment, responseTime);
 
                             // 판정 결과를 처리하는 후속 로직 실행
                             handleJudgmentResult(sessionId, judgment, action.getTime());
                         },
                         error -> { // AI 서버 응답 실패 시
-                            log.error("AI 서버 호출 실패 (세션 {}): {}", sessionId, error.getMessage());
+                            long responseTime = System.currentTimeMillis() - startTime;
+                            log.error("AI 서버 호출 실패 (세션 {}): {} (소요시간: {}ms)", sessionId, error.getMessage(), responseTime);
 
                             // 실패 시 기본 점수(1점)로 처리
                             handleJudgmentResult(sessionId, 1, action.getTime());

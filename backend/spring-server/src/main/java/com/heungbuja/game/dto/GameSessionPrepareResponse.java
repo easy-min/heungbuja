@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.util.Map;
+
 /**
  * 게임 세션 준비 응답 DTO
  */
@@ -17,4 +19,5 @@ public class GameSessionPrepareResponse {
     private String songTitle;
     private String songArtist;
     private String tutorialVideoUrl;
+    private Map<String, String> videoUrls;
 }
