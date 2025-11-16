@@ -240,7 +240,13 @@
 
             // 초기 로드
             loadDashboardData();
-            connectWebSocket();
+
+            // WebSocket 연결 (에러 무시)
+            try {
+                connectWebSocket();
+            } catch(e) {
+                console.warn('WebSocket 연결 실패 (신고 실시간 모니터링 비활성화)');
+            }
         } catch(e) {
             const errEl = document.getElementById('login-error');
             errEl.style.display='block';
@@ -402,9 +408,19 @@
 
     // WebSocket 연결
     function connectWebSocket(){
-        const socket = new SockJS(`${API_BASE}/ws`);
-        stompClient = Stomp.over(socket);
-        stompClient.connect({}, () => {
+        try {
+            const socket = new SockJS(`${API_BASE}/ws`);
+            stompClient = Stomp.over(socket);
+
+            // 에러 핸들러 추가
+            socket.onclose = function() {
+                console.warn('WebSocket 연결 종료 (신고 실시간 모니터링 비활성화)');
+            };
+            socket.onerror = function(error) {
+                console.warn('WebSocket 에러 (무시됨):', error);
+            };
+
+            stompClient.connect({}, () => {
             console.log('✅ WebSocket 연결 성공!');
             console.log('👤 현재 adminId:', adminId);
             const subscribePath = `/topic/admin/${adminId}/emergency`;
@@ -457,7 +473,12 @@
                     statusData.userName, statusData.message);
                 loadDashboardData(); // 어르신 카드 상태 갱신
             });
+        }, (error) => {
+            console.warn('STOMP 연결 실패 (신고 실시간 모니터링 비활성화):', error);
         });
+        } catch(e) {
+            console.warn('WebSocket 초기화 실패 (신고 실시간 모니터링 비활성화):', e);
+        }
     }
 
     // 🔥 어르신 카드를 긴급 상태로 즉시 업데이트
@@ -728,7 +749,7 @@
 
     async function loadSongList() {
         try {
-            const res = await fetch(`${API_BASE}/admin/songs`, {
+            const res = await fetch(`${API_BASE}/admins/songs`, {
                 headers: {Authorization: `Bearer ${accessToken}`}
             });
 
@@ -774,7 +795,7 @@
 
     async function loadSongVisualization(songId) {
         try {
-            const res = await fetch(`${API_BASE}/admin/songs/${songId}/visualization`, {
+            const res = await fetch(`${API_BASE}/admins/songs/${songId}/visualization`, {
                 headers: {Authorization: `Bearer ${accessToken}`}
             });
 
