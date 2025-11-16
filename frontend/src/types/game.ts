@@ -74,8 +74,20 @@ export interface GameEndResponse {
   message: string;
 }
 
-type Judgment = 1 | 2 | 3; // 1: SOSO, 2: GOOD, 3: PERFECT
+
+export type Judgment = 1 | 2 | 3;
+
 export interface FeedbackMessage {
   type: 'FEEDBACK';
   data: { judgment: Judgment; timestamp: number };
 }
+
+export interface LevelDecisionMessage {
+  type: 'LEVEL_DECISION';
+  data: {
+    nextLevel: 1 | 2 | 3;
+    characterVideoUrl: string;
+  };
+}
+
+export type GameWsMessage = FeedbackMessage | LevelDecisionMessage;
