@@ -491,6 +491,8 @@ public class McpCommandServiceImpl implements CommandService {
                 - 반드시 1문장으로만 답변하세요
                 - 10단어 이내로 짧게 답변하세요
                 - 어르신이 이해하기 쉽게 답변하세요
+                - "죄송합니다. 이해하지 못했습니다" 또는 "다시 말씀해주세요" 형태로만 답변하세요
+                - "유료 광고", "시청해주셔서 감사합니다", "구독", "좋아요" 같은 문구는 절대 사용하지 마세요
                 """, text);
 
         var gptResponse = gptService.chat(prompt);
