@@ -137,12 +137,13 @@ public class SessionPrepareService {
         gameResultRepository.save(gameResult);
         log.info("게임 세션 준비 완료: sessionId={}", sessionId);
 
-        // 7. 응답 생성 (sessionId 반환)
+        // 7. 응답 생성 (sessionId + videoUrls 반환)
         return GameSessionPrepareResponse.builder()
                 .sessionId(sessionId)
                 .songTitle(song.getTitle())
                 .songArtist(song.getArtist())
                 .tutorialVideoUrl(videoUrls.get("intro"))
+                .videoUrls(videoUrls)
                 .build();
     }
 
