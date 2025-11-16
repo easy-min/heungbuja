@@ -107,7 +107,8 @@ public class SongGameDataCache {
 
         // 4-1. 섹션별 패턴 시퀀스 생성
         com.heungbuja.game.dto.GameStartResponse.SectionPatterns sectionPatterns =
-                createSectionPatterns(choreography);
+                createSectionPatterns(songBeat, choreography);
+        log.info("생성된 sectionPatterns: {}", sectionPatterns);
 
         // 5. SongGameData 생성 (모든 데이터 포함!)
         SongGameData songGameData = SongGameData.builder()
@@ -255,33 +256,37 @@ public class SongGameDataCache {
     // ===== 섹션 패턴 시퀀스 생성 =====
 
     /**
-     * 섹션별 패턴 시퀀스 생성 (eachRepeat 적용하여 실제 반복되는 순서 그대로)
-     * 예: patternSequence=["P1","P2"], eachRepeat=2 -> ["P1","P1","P2","P2"]
+     * 섹션별 패턴 시퀀스 생성 (섹션 전체 길이만큼 패턴 반복)
+     * 예: verse1이 80비트이고 patternSequence=["P1","P2"], eachRepeat=2라면
+     *     ["P1","P1","P2","P2", "P1","P1","P2","P2", ...] (80개)
      */
     private com.heungbuja.game.dto.GameStartResponse.SectionPatterns createSectionPatterns(
+            SongBeat songBeat,
             SongChoreography choreography) {
 
+        log.info("createSectionPatterns 시작");
         SongChoreography.Version version = choreography.getVersions().get(0);
 
-        // 1절 패턴 시퀀스 생성
-        List<String> verse1Patterns = new ArrayList<>();
-        SongChoreography.VersePatternInfo verse1Info = version.getVerse1();
-        for (String patternId : verse1Info.getPatternSequence()) {
-            for (int i = 0; i < verse1Info.getEachRepeat(); i++) {
-                verse1Patterns.add(patternId);
-            }
-        }
+        // 1절 패턴 시퀀스 생성 (섹션 전체 길이만큼)
+        List<String> verse1Patterns = createFullSectionPatternSequence(
+                songBeat,
+                version.getVerse1().getPatternSequence(),
+                version.getVerse1().getEachRepeat(),
+                "verse1"
+        );
+        log.info("생성된 verse1Patterns 개수: {}", verse1Patterns.size());
 
         // 2절 레벨별 패턴 시퀀스 생성
         Map<Integer, List<String>> verse2PatternsMap = new HashMap<>();
         for (SongChoreography.VerseLevelPatternInfo levelInfo : version.getVerse2()) {
-            List<String> levelPatterns = new ArrayList<>();
-            for (String patternId : levelInfo.getPatternSequence()) {
-                for (int i = 0; i < levelInfo.getEachRepeat(); i++) {
-                    levelPatterns.add(patternId);
-                }
-            }
+            List<String> levelPatterns = createFullSectionPatternSequence(
+                    songBeat,
+                    levelInfo.getPatternSequence(),
+                    levelInfo.getEachRepeat(),
+                    "verse2"
+            );
             verse2PatternsMap.put(levelInfo.getLevel(), levelPatterns);
+            log.info("생성된 verse2 level{} Patterns 개수: {}", levelInfo.getLevel(), levelPatterns.size());
         }
 
         // Verse2Patterns 객체 생성
@@ -296,6 +301,42 @@ public class SongGameDataCache {
                 .verse1(verse1Patterns)
                 .verse2(verse2Patterns)
                 .build();
+    }
+
+    /**
+     * 섹션 전체 길이만큼 패턴을 반복하여 배열 생성
+     */
+    private List<String> createFullSectionPatternSequence(
+            SongBeat songBeat,
+            List<String> patternSequence,
+            int eachRepeat,
+            String sectionLabel) {
+
+        // 1. 기본 패턴 시퀀스 생성 (eachRepeat 적용)
+        List<String> mergedPattern = new ArrayList<>();
+        for (String patternId : patternSequence) {
+            for (int i = 0; i < eachRepeat; i++) {
+                mergedPattern.add(patternId);
+            }
+        }
+
+        // 2. 섹션의 비트 범위 가져오기
+        SongBeat.Section section = findSectionByLabel(songBeat, sectionLabel);
+        int sectionBeatCount = section.getEndBeat() - section.getStartBeat() + 1;
+
+        // 3. 섹션 전체 길이만큼 패턴 반복
+        List<String> fullPatternSequence = new ArrayList<>();
+        int mergedPatternLength = mergedPattern.size();
+
+        for (int i = 0; i < sectionBeatCount; i++) {
+            int patternIndex = i % mergedPatternLength;
+            fullPatternSequence.add(mergedPattern.get(patternIndex));
+        }
+
+        log.info("섹션 {} - 비트 수: {}, 기본 패턴 길이: {}, 최종 패턴 배열 길이: {}",
+                sectionLabel, sectionBeatCount, mergedPatternLength, fullPatternSequence.size());
+
+        return fullPatternSequence;
     }
 
     // ===== SectionInfo 가공 =====
