@@ -41,6 +41,9 @@ public class SongGameData implements Serializable {
     private List<ActionTimelineEvent> verse1Timeline;
     private Map<String, List<ActionTimelineEvent>> verse2Timelines;
 
+    // 섹션별 패턴 시퀀스
+    private com.heungbuja.game.dto.GameStartResponse.SectionPatterns sectionPatterns;
+
     // 캐싱 시간
     private LocalDateTime cachedAt;
 }
