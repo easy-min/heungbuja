@@ -3,7 +3,9 @@ package com.heungbuja.voice.service.impl;
 import com.heungbuja.common.exception.CustomException;
 import com.heungbuja.common.exception.ErrorCode;
 import com.heungbuja.performance.annotation.MeasurePerformance;
+import com.heungbuja.voice.service.TtsCacheService;
 import com.heungbuja.voice.service.TtsService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
@@ -27,9 +29,12 @@ import java.util.UUID;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 @Primary // 이 구현체를 우선 사용
 @Profile({"prod", "!local"}) // local 제외한 모든 프로파일
 public class OpenAiTtsServiceImpl implements TtsService {
+
+    private final TtsCacheService ttsCacheService;
 
     @Value("${openai.gms.api-key}")
     private String gmsApiKey;
@@ -40,13 +45,9 @@ public class OpenAiTtsServiceImpl implements TtsService {
     @Value("${tts.storage.path:./tts-files}")
     private String storagePath;
 
-    private final HttpClient httpClient;
-
-    public OpenAiTtsServiceImpl() {
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(30))
-                .build();
-    }
+    private final HttpClient httpClient = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(30))
+            .build();
 
     @Override
     public String synthesize(String text, String voiceType) {
@@ -155,7 +156,21 @@ public class OpenAiTtsServiceImpl implements TtsService {
     @Override
     @MeasurePerformance(component = "TTS")
     public byte[] synthesizeBytes(String text, String voiceType) {
-        log.info("OpenAI TTS (직접 반환) 시작: text='{}', voiceType='{}'", text, voiceType);
+        log.info("OpenAI TTS 요청: text='{}', voiceType='{}'", text, voiceType);
+
+        // 캐시 조회 또는 생성
+        return ttsCacheService.getCachedOrGenerate(text, voiceType, () -> {
+            // 캐시 미스 시 실제 TTS 생성
+            return generateTtsAudio(text, voiceType);
+        });
+    }
+
+    /**
+     * 실제 OpenAI TTS API 호출하여 음성 생성
+     * (캐시 미스 시에만 호출됨)
+     */
+    private byte[] generateTtsAudio(String text, String voiceType) {
+        log.info("OpenAI TTS API 호출 시작: text='{}', voiceType='{}'", text, voiceType);
 
         try {
             long startTime = System.currentTimeMillis();
@@ -184,7 +199,7 @@ public class OpenAiTtsServiceImpl implements TtsService {
             HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
 
             long endTime = System.currentTimeMillis();
-            log.info("OpenAI TTS (직접 반환) 완료: 소요 시간={}ms, Status Code={}, 크기={} bytes",
+            log.info("OpenAI TTS API 호출 완료: 소요 시간={}ms, Status Code={}, 크기={} bytes",
                     endTime - startTime, response.statusCode(), response.body().length);
 
             if (response.statusCode() == 200 && response.body() != null) {
