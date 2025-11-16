@@ -476,51 +476,33 @@ public class GameService {
     }
 
     /**
-     * 1초마다 실행되는 게임 세션 감시자
-     * 1. 인터럽트 요청 확인
-     * 2. 프레임 수신 타임아웃 확인
+     * @Scheduled: 이제 타임아웃만 검사하고, 인터럽트 확인 로직은 제거합니다.
      */
     @Scheduled(fixedRate = 1000)
     public void checkGameSessionTimeout() {
-        // "game_session:" 패턴을 가진 모든 키를 스캔하는 것은 부하가 있을 수 있으므로,
-        // 실제 운영 환경에서는 더 효율적인 방법을 고려할 수 있습니다. (예: 별도의 Set 관리)
         Set<String> sessionKeys = gameSessionRedisTemplate.keys(GAME_SESSION_KEY_PREFIX + "*");
         if (sessionKeys == null || sessionKeys.isEmpty()) {
             return;
         }
-
         long now = Instant.now().toEpochMilli();
-
         for (String key : sessionKeys) {
             GameSession session = gameSessionRedisTemplate.opsForValue().get(key);
             if (session == null || session.isProcessing()) {
                 continue;
             }
 
-            String sessionId = session.getSessionId(); // 세션 ID를 변수에 저장
-
-            // --- ▼ (핵심 추가 1) 인터럽트 상태를 먼저 확인합니다. ---
-            String status = sessionStateService.getSessionStatus(sessionId);
-            if ("INTERRUPTING".equals(status) || "EMERGENCY_INTERRUPT".equals(status)) {
-
-                // 어떤 이유로 인터럽트가 발생했는지 로그에 남기면 디버깅에 용이합니다.
-                log.info("세션 {}에 대한 인터럽트 요청 감지 (상태: {}). 게임 중단 처리를 시작합니다.", sessionId, status);
-
-                // 락 해제 및 게임 중단 로직 실행
-                sessionStateService.releaseInterruptLock(sessionId);
-                interruptGame(sessionId, "외부 요청에 의한 중단 (" + status + ")"); // 중단 사유에 상태값 포함
-                continue; // 이 세션에 대한 나머지 검사는 건너뜁니다.
-            }
+            // --- ▼ (핵심 수정) 인터럽트 확인 로직을 완전히 제거합니다. ▼ ---
+            // String status = sessionStateService.getSessionStatus(session.getSessionId());
+            // if ("INTERRUPTING".equals(status) || ... ) { ... }
             // --- ▲ --------------------------------------------------- ▲ ---
 
-
-            // 기존 타임아웃 검사 로직
+            // 기존 타임아웃 검사 로직만 남깁니다.
             if (session.getLastFrameReceivedTime() > 0 && now - session.getLastFrameReceivedTime() > 1000) {
                 if (session.getNextLevel() == null) {
-                    log.info("세션 {}의 1절 종료 감지. 레벨 결정을 시작합니다.", sessionId);
+                    log.info("세션 {}의 1절 종료 감지. 레벨 결정을 시작합니다.", session.getSessionId());
                     session.setProcessing(true);
-                    saveGameSession(sessionId, session);
-                    decideAndSendNextLevel(sessionId);
+                    saveGameSession(session.getSessionId(), session);
+                    decideAndSendNextLevel(session.getSessionId());
                 }
             }
         }
@@ -775,6 +757,13 @@ public class GameService {
      */
     @Transactional
     public void interruptGame(String sessionId, String reason) {
+        // --- ▼ (핵심 추가) 중복 실행 방지를 위해 락을 시도합니다. ---
+        if (!sessionStateService.trySetInterrupt(sessionId, reason)) {
+            log.warn("세션 {}에 대한 인터럽트가 이미 처리 중이므로 건너뜁니다.", sessionId);
+            return; // 락 획득에 실패하면 아무것도 하지 않음
+        }
+        // --- ▲ --------------------------------------------------- ▲ ---
+
         GameSession finalSession = getGameSession(sessionId);
         if (finalSession == null) {
             log.warn("존재하지 않거나 이미 처리된 세션 ID로 인터럽트 요청: {}", sessionId);
@@ -822,8 +811,13 @@ public class GameService {
             sessionStateService.clearActivity(finalSession.getUserId());
         }
 
+        // --- ▼ 모든 처리가 끝난 후 락을 해제합니다. ---
+        sessionStateService.releaseInterruptLock(sessionId);
+
         // WebSocket: 프론트에 중단 알림 전송
         sendGameInterruptNotification(sessionId);
+
+        log.info("세션 {}의 게임 중단 처리 완료. 사유: {}", sessionId, reason);
     }
 
     // ##########################################################
