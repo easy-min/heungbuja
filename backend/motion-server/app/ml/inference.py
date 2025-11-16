@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from pathlib import Path
 from typing import Mapping, Sequence, TYPE_CHECKING
 
@@ -13,6 +14,22 @@ if TYPE_CHECKING:  # pragma: no cover - 정적 타입 체크 용도
     import numpy as np  # type: ignore[import-not-found]
 
 logger = logging.getLogger(__name__)
+
+# 성능 측정용 타이머 컨텍스트
+class Timer:
+    """간단한 타이머 유틸리티"""
+    def __init__(self, name: str):
+        self.name = name
+        self.start = 0.0
+        self.duration = 0.0
+
+    def __enter__(self):
+        self.start = time.time()
+        return self
+
+    def __exit__(self, *args):
+        self.duration = time.time() - self.start
+        logger.debug(f"  └─ {self.name}: {self.duration*1000:.2f}ms")
 
 
 DEFAULT_LABEL_MAP: Mapping[str, str] = {
@@ -232,9 +249,23 @@ def predict_action_from_frames(
 
     np = _import_numpy()
 
+    # MediaPipe Pose 랜드마크 추출 (가장 느린 부분)
+    landmark_start = time.time()
     landmarks_list = [extract_landmarks_from_image(path) for path in frame_paths]
+    landmark_duration = time.time() - landmark_start
+    logger.debug(f"  └─ MediaPipe extraction: {landmark_duration*1000:.2f}ms for {len(frame_paths)} frames")
+
+    # 시퀀스 준비
+    seq_start = time.time()
     sequence = _prepare_sequence_from_landmark_list(landmarks_list, sequence_length=sequence_length)
+    seq_duration = time.time() - seq_start
+    logger.debug(f"  └─ Sequence preparation: {seq_duration*1000:.2f}ms")
+
+    # PyTorch 모델 추론
+    inference_start = time.time()
     probabilities, artifacts = _run_inference(sequence, device=device)
+    inference_duration = time.time() - inference_start
+    logger.debug(f"  └─ PyTorch inference: {inference_duration*1000:.2f}ms")
 
     top_k = max(1, top_k)
     top_indices = np.argsort(probabilities)[::-1][:top_k]
