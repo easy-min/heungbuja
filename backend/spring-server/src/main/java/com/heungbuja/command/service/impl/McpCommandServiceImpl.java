@@ -50,6 +50,7 @@ public class McpCommandServiceImpl implements CommandService {
     private final GptService gptService;
     private final McpToolService mcpToolService;
     private final ConversationContextService conversationContextService;
+    private final com.heungbuja.session.service.SessionStateService sessionStateService;
     private final TtsService ttsService;
     private final VoiceCommandRepository voiceCommandRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -170,6 +171,22 @@ public class McpCommandServiceImpl implements CommandService {
      * Tool 선택을 위한 프롬프트 생성
      */
     private String buildToolSelectionPrompt(String userMessage, String contextInfo, Long userId) {
+        // 응급 상황 진행 중인지 체크
+        boolean isEmergencyInProgress = sessionStateService.isEmergency(userId);
+        String emergencyWarning = "";
+
+        if (isEmergencyInProgress) {
+            emergencyWarning = """
+
+                    ⚠️ 중요: 현재 응급 신고가 진행 중입니다!
+                    - 사용자가 "괜찮아", "괜찮습니다", "괜찮아요", "아니야", "취소" 등을 말하면 → cancel_emergency
+                    - 사용자가 "안괜찮아", "안 괜찮아", "빨리 신고", "신고해", "위급해" 등을 말하면 → confirm_emergency
+                    - 사용자가 다시 응급 키워드("살려줘", "도와줘" 등)를 말하면 → handle_emergency (중복 신고 = 즉시 확정)
+                    - 사용자가 애매한 대답을 하거나 아무 말도 안하면 → tool 호출하지 말고 "신고가 진행되고 있습니다" 응답
+
+                    """;
+        }
+
         // Tools 설명
         String toolsDescription = """
                 [사용 가능한 Tools]
@@ -216,7 +233,8 @@ public class McpCommandServiceImpl implements CommandService {
                    - 설명: 진행 중인 응급 신고 취소
                    - 파라미터:
                      * userId (필수): 사용자 ID
-                   - 사용 시점: 응급 신고 진행 중 "괜찮아", "괜찮아요", "취소", "잘못 눌렀어" 등으로 응답할 때
+                   - 사용 시점: 응급 신고 진행 중 사용자가 괜찮다고 응답할 때
+                   - 인식 키워드: "괜찮아", "괜찮습니다", "괜찮아요", "괜찮네요", "아니야", "아니에요", "취소", "취소해", "잘못 눌렀어", "실수야", "실수였어"
 
                 7. confirm_emergency
                    - 설명: **진행 중인** 응급 신고를 즉시 확정 (60초 대기 건너뛰기)
@@ -249,7 +267,7 @@ public class McpCommandServiceImpl implements CommandService {
         return String.format("""
                 당신은 노인을 위한 음성 인터페이스 AI입니다.
                 사용자의 음성 명령을 분석하여 적절한 Tool을 선택하세요.
-
+                %s
                 [현재 상황]
                 %s
 
@@ -299,7 +317,11 @@ public class McpCommandServiceImpl implements CommandService {
 
                 시나리오 2 (신고 진행 중 - 취소):
                 (이미 신고 진행 중) "괜찮아" → cancel_emergency()
+                (이미 신고 진행 중) "괜찮습니다" → cancel_emergency()
+                (이미 신고 진행 중) "괜찮아요" → cancel_emergency()
+                (이미 신고 진행 중) "아니야" → cancel_emergency()
                 (이미 신고 진행 중) "취소해" → cancel_emergency()
+                (이미 신고 진행 중) "잘못 눌렀어" → cancel_emergency()
 
                 시나리오 3 (신고 진행 중 - 즉시 확정):
                 (이미 신고 진행 중) "안괜찮아" → confirm_emergency()
@@ -359,13 +381,29 @@ public class McpCommandServiceImpl implements CommandService {
                   ]
                 }
 
+                입력: "괜찮습니다" (신고 진행 중)
+                응답:
+                {
+                  "tool_calls": [
+                    {"name": "cancel_emergency", "arguments": {"userId": 1}}
+                  ]
+                }
+
+                입력: "아니야" (신고 진행 중)
+                응답:
+                {
+                  "tool_calls": [
+                    {"name": "cancel_emergency", "arguments": {"userId": 1}}
+                  ]
+                }
+
                 [응답 형식]
                 - userId는 %d로 설정
                 - 반드시 JSON만 출력 (설명 금지)
                 - tool_calls는 배열이지만 대부분 하나의 Tool만 호출
 
                 JSON만 출력:
-                """, contextInfo, toolsDescription, userMessage, userId);
+                """, emergencyWarning, contextInfo, toolsDescription, userMessage, userId);
     }
 
     /**
@@ -424,6 +462,26 @@ public class McpCommandServiceImpl implements CommandService {
      * Tool을 호출하지 않고 GPT가 직접 응답한 경우
      */
     private CommandResponse handleDirectGptResponse(User user, String text) {
+        // 응급 상황 진행 중인지 체크
+        boolean isEmergencyInProgress = sessionStateService.isEmergency(user.getId());
+
+        if (isEmergencyInProgress) {
+            // 응급 신고 진행 중일 때는 상태 안내
+            log.info("응급 신고 진행 중 애매한 응답: userId={}, text='{}'", user.getId(), text);
+
+            String responseText = "신고가 진행되고 있습니다. 괜찮으시면 '괜찮아'라고, 정말 위급하시면 '안 괜찮아'라고 말씀해주세요";
+
+            saveVoiceCommand(user, text, Intent.EMERGENCY);
+
+            return CommandResponse.builder()
+                    .success(true)
+                    .intent(Intent.EMERGENCY)  // 응급 상황 유지
+                    .responseText(responseText)
+                    .ttsAudioUrl(null)  // TTS는 Controller에서 처리
+                    .build();
+        }
+
+        // 일반 상황
         String prompt = String.format("""
                 사용자 요청: "%s"
 
