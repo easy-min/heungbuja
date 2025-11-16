@@ -22,7 +22,7 @@ import java.util.List;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/admin/songs")
+@RequestMapping("/admins/songs")
 @RequiredArgsConstructor
 public class AdminSongController {
 
