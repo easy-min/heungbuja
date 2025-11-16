@@ -3,10 +3,12 @@ package com.heungbuja.game.service;
 import com.heungbuja.common.exception.CustomException;
 import com.heungbuja.common.exception.ErrorCode;
 import com.heungbuja.game.domain.GameDetail;
+import com.heungbuja.game.domain.SpringServerPerformance;
 import com.heungbuja.game.dto.*;
 import com.heungbuja.game.entity.GameResult;
 import com.heungbuja.game.enums.GameSessionStatus;
 import com.heungbuja.game.repository.mongo.GameDetailRepository;
+import com.heungbuja.game.repository.mongo.SpringServerPerformanceRepository;
 import com.heungbuja.game.repository.jpa.GameResultRepository;
 import com.heungbuja.game.state.GameState;
 import com.heungbuja.session.state.ActivityState;
@@ -41,6 +43,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Scheduled;
 import reactor.core.publisher.Mono;
 
+import jakarta.annotation.PostConstruct;
 import java.time.Instant;
 
 import java.time.Duration;
@@ -70,6 +73,7 @@ public class GameService {
         private final List<Long> responseTimes = new ArrayList<>();
         private long lastReportTime = System.currentTimeMillis();
         private final long REPORT_INTERVAL_MS = 60000; // 60초마다 리포트
+        private static GameService gameServiceInstance; // MongoDB 저장용
 
         public synchronized void record(long responseTimeMs) {
             responseTimes.add(responseTimeMs);
@@ -94,15 +98,37 @@ public class GameService {
             log.info("================================================================================");
             log.info("📊 AI Server Response Time Statistics (Last 60s)");
             log.info("Total Requests: {}", responseTimes.size());
-            log.info("  - Average: {:.2f}ms", avg);
+            log.info("  - Average: {}ms", String.format("%.2f", avg));
             log.info("  - Min: {}ms", min);
             log.info("  - Max: {}ms", max);
             log.info("================================================================================");
+
+            // MongoDB에 저장
+            if (gameServiceInstance != null) {
+                try {
+                    SpringServerPerformance perf = SpringServerPerformance.builder()
+                            .timestamp(LocalDateTime.now())
+                            .intervalSeconds(60)
+                            .totalRequests(responseTimes.size())
+                            .averageResponseTimeMs(avg)
+                            .minResponseTimeMs(min)
+                            .maxResponseTimeMs(max)
+                            .build();
+                    gameServiceInstance.springServerPerformanceRepository.save(perf);
+                    log.info("✅ 성능 통계를 MongoDB에 저장했습니다.");
+                } catch (Exception e) {
+                    log.error("❌ MongoDB 저장 실패: {}", e.getMessage());
+                }
+            }
         }
 
         private void reset() {
             responseTimes.clear();
             lastReportTime = System.currentTimeMillis();
+        }
+
+        public static void setGameServiceInstance(GameService instance) {
+            gameServiceInstance = instance;
         }
     }
 
@@ -129,9 +155,17 @@ public class GameService {
     private final ChoreographyPatternRepository choreographyPatternRepository;
     private final ActionRepository actionRepository;
     private final MediaUrlService mediaUrlService;
+    private final SpringServerPerformanceRepository springServerPerformanceRepository;
 
     @Qualifier("aiWebClient") // 여러 WebClient Bean 중 aiWebClient를 특정
     private final WebClient aiWebClient;
+
+    @PostConstruct
+    public void init() {
+        // AI 응답 통계를 위해 GameService 인스턴스 설정
+        AiResponseStats.setGameServiceInstance(this);
+        log.info("GameService 초기화 완료 - MongoDB 성능 로그 활성화");
+    }
 
     /**
      * 1. 게임 시작 로직 (디버깅용 - GameState, GameSession 동시 생성)
