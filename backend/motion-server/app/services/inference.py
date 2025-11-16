@@ -43,7 +43,7 @@ class GraphConvLayer(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # x: (B, T, N, F)
         adjacency = torch.softmax(self.adjacency, dim=-1)
-        aggregated = torch.einsum("ij,btnj->btni", adjacency, x)
+        aggregated = torch.einsum("nj,btjf->btnf", adjacency, x)
         out = self.linear(aggregated)
         out = self.norm(out)
         return F.relu(out)
