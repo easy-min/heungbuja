@@ -67,6 +67,9 @@ public class CommandServiceImpl implements CommandService {
     private final VoiceCommandRepository voiceCommandRepository;
     private final ResponseGenerator responseGenerator;
 
+    // 활동 로그
+    private final com.heungbuja.activity.service.ActivityLogService activityLogService;
+
     /**
      * 텍스트 명령어 처리 (통합 엔드포인트)
      *
@@ -99,7 +102,10 @@ public class CommandServiceImpl implements CommandService {
             // 2. 음성 명령 로그 저장
             saveVoiceCommand(user, text, intent);
 
-            // 3. 의도에 따른 처리
+            // 3. 활동 로그 저장 (관리자 페이지용 익명화)
+            saveActivityLog(user, intent, intentResult);
+
+            // 4. 의도에 따른 처리
             CommandResponse response = executeIntent(user, intentResult);
 
             log.info("명령 처리 완료: userId={}, intent={}, success={}", user.getId(), intent, response.isSuccess());
@@ -604,6 +610,13 @@ public class CommandServiceImpl implements CommandService {
                 .build();
 
         voiceCommandRepository.save(command);
+    }
+
+    /**
+     * 활동 로그 저장 (관리자 페이지용 익명화)
+     */
+    private void saveActivityLog(User user, Intent intent, IntentResult intentResult) {
+        activityLogService.saveActivityLog(user, intent);
     }
 
     /**

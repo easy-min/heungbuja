@@ -65,6 +65,28 @@ public class McpCommandServiceImpl implements CommandService {
         log.info("[MCP] 명령 처리 시작: userId={}, text='{}'", user.getId(), text);
 
         try {
+            // 0. 응급 상황 진행 중인지 먼저 체크
+            boolean isEmergencyInProgress = sessionStateService.isEmergency(user.getId());
+
+            if (isEmergencyInProgress) {
+                // 응급 상황 진행 중일 때는 빈 입력이거나 애매한 입력이면 바로 안내 메시지 반환
+                if (text.isEmpty() || text.isBlank() || text.length() < 2) {
+                    log.info("⚠️ 응급 신고 진행 중 빈 입력 감지: userId={}, text='{}'", user.getId(), text);
+                    return buildEmergencyInProgressResponse(user, text);
+                }
+
+                // 응급 키워드가 아니고, 괜찮아/안괜찮아도 아닌 애매한 입력인지 체크
+                boolean isEmergencyKeyword = containsEmergencyKeyword(text);
+                boolean isOkayResponse = containsOkayKeyword(text);
+                boolean isNotOkayResponse = containsNotOkayKeyword(text);
+
+                if (!isEmergencyKeyword && !isOkayResponse && !isNotOkayResponse) {
+                    log.info("⚠️ 응급 신고 진행 중 애매한 입력: userId={}, text='{}'", user.getId(), text);
+                    // GPT에게 툴 선택을 맡기지 않고 바로 안내 메시지 반환
+                    return buildEmergencyInProgressResponse(user, text);
+                }
+            }
+
             // 1. Redis에서 대화 컨텍스트 조회
             String contextInfo = conversationContextService.formatContextForGpt(user.getId());
 
@@ -774,6 +796,77 @@ public class McpCommandServiceImpl implements CommandService {
                 .build();
 
         voiceCommandRepository.save(command);
+    }
+
+    /**
+     * 응급 상황 진행 중 안내 메시지 반환
+     */
+    private CommandResponse buildEmergencyInProgressResponse(User user, String text) {
+        String responseText = "신고가 진행되고 있습니다. 괜찮으시면 '괜찮아'라고, 정말 위급하시면 '안 괜찮아'라고 말씀해주세요";
+
+        saveVoiceCommand(user, text, Intent.EMERGENCY);
+
+        return CommandResponse.builder()
+                .success(true)
+                .intent(Intent.EMERGENCY)
+                .responseText(responseText)
+                .ttsAudioUrl(null)
+                .build();
+    }
+
+    /**
+     * 응급 키워드 포함 여부 체크
+     */
+    private boolean containsEmergencyKeyword(String text) {
+        String normalized = text.toLowerCase().replaceAll("\\s+", "");
+        String[] emergencyKeywords = {
+            "도와줘", "도와주세요", "살려줘", "살려주세요",
+            "아야", "아파", "쓰러졌어", "위험해"
+        };
+
+        for (String keyword : emergencyKeywords) {
+            if (normalized.contains(keyword)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * "괜찮아" 관련 키워드 포함 여부 체크
+     */
+    private boolean containsOkayKeyword(String text) {
+        String normalized = text.toLowerCase().replaceAll("\\s+", "");
+        String[] okayKeywords = {
+            "괜찮아", "괜찮습니다", "괜찮아요", "괜찮네요",
+            "아니야", "아니에요", "취소", "취소해",
+            "잘못", "실수"
+        };
+
+        for (String keyword : okayKeywords) {
+            if (normalized.contains(keyword)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * "안괜찮아" 관련 키워드 포함 여부 체크
+     */
+    private boolean containsNotOkayKeyword(String text) {
+        String normalized = text.toLowerCase().replaceAll("\\s+", "");
+        String[] notOkayKeywords = {
+            "안괜찮아", "안괜찮", "빨리", "신고해", "신고",
+            "위급해", "위급", "심각해", "심각"
+        };
+
+        for (String keyword : notOkayKeywords) {
+            if (normalized.contains(keyword)) {
+                return true;
+            }
+        }
+        return false;
     }
 
 }
