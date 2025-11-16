@@ -1,7 +1,7 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
 function getAccessToken(): string | null {
-  return localStorage.getItem('accessToken');
+  return localStorage.getItem('userAccessToken');
 }
 
 function normalizeHeaders(h?: HeadersInit): Record<string, string> {
