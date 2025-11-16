@@ -10,7 +10,7 @@ class AnalyzeRequest(BaseModel):
     actionCode: int | None = Field(None, description="동작 코드 (선택)")
     actionName: str | None = Field(None, description="동작 이름 (선택)")
     frameCount: int | None = Field(None, description="프론트에서 전송한 총 프레임 수")
-    frames: conlist(str, min_items=1) = Field(..., description="Base64 이미지 프레임 리스트")
+    frames: conlist(str, min_length=1) = Field(..., description="Base64 이미지 프레임 리스트")
 
 
 class AnalyzeResponse(BaseModel):
