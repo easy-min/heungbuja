@@ -16,7 +16,13 @@ export interface GameState {
 
   // 미디어/메타
   audioUrl: string | null;
-  videoUrls: Record<string, string>;
+  videoUrls: {
+    intro: string | null,
+    verse1: string | null,
+    verse2_level1: string | null,
+    verse2_level2: string | null,
+    verse2_level3: string | null,
+  };
   bpm: number | null;
   duration: number | null;
 
@@ -54,7 +60,13 @@ export const useGameStore = create<GameState>((set) => ({
   songArtist: null,
 
   audioUrl: null,
-  videoUrls: {},
+  videoUrls: {
+    intro: null,
+    verse1: null,
+    verse2_level1: null,
+    verse2_level2: null,
+    verse2_level3: null,
+  },
   bpm: null,
   duration: null,
 
@@ -118,7 +130,13 @@ export const useGameStore = create<GameState>((set) => ({
       songArtist: null,
 
       audioUrl: null,
-      videoUrls: {},
+      videoUrls: {
+        intro: null,
+        verse1: null,
+        verse2_level1: null,
+        verse2_level2: null,
+        verse2_level3: null,
+      },
       bpm: null,
       duration: null,
 

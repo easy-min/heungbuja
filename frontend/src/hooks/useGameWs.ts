@@ -1,20 +1,16 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import type { GameWsMessage } from '@/types/game';
+
 import SockJS from 'sockjs-client';
 import { Client, type IMessage } from '@stomp/stompjs';
 
 const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL || 'https://localhost:8080/ws';
 
-type Judgment = 1 | 2 | 3; // 1: SOSO, 2: GOOD, 3: PERFECT
-interface FeedbackMessage {
-  type: 'FEEDBACK';
-  data: { judgment: Judgment; timestamp: number };
-}
-
 interface UseGameWsOptions {
   onConnect?: () => void;
   onDisconnect?: () => void;
   onError?: (error: Error) => void;
-  onFeedback?: (msg: FeedbackMessage) => void;
+  onFeedback?: (msg: GameWsMessage) => void;
 }
 
 interface UseGameWsReturn {
@@ -70,8 +66,8 @@ export function useGameWs(options?: UseGameWsOptions): UseGameWsReturn {
           const dest = `/topic/game/${sessionId}`;
           client.subscribe(dest, (message: IMessage) => {
             try {
-              const payload: FeedbackMessage = JSON.parse(message.body);
-              if (payload?.type === 'FEEDBACK') {
+              const payload = JSON.parse(message.body) as GameWsMessage;
+              if (payload.type === 'FEEDBACK' || payload.type === 'LEVEL_DECISION') {
                 options?.onFeedback?.(payload);
               }
             } catch (e) {

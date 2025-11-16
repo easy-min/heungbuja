@@ -1,0 +1,114 @@
+.starburst-root {
+  position: absolute;
+  inset: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.starburst-rays {
+  position: absolute;
+  width: 90vmin;
+  height: 90vmin;
+  border-radius: 50%;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      circle at center,
+      rgba(255, 248, 214, 0.95) 0%,
+      rgba(255, 248, 214, 0.6) 35%,
+      rgba(255, 248, 214, 0.0) 70%
+    ),
+    conic-gradient(
+      from 0deg,
+      rgba(255, 236, 175, 0) 0deg 10deg,
+      rgba(255, 236, 175, 0.85) 10deg 20deg,
+      rgba(255, 236, 175, 0) 20deg 30deg,
+      rgba(255, 236, 175, 0.8) 30deg 40deg,
+      rgba(255, 236, 175, 0) 40deg 50deg,
+      rgba(255, 236, 175, 0.85) 50deg 60deg,
+      rgba(255, 236, 175, 0) 60deg 70deg,
+      rgba(255, 236, 175, 0.8) 70deg 80deg,
+      rgba(255, 236, 175, 0) 80deg 90deg,
+      rgba(255, 236, 175, 0.85) 90deg 100deg,
+      rgba(255, 236, 175, 0) 100deg 110deg,
+      rgba(255, 236, 175, 0.8) 110deg 120deg,
+      rgba(255, 236, 175, 0) 120deg 130deg,
+      rgba(255, 236, 175, 0.85) 130deg 140deg,
+      rgba(255, 236, 175, 0) 140deg 150deg,
+      rgba(255, 236, 175, 0.8) 150deg 160deg,
+      rgba(255, 236, 175, 0) 160deg 170deg,
+      rgba(255, 236, 175, 0.85) 170deg 180deg,
+      rgba(255, 236, 175, 0) 180deg 190deg,
+      rgba(255, 236, 175, 0.8) 190deg 200deg,
+      rgba(255, 236, 175, 0) 200deg 210deg,
+      rgba(255, 236, 175, 0.85) 210deg 220deg,
+      rgba(255, 236, 175, 0) 220deg 230deg,
+      rgba(255, 236, 175, 0.8) 230deg 240deg,
+      rgba(255, 236, 175, 0) 240deg 250deg,
+      rgba(255, 236, 175, 0.85) 250deg 260deg,
+      rgba(255, 236, 175, 0) 260deg 270deg,
+      rgba(255, 236, 175, 0.8) 270deg 280deg,
+      rgba(255, 236, 175, 0) 280deg 290deg,
+      rgba(255, 236, 175, 0.85) 290deg 300deg,
+      rgba(255, 236, 175, 0) 300deg 310deg,
+      rgba(255, 236, 175, 0.8) 310deg 320deg,
+      rgba(255, 236, 175, 0) 320deg 330deg,
+      rgba(255, 236, 175, 0.85) 330deg 340deg,
+      rgba(255, 236, 175, 0) 340deg 350deg,
+      rgba(255, 236, 175, 0.8) 350deg 360deg
+    );
+  filter: blur(10px);
+  opacity: 0.9;
+
+  /* 시계방향 회전 + 살짝 확대 */
+  animation: rays-rotate 15s linear infinite;
+}
+
+@keyframes rays-rotate {
+  0% {
+    transform: scale(0.98) rotate(0deg);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(1.02) rotate(360deg); /* 시계 방향 */
+    opacity: 0.95;
+  }
+}
+
+.starburst-star {
+  position: absolute;
+  transform-origin: center;
+  background: #f6a25f;
+  clip-path: polygon(
+    50% 0%,
+    61% 35%,
+    98% 35%,
+    68% 57%,
+    79% 91%,
+    50% 72%,
+    21% 91%,
+    32% 57%,
+    2% 35%,
+    39% 35%
+  );
+  opacity: 0;
+  /* JS에서 넘긴 --x / --y 사용 */
+  animation: star-fly-out 2.4s ease-out infinite;
+}
+
+@keyframes star-fly-out {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.2) rotate(0deg);
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--x), var(--y)) scale(1.2) rotate(25deg);
+  }
+}

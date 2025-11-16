@@ -10,23 +10,43 @@
   background-color: var(--color-bg);
 }
 
-.result-page p {
-  font-size: 2.2rem;
-  font-weight: 800;
-  color: var(--color-text);
+.result-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: transparent;
+  overflow: visible;
+}
+
+.result-message,
+.result-score {
+  position: relative;
   z-index: 1;
 }
 
+.result-message {
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.result-score {
+  font-size: 5rem;
+  font-weight: 900;
+  color: var(--color-primary);
+  margin: 15% 0;
+}
+
 .btn-container {
-  margin-top: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 20px
+  gap: 50px
 }
 
 .btn-container p {
-  font-size: 1.8rem;
+  font-size: 1.5rem;
   font-weight: 700;
   color: var(--color-bg);
 }
@@ -34,8 +54,8 @@
 /* === 버튼 기본 스타일 === */
 .play-btn {
   z-index: 1;
-  width: 140px;
-  height: 140px;
+  width: 160px;
+  height: 80px;
   border: none;
   border-radius: 20px;
   background-color: var(--color-primary);
