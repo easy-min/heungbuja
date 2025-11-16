@@ -26,6 +26,7 @@ import com.heungbuja.user.entity.User;
 import com.heungbuja.user.repository.UserRepository;
 import com.heungbuja.game.repository.jpa.ActionRepository;
 import com.heungbuja.game.state.GameSession;
+import com.heungbuja.s3.service.MediaUrlService;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -84,6 +85,7 @@ public class GameService {
     private final SessionStateService sessionStateService;
     private final ChoreographyPatternRepository choreographyPatternRepository;
     private final ActionRepository actionRepository;
+    private final MediaUrlService mediaUrlService;
 
     @Qualifier("aiWebClient") // 여러 WebClient Bean 중 aiWebClient를 특정
     private final WebClient aiWebClient;
@@ -135,12 +137,7 @@ public class GameService {
 
         String sessionId = UUID.randomUUID().toString();
         String audioUrl = getTestUrl("/media/test");
-        Map<String, String> videoUrls = new HashMap<>();
-        videoUrls.put("intro", getTestUrl("/media/test/video/break"));
-        videoUrls.put("verse1", getTestUrl("/media/test/video/part1"));
-        videoUrls.put("verse2_level1", getTestUrl("/media/test/video/part2_1"));
-        videoUrls.put("verse2_level2", getTestUrl("/media/test/video/part2_2"));
-        videoUrls.put("verse2_level3", "https://example.com/video_v2_level3.mp4");
+        Map<String, String> videoUrls = generateVideoUrls(choreography);
 
         GameState gameState = GameState.builder()
                 .sessionId(sessionId)
@@ -916,6 +913,60 @@ public class GameService {
         } else {
             return "다음 기회에 더 멋진 무대 기대할게요!";
         }
+    }
+
+    // --- 비디오 URL 생성 (패턴 기반) ---
+
+    /**
+     * 비디오 URL 생성 (패턴 기반)
+     */
+    private Map<String, String> generateVideoUrls(SongChoreography choreography) {
+        Map<String, String> videoUrls = new HashMap<>();
+
+        SongChoreography.Version version = choreography.getVersions().get(0);
+
+        // intro: 공통 튜토리얼
+        String introS3Key = "video/break.mp4";
+        videoUrls.put("intro", mediaUrlService.issueUrlByKey(introS3Key));
+
+        // verse1: 첫 번째 패턴
+        String verse1PatternId = version.getVerse1().getPatternSequence().get(0);
+        String verse1S3Key = convertPatternIdToVideoUrl(verse1PatternId);
+        videoUrls.put("verse1", mediaUrlService.issueUrlByKey(verse1S3Key));
+
+        // verse2: 각 레벨의 첫 번째 패턴
+        for (SongChoreography.VerseLevelPatternInfo levelInfo : version.getVerse2()) {
+            String patternId = levelInfo.getPatternSequence().get(0);
+            String s3Key = convertPatternIdToVideoUrl(patternId);
+            String key = "verse2_level" + levelInfo.getLevel();
+            videoUrls.put(key, mediaUrlService.issueUrlByKey(s3Key));
+        }
+
+        return videoUrls;
+    }
+
+    /**
+     * 패턴 ID → 비디오 URL 변환
+     * TODO: 패턴별 비디오 준비 완료 시 임시 매핑 제거하고 "video/pattern_" + patternId.toLowerCase() + ".mp4" 사용
+     */
+    private String convertPatternIdToVideoUrl(String patternId) {
+        // 임시 매핑: 현재 존재하는 비디오 파일 사용
+        switch (patternId) {
+            case "P1":
+                return "video/part1.mp4";
+            case "P2":
+                return "video/part2_level1.mp4";
+            case "P3":
+                return "video/part2_level2.mp4";
+            case "P4":
+                return "video/part1.mp4";  // 반복
+            default:
+                log.warn("알 수 없는 패턴 ID: {}. 기본 비디오 사용", patternId);
+                return "video/part1.mp4";
+        }
+
+        // 나중에 패턴별 비디오 준비되면 아래 코드로 교체:
+        // return "video/pattern_" + patternId.toLowerCase() + ".mp4";
     }
 
     // --- ▼ (테스트용 코드) AI 서버 연동을 테스트하기 위한 임시 메소드 ---
