@@ -42,12 +42,24 @@ public class AdminSongController {
 
         log.info("관리자 {}가 곡 목록 조회", principal.getId());
 
-        List<Song> songs = songRepository.findAll();
-        List<SongListResponse> responses = songs.stream()
-                .map(SongListResponse::from)
-                .toList();
+        try {
+            List<Song> songs = songRepository.findAll();
+            log.info("조회된 곡 개수: {}", songs.size());
 
-        return ResponseEntity.ok(responses);
+            List<SongListResponse> responses = songs.stream()
+                    .map(song -> {
+                        log.debug("Song 변환: id={}, title={}, artist={}", song.getId(), song.getTitle(), song.getArtist());
+                        return SongListResponse.from(song);
+                    })
+                    .toList();
+
+            log.info("곡 목록 조회 성공: {} 곡", responses.size());
+            return ResponseEntity.ok(responses);
+
+        } catch (Exception e) {
+            log.error("곡 목록 조회 실패", e);
+            throw e;
+        }
     }
 
     /**
