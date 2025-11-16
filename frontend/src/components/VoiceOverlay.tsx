@@ -9,15 +9,17 @@ interface VoiceOverlayProps {
   isUploading: boolean;
   isPlaying: boolean;
   responseText?: string | null;
+  isEmergency?: boolean;
 }
 
-const VoiceOverlay: React.FC<VoiceOverlayProps> = ({ 
+const VoiceOverlay: React.FC<VoiceOverlayProps> = ({
   isVisible,
-  countdown, 
-  isRecording, 
-  isUploading, 
-  isPlaying, 
-  responseText 
+  countdown,
+  isRecording,
+  isUploading,
+  isPlaying,
+  responseText,
+  isEmergency = false
 }) => {
   // 표시할 텍스트 결정
   const getDisplayText = () => {
@@ -29,25 +31,25 @@ const VoiceOverlay: React.FC<VoiceOverlayProps> = ({
 
   const [displayText, setDisplayText] = useState(getDisplayText());
   const [isFading, setIsFading] = useState(false);
-  
-  // 첫 렌더링 체크 (방법 2)
+
+  // 첫 렌더링 체크
   const isFirstRender = useRef(true);
-  // 이전 텍스트 추적 (방법 3)
+  // 이전 텍스트 추적
   const prevTextRef = useRef(displayText);
 
   // 텍스트 변경 시 애니메이션 적용
   useEffect(() => {
     const newText = getDisplayText();
-    
-    // 첫 렌더링은 애니메이션 없이 (방법 2)
+
+    // 첫 렌더링은 애니메이션 없이
     if (isFirstRender.current) {
       isFirstRender.current = false;
       setDisplayText(newText);
       prevTextRef.current = newText;
       return;
     }
-    
-    // 실제로 텍스트가 바뀔 때만 애니메이션 (방법 3)
+
+    // 실제로 텍스트가 바뀔 때만 애니메이션
     if (newText !== prevTextRef.current) {
       // Fade out
       setIsFading(true);
@@ -63,7 +65,7 @@ const VoiceOverlay: React.FC<VoiceOverlayProps> = ({
   }, [isRecording, isUploading, responseText]);
 
   return createPortal(
-    <div className={`voice-overlay ${isVisible ? 'visible' : ''}`}>
+    <div className={`voice-overlay ${isVisible ? 'visible' : ''} ${isEmergency ? 'emergency' : ''}`}>
       <div className="voice-overlay-content">
         {/* 단일 요소로 텍스트 표시 (애니메이션으로 부드럽게) */}
         <p className={`voice-overlay-title ${isFading ? 'fading' : ''}`}>
