@@ -1,5 +1,10 @@
 package com.heungbuja.admin.controller;
 
+import com.heungbuja.activity.dto.ActivityLogResponse;
+import com.heungbuja.activity.dto.ActivityStatsResponse;
+import com.heungbuja.activity.entity.UserActivityLog;
+import com.heungbuja.activity.enums.ActivityType;
+import com.heungbuja.activity.service.ActivityLogService;
 import com.heungbuja.admin.dto.AdminCreateRequest;
 import com.heungbuja.admin.dto.AdminLoginRequest;
 import com.heungbuja.admin.dto.AdminRegisterRequest;
@@ -16,10 +21,14 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDateTime;
+import java.util.Map;
 
 /**
  * Admin API Controller
@@ -35,6 +44,7 @@ public class AdminController {
     private final AdminAuthService adminAuthService;
     private final AdminAuthorizationService adminAuthorizationService;
     private final AdminService adminService;
+    private final ActivityLogService activityLogService;
 
     /**
      * 관리자 회원가입
@@ -116,5 +126,132 @@ public class AdminController {
         adminService.deleteAdmin(adminId);
 
         return ResponseEntity.noContent().build();
+    }
+
+    // ==================== 사용자 활동 로그 API ====================
+
+    /**
+     * 전체 활동 로그 조회 (페이징)
+     * GET /admins/activity-logs
+     */
+    @GetMapping("/activity-logs")
+    public ResponseEntity<Page<ActivityLogResponse>> getAllActivityLogs(
+            @AuthenticationPrincipal AdminPrincipal principal,
+            @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC)
+            Pageable pageable) {
+
+        // Admin 권한 확인 (모든 Admin이 조회 가능)
+        adminAuthorizationService.requireAdmin(principal.getId());
+
+        Page<ActivityLogResponse> response = activityLogService.findAllLogs(pageable)
+                .map(ActivityLogResponse::from);
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 특정 사용자의 활동 로그 조회 (페이징)
+     * GET /admins/activity-logs/users/{userId}
+     */
+    @GetMapping("/activity-logs/users/{userId}")
+    public ResponseEntity<Page<ActivityLogResponse>> getActivityLogsByUser(
+            @AuthenticationPrincipal AdminPrincipal principal,
+            @PathVariable Long userId,
+            @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC)
+            Pageable pageable) {
+
+        adminAuthorizationService.requireAdmin(principal.getId());
+
+        Page<ActivityLogResponse> response = activityLogService.findLogsByUserId(userId, pageable)
+                .map(ActivityLogResponse::from);
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 활동 타입별 필터링 조회 (페이징)
+     * GET /admins/activity-logs?activityType=MUSIC_PLAY
+     */
+    @GetMapping("/activity-logs/filter")
+    public ResponseEntity<Page<ActivityLogResponse>> getActivityLogsByType(
+            @AuthenticationPrincipal AdminPrincipal principal,
+            @RequestParam(required = false) ActivityType activityType,
+            @RequestParam(required = false) Long userId,
+            @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC)
+            Pageable pageable) {
+
+        adminAuthorizationService.requireAdmin(principal.getId());
+
+        Page<UserActivityLog> logs;
+
+        if (userId != null && activityType != null) {
+            // 사용자 + 타입 필터링
+            logs = activityLogService.findLogsByUserIdAndActivityType(userId, activityType, pageable);
+        } else if (activityType != null) {
+            // 타입만 필터링
+            logs = activityLogService.findLogsByActivityType(activityType, pageable);
+        } else if (userId != null) {
+            // 사용자만 필터링
+            logs = activityLogService.findLogsByUserId(userId, pageable);
+        } else {
+            // 전체 조회
+            logs = activityLogService.findAllLogs(pageable);
+        }
+
+        Page<ActivityLogResponse> response = logs.map(ActivityLogResponse::from);
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 기간별 활동 로그 조회 (페이징)
+     * GET /admins/activity-logs/range?startDate=2024-01-01T00:00:00&endDate=2024-01-31T23:59:59
+     */
+    @GetMapping("/activity-logs/range")
+    public ResponseEntity<Page<ActivityLogResponse>> getActivityLogsByDateRange(
+            @AuthenticationPrincipal AdminPrincipal principal,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
+            @RequestParam(required = false) Long userId,
+            @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC)
+            Pageable pageable) {
+
+        adminAuthorizationService.requireAdmin(principal.getId());
+
+        Page<UserActivityLog> logs;
+
+        if (userId != null) {
+            logs = activityLogService.findLogsByUserIdAndDateRange(userId, startDate, endDate, pageable);
+        } else {
+            logs = activityLogService.findLogsByDateRange(startDate, endDate, pageable);
+        }
+
+        Page<ActivityLogResponse> response = logs.map(ActivityLogResponse::from);
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 활동 타입별 통계 조회 (일별/주별)
+     * GET /admins/activity-logs/stats?startDate=2024-01-01T00:00:00&endDate=2024-01-31T23:59:59
+     */
+    @GetMapping("/activity-logs/stats")
+    public ResponseEntity<ActivityStatsResponse> getActivityStats(
+            @AuthenticationPrincipal AdminPrincipal principal,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
+            @RequestParam(required = false) Long userId) {
+
+        adminAuthorizationService.requireAdmin(principal.getId());
+
+        Map<ActivityType, Long> stats;
+
+        if (userId != null) {
+            stats = activityLogService.getStatsByUserAndDateRange(userId, startDate, endDate);
+        } else {
+            stats = activityLogService.getStatsByDateRange(startDate, endDate);
+        }
+
+        return ResponseEntity.ok(ActivityStatsResponse.from(stats));
     }
 }
