@@ -52,7 +52,12 @@ class GraphConvLayer(nn.Module):
 class TemporalCNN(nn.Module):
     """시계열 패턴 추출용 1D CNN 블록."""
 
-    def __init__(self, in_channels: int, channel_sizes: Sequence[int]) -> None:
+    def __init__(
+        self,
+        in_channels: int,
+        channel_sizes: Sequence[int],
+        dropout: float,
+    ) -> None:
         super().__init__()
         layers: List[nn.Module] = []
         input_channels = in_channels
@@ -60,6 +65,8 @@ class TemporalCNN(nn.Module):
             layers.append(nn.Conv1d(input_channels, out_channels, kernel_size=3, padding=1))
             layers.append(nn.BatchNorm1d(out_channels))
             layers.append(nn.ReLU(inplace=True))
+            if dropout > 0:
+                layers.append(nn.Dropout(dropout))
             input_channels = out_channels
         self.network = nn.Sequential(*layers)
 
@@ -86,7 +93,7 @@ class MotionGCNCNN(nn.Module):
             self.gcn_layers.append(GraphConvLayer(num_nodes, prev_dim, hidden_dim))
             prev_dim = hidden_dim
 
-        self.temporal_cnn = TemporalCNN(prev_dim, temporal_channels)
+        self.temporal_cnn = TemporalCNN(prev_dim, temporal_channels, dropout)
         self.temporal_pool = nn.AdaptiveAvgPool1d(1)
         classifier_layers: List[nn.Module] = [
             nn.Linear(temporal_channels[-1], temporal_channels[-1]),
@@ -188,7 +195,7 @@ class MotionInferenceService:
     """학습된 모델을 로드하여 프레임 시퀀스를 판정 점수로 변환."""
 
     def __init__(self, model_path: Path, device: str | None = None) -> None:
-        checkpoint = torch.load(model_path, map_location="cpu")
+        checkpoint = torch.load(model_path, map_location="cpu", weights_only=False)
         args = checkpoint.get("args", {})
         class_mapping = checkpoint.get("class_mapping", {})
 
