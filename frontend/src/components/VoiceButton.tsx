@@ -16,6 +16,8 @@ const VoiceButton: React.FC = () => {
     startRecording
   } = useVoiceRecorder();
 
+  const autoRetryFlagRef = useRef(false); // 수동 녹음당 1회 자동 재녹음 플래그
+
   const {
     isUploading,
     isPlaying,
@@ -24,9 +26,15 @@ const VoiceButton: React.FC = () => {
     sendCommand,
   } = useVoiceCommand({
     onRetry: () => {
+      // 실패 시 자동 재녹음: 이번 수동 녹음에 대해 1번만 허용
+      if (!autoRetryFlagRef.current) {
+        console.log('❌ 자동 재녹음 기회 없음(이미 사용됨)');
+        return;
+      }
       console.log('🔁 실패 자동 재녹음 시작');
+      autoRetryFlagRef.current = false; // 1회 사용
       startRecording();
-    },
+    }
   });
 
   const { pause } = useAudioStore();
@@ -41,7 +49,6 @@ const VoiceButton: React.FC = () => {
   // 수동 녹음(버튼 클릭)으로 시작했는지 추적
   const isManualRecordingRef = useRef(false);
   const emergencyRetryCountRef = useRef(0);
-  const autoRetryFlagRef = useRef(false);
 
   // Emergency 시 TTS 끝나면 자동으로 다시 녹음 (수동 녹음일 때만 1회)
   useEffect(() => {
@@ -87,6 +94,7 @@ const VoiceButton: React.FC = () => {
       console.log('🎙️ 녹음 시작 (수동)');
       isManualRecordingRef.current = true; // 수동 녹음 플래그 설정
       emergencyRetryCountRef.current = 0;
+      autoRetryFlagRef.current = true; // 수동 녹음 시작 시: 자동 재녹음 기회 리셋
       startRecording();
     } else {
       console.log('⚠️ 버튼 비활성 상태 (isRecording:', isRecording, 'isUploading:', isUploading, 'isPlaying:', isPlaying, ')');

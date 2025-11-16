@@ -30,7 +30,6 @@ export const useVoiceCommand = (
   const navigate = useNavigate();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const { pause: pauseAudio, play: playAudio } = useAudioStore();
-  const autoRetryRef = useRef(false);
 
   // TTS 재생 함수
   const playTTS = useCallback((ttsUrl: string | null, onComplete?: () => void) => {
@@ -207,14 +206,9 @@ export const useVoiceCommand = (
       } else {
         // 실패 시 에러 메시지
         setError(result.responseText);
-        autoRetryRef.current = true;
         // 실패 안내 TTS 재생 후에 재녹음 시도
         playTTS(result.ttsAudioUrl, () => {
-          if (autoRetryRef.current && options?.onRetry) {
-            console.log('🔄 명령 실패 → 자동 재녹음 시작');
-            autoRetryRef.current = false; // 1회만
-            options.onRetry();            // 실제 startRecording 실행
-          }
+          options?.onRetry?.();
         });
       }
 
