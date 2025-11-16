@@ -13,6 +13,7 @@ import com.heungbuja.game.state.GameState;
 import com.heungbuja.session.state.ActivityState;
 import com.heungbuja.song.domain.SongChoreography;
 import com.heungbuja.song.dto.SongGameData;
+import com.heungbuja.s3.service.MediaUrlService;
 import com.heungbuja.song.entity.Song;
 import com.heungbuja.song.repository.mongo.SongChoreographyRepository;
 import com.heungbuja.user.entity.User;
@@ -42,6 +43,7 @@ public class SessionPrepareService {
     private final UserRepository userRepository;
     private final GameResultRepository gameResultRepository;
     private final SongChoreographyRepository songChoreographyRepository;
+    private final MediaUrlService mediaUrlService;
 
     // Redis
     private final RedisTemplate<String, GameState> gameStateRedisTemplate;
@@ -158,17 +160,20 @@ public class SessionPrepareService {
         SongChoreography.Version version = choreography.getVersions().get(0);
 
         // intro: 공통 튜토리얼
-        videoUrls.put("intro", "video/break.mp4");
+        String introS3Key = "video/break.mp4";
+        videoUrls.put("intro", mediaUrlService.issueUrlByKey(introS3Key));
 
         // verse1: 첫 번째 패턴
         String verse1PatternId = version.getVerse1().getPatternSequence().get(0);
-        videoUrls.put("verse1", convertPatternIdToVideoUrl(verse1PatternId));
+        String verse1S3Key = convertPatternIdToVideoUrl(verse1PatternId);
+        videoUrls.put("verse1", mediaUrlService.issueUrlByKey(verse1S3Key));
 
         // verse2: 각 레벨의 첫 번째 패턴
         for (SongChoreography.VerseLevelPatternInfo levelInfo : version.getVerse2()) {
             String patternId = levelInfo.getPatternSequence().get(0);
+            String s3Key = convertPatternIdToVideoUrl(patternId);
             String key = "verse2_level" + levelInfo.getLevel();
-            videoUrls.put(key, convertPatternIdToVideoUrl(patternId));
+            videoUrls.put(key, mediaUrlService.issueUrlByKey(s3Key));
         }
 
         return videoUrls;
