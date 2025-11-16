@@ -1,6 +1,7 @@
 """모션 인식 모델 관련 유틸리티."""
 
-from .inference import (
+# infer_action.py에서 직접 import (inference.py는 하위 호환성을 위한 래퍼)
+from .infer_action import (
     PoseExtractionError,
     extract_landmarks_from_image,
     predict_action_from_frames,
