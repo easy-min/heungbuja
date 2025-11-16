@@ -203,6 +203,9 @@ public class GameService {
                 .level3(verse2TimelinesMap.get("level3"))
                 .build();
 
+        // 섹션별 패턴 시퀀스 생성 (eachRepeat 적용)
+        GameStartResponse.SectionPatterns sectionPatterns = createSectionPatterns(choreography);
+
         // SectionInfo (Map)와 SegmentInfo 생성
         Map<String, Double> sectionInfo = createSectionInfo(songBeat, barStartTimes);
         GameStartResponse.SegmentRange verse1cam = createSegmentRange(songBeat, "verse1", beatNumToTimeMap);
@@ -229,6 +232,7 @@ public class GameService {
                 .lyricsInfo(lyricsInfo.getLines())
                 .verse1Timeline(verse1Timeline)
                 .verse2Timeline(verse2Timeline)
+                .sectionPatterns(sectionPatterns)
                 .tutorialSuccessCount(0)
                 .build();
 
@@ -268,6 +272,7 @@ public class GameService {
                 .lyricsInfo(lyricsInfo.getLines())
                 .verse1Timeline(verse1Timeline)
                 .verse2Timeline(verse2Timeline)
+                .sectionPatterns(sectionPatterns)
                 .build();
     }
 
@@ -365,6 +370,47 @@ public class GameService {
                         SongBeat.Section::getLabel,
                         s -> barStartTimes.getOrDefault(s.getStartBar(), 0.0)
                 ));
+    }
+
+    /**
+     * 섹션별 패턴 시퀀스 생성 (eachRepeat 적용하여 실제 반복되는 순서 그대로)
+     * 예: patternSequence=["P1","P2"], eachRepeat=2 -> ["P1","P1","P2","P2"]
+     */
+    private GameStartResponse.SectionPatterns createSectionPatterns(SongChoreography choreography) {
+        SongChoreography.Version version = choreography.getVersions().get(0);
+
+        // 1절 패턴 시퀀스 생성
+        List<String> verse1Patterns = new ArrayList<>();
+        SongChoreography.VersePatternInfo verse1Info = version.getVerse1();
+        for (String patternId : verse1Info.getPatternSequence()) {
+            for (int i = 0; i < verse1Info.getEachRepeat(); i++) {
+                verse1Patterns.add(patternId);
+            }
+        }
+
+        // 2절 레벨별 패턴 시퀀스 생성
+        Map<Integer, List<String>> verse2PatternsMap = new HashMap<>();
+        for (SongChoreography.VerseLevelPatternInfo levelInfo : version.getVerse2()) {
+            List<String> levelPatterns = new ArrayList<>();
+            for (String patternId : levelInfo.getPatternSequence()) {
+                for (int i = 0; i < levelInfo.getEachRepeat(); i++) {
+                    levelPatterns.add(patternId);
+                }
+            }
+            verse2PatternsMap.put(levelInfo.getLevel(), levelPatterns);
+        }
+
+        // Verse2Patterns 객체 생성
+        GameStartResponse.Verse2Patterns verse2Patterns = GameStartResponse.Verse2Patterns.builder()
+                .level1(verse2PatternsMap.get(1))
+                .level2(verse2PatternsMap.get(2))
+                .level3(verse2PatternsMap.get(3))
+                .build();
+
+        return GameStartResponse.SectionPatterns.builder()
+                .verse1(verse1Patterns)
+                .verse2(verse2Patterns)
+                .build();
     }
 
     /**
