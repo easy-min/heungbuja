@@ -114,7 +114,8 @@
         <!-- 등록 버튼 -->
         <div class="section">
             <button class="btn btn-primary" onclick="openDeviceModal()" style="margin-right:10px;">📱 기기 등록</button>
-            <button class="btn btn-success" onclick="openUserModal()">👴 어르신 등록</button>
+            <button class="btn btn-success" onclick="openUserModal()" style="margin-right:10px;">👴 어르신 등록</button>
+            <button class="btn btn-primary" onclick="showVisualizationScreen()">🎵 곡 시각화</button>
         </div>
 
         <div class="dashboard">
@@ -188,6 +189,22 @@
                 <button class="btn btn-primary" onclick="closeUserModal()">닫기</button>
             </div>
         </div>
+    </div>
+
+    <!-- 곡 시각화 화면 -->
+    <div id="visualization-screen" class="hidden">
+        <div class="section">
+            <button class="btn btn-primary" onclick="showDashboardScreen()" style="margin-bottom:20px;">← 대시보드로 돌아가기</button>
+        </div>
+
+        <div class="section">
+            <label for="song-select" style="font-weight:bold; margin-right:10px;">곡 선택:</label>
+            <select id="song-select" onchange="onSongChange()" style="width:400px;">
+                <option value="">곡을 선택하세요...</option>
+            </select>
+        </div>
+
+        <div id="song-visualization-container"></div>
     </div>
 </div>
 
@@ -696,6 +713,362 @@
         } catch(e){
             responseBox.className = 'response-box show error';
             responseBox.textContent = `에러 발생: ${e.message}`;
+        }
+    }
+
+    // ===== 곡 시각화 관련 함수 =====
+
+    async function showVisualizationScreen() {
+        document.getElementById('dashboard-screen').classList.add('hidden');
+        document.getElementById('visualization-screen').classList.remove('hidden');
+
+        // 곡 목록 로드
+        await loadSongList();
+    }
+
+    async function loadSongList() {
+        try {
+            const res = await fetch(`${API_BASE}/admin/songs`, {
+                headers: {Authorization: `Bearer ${accessToken}`}
+            });
+
+            if (!res.ok) throw new Error('곡 목록 로드 실패');
+
+            const songs = await res.json();
+            const select = document.getElementById('song-select');
+            select.innerHTML = '<option value="">곡을 선택하세요...</option>';
+
+            songs.forEach(song => {
+                const option = document.createElement('option');
+                option.value = song.id;
+                option.textContent = `${song.title} - ${song.artist}`;
+                select.appendChild(option);
+            });
+
+            // 첫 번째 곡 자동 선택 (있을 경우)
+            if (songs.length > 0) {
+                select.value = songs[0].id;
+                loadSongVisualization(songs[0].id);
+            }
+        } catch(e) {
+            console.error('곡 목록 로드 에러:', e);
+            alert('곡 목록을 불러오는데 실패했습니다: ' + e.message);
+        }
+    }
+
+    function onSongChange() {
+        const select = document.getElementById('song-select');
+        const songId = select.value;
+
+        if (songId) {
+            loadSongVisualization(parseInt(songId));
+        } else {
+            document.getElementById('song-visualization-container').innerHTML = '';
+        }
+    }
+
+    function showDashboardScreen() {
+        document.getElementById('visualization-screen').classList.add('hidden');
+        document.getElementById('dashboard-screen').classList.remove('hidden');
+    }
+
+    async function loadSongVisualization(songId) {
+        try {
+            const res = await fetch(`${API_BASE}/admin/songs/${songId}/visualization`, {
+                headers: {Authorization: `Bearer ${accessToken}`}
+            });
+
+            if (!res.ok) throw new Error('시각화 데이터 로드 실패');
+
+            const data = await res.json();
+            console.log('시각화 데이터:', data);
+            renderVisualization(data);
+        } catch(e) {
+            console.error('시각화 로드 에러:', e);
+            alert('곡 시각화 데이터를 불러오는데 실패했습니다: ' + e.message);
+        }
+    }
+
+    function renderVisualization(data) {
+        const container = document.getElementById('song-visualization-container');
+
+        // 메트로놈 비트 데이터 준비
+        const beats = data.songBeat.beats || [];
+        const sections = data.songBeat.sections || [];
+
+        // HTML 템플릿 (Toss 스타일로 깔끔하게)
+        container.innerHTML = `
+            <style>
+                .viz-container { max-width: 1200px; margin: 0 auto; background: white; }
+                .viz-header { background: white; padding: 40px 50px; border-bottom: 1px solid #e5e7eb; }
+                .viz-header h1 { font-size: 28px; margin-bottom: 8px; color: #191f28; font-weight: 700; }
+                .viz-song-info { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; }
+                .viz-song-title { font-size: 22px; font-weight: 600; color: #4e5968; }
+                .viz-song-meta { display: flex; gap: 20px; font-size: 15px; color: #8b95a1; }
+                .viz-controls { padding: 24px 50px; background: white; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; gap: 12px; }
+                .viz-btn { padding: 12px 24px; border: none; border-radius: 10px; font-size: 15px; cursor: pointer; transition: all 0.2s; font-weight: 600; }
+                .viz-btn-primary { background: #3182f6; color: white; }
+                .viz-btn-primary:hover { background: #1b64da; }
+                .viz-btn-secondary { background: #f2f4f6; color: #4e5968; }
+                .viz-btn-secondary:hover { background: #e5e8eb; }
+                .viz-section { padding: 40px 50px; background: white; }
+                .viz-current-section { text-align: center; margin-bottom: 32px; padding: 24px; background: #f9fafb; border-radius: 16px; border: 1px solid #e5e7eb; }
+                .viz-section-name { font-size: 20px; font-weight: 700; color: #191f28; margin-bottom: 8px; }
+                .viz-time-display { font-size: 32px; font-weight: 700; color: #3182f6; letter-spacing: 1px; }
+                .viz-progress-container { margin: 32px 0; }
+                .viz-progress-wrapper { position: relative; height: 60px; background: #f9fafb; border-radius: 12px; overflow: hidden; border: 1px solid #e5e7eb; }
+                .viz-progress-bar { position: absolute; top: 0; left: 0; height: 100%; background: #3182f6; width: 0%; transition: width 0.3s; }
+                .viz-section-markers { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; }
+                .viz-section-marker { flex: 1; border-right: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; color: #8b95a1; padding: 8px; }
+
+                /* 메트로놈 */
+                .viz-beat-visualizer { margin: 32px 0; padding: 32px; background: #f9fafb; border-radius: 16px; border: 1px solid #e5e7eb; }
+                .viz-beat-visualizer h3 { font-size: 16px; font-weight: 700; color: #191f28; margin-bottom: 24px; }
+                .viz-metronome-display { display: flex; align-items: center; justify-content: space-between; gap: 32px; }
+                .viz-bar-info, .viz-bpm-info { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+                .viz-bar-label, .viz-bpm-label { font-size: 12px; font-weight: 600; color: #8b95a1; text-transform: uppercase; }
+                .viz-bar-number, .viz-bpm-value { font-size: 32px; font-weight: 700; color: #3182f6; }
+                .viz-beat-indicators { flex: 1; display: flex; gap: 16px; justify-content: center; }
+                .viz-beat-dot { width: 80px; height: 80px; border-radius: 50%; background: white; border: 3px solid #e5e7eb; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 700; color: #8b95a1; transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1); }
+                .viz-beat-dot[data-beat="1"] { border-color: #3182f6; }
+                .viz-beat-dot.active { background: #3182f6; color: white; transform: scale(1.2); box-shadow: 0 0 0 8px rgba(49, 130, 246, 0.2); animation: vizBeatPing 0.3s ease-out; }
+                .viz-beat-dot[data-beat="1"].active { background: #1b64da; transform: scale(1.3); box-shadow: 0 0 0 12px rgba(49, 130, 246, 0.3); }
+                @keyframes vizBeatPing { 0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(49, 130, 246, 0.7); } 50% { transform: scale(1.25); } 100% { box-shadow: 0 0 0 12px rgba(49, 130, 246, 0); } }
+
+                /* 타임라인 */
+                .viz-timeline { margin: 32px 0; }
+                .viz-timeline h3 { font-size: 18px; font-weight: 700; color: #191f28; margin-bottom: 24px; }
+                .viz-timeline-track { display: flex; flex-direction: column; gap: 16px; }
+                .viz-timeline-item { display: flex; align-items: center; padding: 20px 24px; background: #f9fafb; border-radius: 16px; border: 2px solid #e5e7eb; transition: all 0.3s; }
+                .viz-timeline-item.past { opacity: 0.5; }
+                .viz-timeline-item.current { background: white; border-color: #3182f6; box-shadow: 0 4px 16px rgba(49, 130, 246, 0.15); }
+                .viz-timeline-item.upcoming { opacity: 0.8; }
+                .viz-timeline-indicator { width: 8px; height: 8px; border-radius: 50%; background: #e5e7eb; }
+                .viz-timeline-item.past .viz-timeline-indicator { background: #10b981; }
+                .viz-timeline-item.current .viz-timeline-indicator { background: #3182f6; animation: vizIndicatorPulse 1.5s ease-in-out infinite; }
+                @keyframes vizIndicatorPulse { 0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(49, 130, 246, 0.7); } 50% { transform: scale(1.3); box-shadow: 0 0 0 8px rgba(49, 130, 246, 0); } }
+                .viz-timeline-time { min-width: 80px; font-size: 18px; font-weight: 700; color: #3182f6; }
+                .viz-timeline-item.past .viz-timeline-time { color: #8b95a1; }
+                .viz-timeline-item.upcoming .viz-timeline-time { color: #4e5968; }
+                .viz-timeline-content { flex: 1; margin-left: 24px; }
+                .viz-timeline-lyric { font-size: 20px; font-weight: 600; color: #191f28; margin-bottom: 8px; }
+                .viz-timeline-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+                .viz-action-chip { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; background: white; border-radius: 20px; font-size: 14px; font-weight: 600; color: #4e5968; border: 1px solid #e5e7eb; }
+                .viz-timeline-item.current .viz-action-chip { background: #eff6ff; border-color: #3182f6; color: #3182f6; }
+            </style>
+
+            <div class="viz-container">
+                <!-- 헤더 -->
+                <div class="viz-header">
+                    <h1>곡 시각화 도구</h1>
+                    <div class="viz-song-info">
+                        <div class="viz-song-title">흥부자 체조송 - 아이유</div>
+                        <div class="viz-song-meta">
+                            <span>BPM: ${data.bpm.toFixed(2)}</span>
+                            <span>길이: ${Math.floor(data.duration/60)}:${Math.floor(data.duration%60).toString().padStart(2,'0')}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 재생 컨트롤 -->
+                <div class="viz-controls">
+                    <button class="viz-btn viz-btn-primary" onclick="playVisualization()">▶ 재생</button>
+                    <button class="viz-btn viz-btn-secondary" onclick="pauseVisualization()">⏸ 일시정지</button>
+                    <button class="viz-btn viz-btn-secondary" onclick="stopVisualization()">⏹ 정지</button>
+                </div>
+
+                <!-- 타임라인 -->
+                <div class="viz-section">
+                    <!-- 현재 구간 -->
+                    <div class="viz-current-section">
+                        <div class="viz-section-name" id="viz-section-name">Intro</div>
+                        <div class="viz-time-display">
+                            <span id="viz-current-time">0:00</span> / <span id="viz-total-time">${Math.floor(data.duration/60)}:${Math.floor(data.duration%60).toString().padStart(2,'0')}</span>
+                        </div>
+                    </div>
+
+                    <!-- 진행 바 -->
+                    <div class="viz-progress-container">
+                        <div class="viz-progress-wrapper">
+                            <div class="viz-progress-bar" id="viz-progress-bar"></div>
+                            <div class="viz-section-markers">
+                                ${sections.map(s => `<div class="viz-section-marker">${s.label}<br>${formatTime(beats.find(b => b.i === s.startBeat)?.t || 0)}</div>`).join('')}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 메트로놈 -->
+                    <div class="viz-beat-visualizer">
+                        <h3>비트 시각화 (메트로놈)</h3>
+                        <div class="viz-metronome-display">
+                            <div class="viz-bar-info">
+                                <span class="viz-bar-label">마디</span>
+                                <span class="viz-bar-number" id="viz-bar-number">1</span>
+                            </div>
+                            <div class="viz-beat-indicators">
+                                <div class="viz-beat-dot" data-beat="1">1</div>
+                                <div class="viz-beat-dot" data-beat="2">2</div>
+                                <div class="viz-beat-dot" data-beat="3">3</div>
+                                <div class="viz-beat-dot" data-beat="4">4</div>
+                            </div>
+                            <div class="viz-bpm-info">
+                                <span class="viz-bpm-label">BPM</span>
+                                <span class="viz-bpm-value">${data.bpm.toFixed(1)}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 가사 & 동작 타임라인 -->
+                    <div class="viz-timeline">
+                        <h3>가사 & 동작 타임라인 (Verse1)</h3>
+                        <div class="viz-timeline-track" id="viz-timeline-track">
+                            ${renderTimelineItems(data.verse1Timeline, data.lyricsInfo)}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // 시각화 재생 관련 변수 초기화
+        window.vizData = data;
+        window.vizIsPlaying = false;
+        window.vizCurrentTime = 0;
+        window.vizLastBeatIndex = -1;
+    }
+
+    function formatTime(seconds) {
+        const min = Math.floor(seconds / 60);
+        const sec = Math.floor(seconds % 60);
+        return `${min}:${sec.toString().padStart(2, '0')}`;
+    }
+
+    function renderTimelineItems(timeline, lyricsInfo) {
+        if (!timeline || timeline.length === 0) return '<p>타임라인 데이터가 없습니다.</p>';
+
+        // 동작 이모지 매핑 (예시)
+        const actionIcons = {
+            1: '🙌', 2: '👐', 3: '🤸‍♀️', 4: '🙆‍♀️',
+            5: '👏', 6: '🤸', 7: '🙋', 8: '🤷'
+        };
+
+        return timeline.slice(0, 10).map((event, idx) => {
+            const cls = idx === 0 ? 'past' : idx === 1 ? 'current' : 'upcoming';
+            const icon = actionIcons[event.actionCode] || '💃';
+
+            return `
+                <div class="viz-timeline-item ${cls}">
+                    <div class="viz-timeline-indicator"></div>
+                    <div class="viz-timeline-time">${event.time.toFixed(1)}s</div>
+                    <div class="viz-timeline-content">
+                        <div class="viz-timeline-lyric">흥겨운 리듬에 맞춰</div>
+                        <div class="viz-timeline-actions">
+                            <div class="viz-action-chip">
+                                <span>${icon}</span>
+                                <span>${event.actionName}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    // 시각화 재생 관련 함수
+    function playVisualization() {
+        if (!window.vizData) return;
+        if (window.vizIsPlaying) return;
+
+        window.vizIsPlaying = true;
+        window.vizAnimationInterval = setInterval(() => {
+            window.vizCurrentTime += 0.1;
+            updateVisualizationUI(window.vizCurrentTime);
+            updateBeatVisualizer(window.vizCurrentTime);
+        }, 100);
+    }
+
+    function pauseVisualization() {
+        window.vizIsPlaying = false;
+        clearInterval(window.vizAnimationInterval);
+    }
+
+    function stopVisualization() {
+        window.vizIsPlaying = false;
+        clearInterval(window.vizAnimationInterval);
+        window.vizCurrentTime = 0;
+        updateVisualizationUI(0);
+        updateBeatVisualizer(0);
+    }
+
+    function updateVisualizationUI(time) {
+        const data = window.vizData;
+        if (!data) return;
+
+        // 진행 바
+        const progress = (time / data.duration) * 100;
+        document.getElementById('viz-progress-bar').style.width = progress + '%';
+
+        // 시간 표시
+        const min = Math.floor(time / 60);
+        const sec = Math.floor(time % 60);
+        document.getElementById('viz-current-time').textContent = `${min}:${sec.toString().padStart(2, '0')}`;
+
+        // 구간 표시
+        const sections = data.songBeat.sections || [];
+        const beats = data.songBeat.beats || [];
+        let currentSection = 'Intro';
+
+        for (let section of sections) {
+            const startBeat = beats.find(b => b.i === section.startBeat);
+            const endBeat = beats.find(b => b.i === section.endBeat);
+            if (startBeat && endBeat && time >= startBeat.t && time <= endBeat.t) {
+                currentSection = section.label;
+                break;
+            }
+        }
+
+        const sectionNames = {
+            'intro': 'Intro',
+            'verse1': 'Verse1 (1절 안무)',
+            'break': 'Break (휴식)',
+            'verse2': 'Verse2 (2절 안무)'
+        };
+        document.getElementById('viz-section-name').textContent = sectionNames[currentSection] || currentSection;
+    }
+
+    function updateBeatVisualizer(time) {
+        const data = window.vizData;
+        if (!data) return;
+
+        const beats = data.songBeat.beats || [];
+
+        // 현재 시간에 가장 가까운 비트 찾기
+        let currentBeat = null;
+        let minDiff = Infinity;
+
+        for (let beat of beats) {
+            const diff = Math.abs(beat.t - time);
+            if (diff < minDiff && beat.t <= time + 0.05) {
+                minDiff = diff;
+                currentBeat = beat;
+            }
+        }
+
+        if (!currentBeat || currentBeat.i === window.vizLastBeatIndex) {
+            return;
+        }
+
+        window.vizLastBeatIndex = currentBeat.i;
+
+        // 마디 번호 업데이트
+        document.getElementById('viz-bar-number').textContent = currentBeat.bar;
+
+        // 비트 인디케이터 업데이트
+        const beatDots = document.querySelectorAll('.viz-beat-dot');
+        beatDots.forEach(dot => dot.classList.remove('active'));
+
+        const activeDot = document.querySelector(`.viz-beat-dot[data-beat="${currentBeat.beat}"]`);
+        if (activeDot) {
+            activeDot.classList.add('active');
         }
     }
 </script>
