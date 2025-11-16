@@ -105,6 +105,10 @@ public class SongGameDataCache {
             verse2Timelines.put(levelKey, levelTimeline);
         });
 
+        // 4-1. 섹션별 패턴 시퀀스 생성
+        com.heungbuja.game.dto.GameStartResponse.SectionPatterns sectionPatterns =
+                createSectionPatterns(choreography);
+
         // 5. SongGameData 생성 (모든 데이터 포함!)
         SongGameData songGameData = SongGameData.builder()
                 .songId(songId)
@@ -115,6 +119,7 @@ public class SongGameDataCache {
                 .duration(songBeat.getAudio().getDurationSec())
                 .verse1Timeline(verse1Timeline)
                 .verse2Timelines(verse2Timelines)
+                .sectionPatterns(sectionPatterns)
                 .cachedAt(LocalDateTime.now())
                 .build();
 
@@ -245,6 +250,52 @@ public class SongGameDataCache {
                             ErrorCode.GAME_METADATA_NOT_FOUND,
                             "'" + sectionLabel + "' 섹션 정보가 누락되었습니다.");
                 });
+    }
+
+    // ===== 섹션 패턴 시퀀스 생성 =====
+
+    /**
+     * 섹션별 패턴 시퀀스 생성 (eachRepeat 적용하여 실제 반복되는 순서 그대로)
+     * 예: patternSequence=["P1","P2"], eachRepeat=2 -> ["P1","P1","P2","P2"]
+     */
+    private com.heungbuja.game.dto.GameStartResponse.SectionPatterns createSectionPatterns(
+            SongChoreography choreography) {
+
+        SongChoreography.Version version = choreography.getVersions().get(0);
+
+        // 1절 패턴 시퀀스 생성
+        List<String> verse1Patterns = new ArrayList<>();
+        SongChoreography.VersePatternInfo verse1Info = version.getVerse1();
+        for (String patternId : verse1Info.getPatternSequence()) {
+            for (int i = 0; i < verse1Info.getEachRepeat(); i++) {
+                verse1Patterns.add(patternId);
+            }
+        }
+
+        // 2절 레벨별 패턴 시퀀스 생성
+        Map<Integer, List<String>> verse2PatternsMap = new HashMap<>();
+        for (SongChoreography.VerseLevelPatternInfo levelInfo : version.getVerse2()) {
+            List<String> levelPatterns = new ArrayList<>();
+            for (String patternId : levelInfo.getPatternSequence()) {
+                for (int i = 0; i < levelInfo.getEachRepeat(); i++) {
+                    levelPatterns.add(patternId);
+                }
+            }
+            verse2PatternsMap.put(levelInfo.getLevel(), levelPatterns);
+        }
+
+        // Verse2Patterns 객체 생성
+        com.heungbuja.game.dto.GameStartResponse.Verse2Patterns verse2Patterns =
+                com.heungbuja.game.dto.GameStartResponse.Verse2Patterns.builder()
+                        .level1(verse2PatternsMap.get(1))
+                        .level2(verse2PatternsMap.get(2))
+                        .level3(verse2PatternsMap.get(3))
+                        .build();
+
+        return com.heungbuja.game.dto.GameStartResponse.SectionPatterns.builder()
+                .verse1(verse1Patterns)
+                .verse2(verse2Patterns)
+                .build();
     }
 
     // ===== SectionInfo 가공 =====

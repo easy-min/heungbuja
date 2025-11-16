@@ -409,6 +409,7 @@ public class McpToolService {
                 .lyricsInfo(songGameData.getLyricsInfo())
                 .verse1Timeline(gameSessionAdapter.toCommandActionTimelineEvents(songGameData.getVerse1Timeline()))
                 .verse2Timelines(gameSessionAdapter.toCommandActionTimelinesMap(songGameData.getVerse2Timelines()))
+                .sectionPatterns(songGameData.getSectionPatterns())
                 .build();
 
         // 8. 프론트엔드에 전달할 데이터 구성
@@ -550,6 +551,7 @@ public class McpToolService {
                     .lyricsInfo(songGameData.getLyricsInfo())
                     .verse1Timeline(gameSessionAdapter.toCommandActionTimelineEvents(songGameData.getVerse1Timeline()))
                     .verse2Timelines(gameSessionAdapter.toCommandActionTimelinesMap(songGameData.getVerse2Timelines()))
+                    .sectionPatterns(songGameData.getSectionPatterns())
                     .build();
 
             // 8. 응답 데이터 구성
