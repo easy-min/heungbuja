@@ -1,9 +1,12 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, conlist
 
 from app.services.inference import InferenceResult, MotionInferenceService, get_inference_service
 
 router = APIRouter(prefix="/api/ai", tags=["analysis"])
+LOGGER = logging.getLogger(__name__)
 
 
 class AnalyzeRequest(BaseModel):
@@ -29,11 +32,13 @@ async def analyze_motion(
             target_action_code=payload.actionCode,
         )
     except ValueError as exc:
+        LOGGER.warning("Invalid analyze request: %s", exc, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         ) from exc
     except Exception as exc:  # pragma: no cover - 예외 상황 로깅
+        LOGGER.exception("Motion inference failed: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="동작 분석 중 오류가 발생했습니다.",
