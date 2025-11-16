@@ -4,6 +4,7 @@ import com.heungbuja.common.exception.CustomException;
 import com.heungbuja.common.exception.ErrorCode;
 import com.heungbuja.game.dto.GameEndResponse;
 import com.heungbuja.game.state.GameSession;
+import com.heungbuja.session.service.SessionStateService;
 import org.springframework.http.HttpStatus;
 
 import com.heungbuja.game.dto.GameStartRequest;
@@ -22,6 +23,7 @@ import reactor.core.publisher.Mono;
 public class GameController {
 
     private final GameService gameService;
+    private final SessionStateService sessionStateService;
 
     /**
      * 게임 시작 API (디버깅용 - 인증 없음)
@@ -72,6 +74,16 @@ public class GameController {
         }
 
         throw new CustomException(ErrorCode.UNAUTHORIZED, "유효하지 않은 인증 정보입니다");
+    }
+
+    @PostMapping("/interrupt")
+    public ResponseEntity<String> interruptGame(@RequestParam String sessionId, @RequestParam String reason) {
+        boolean success = sessionStateService.trySetInterrupt(sessionId, reason);
+        if (success) {
+            return ResponseEntity.ok("인터럽트 요청 성공. 1초 내에 처리됩니다.");
+        } else {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("이미 다른 인터럽트가 처리 중입니다.");
+        }
     }
 
     // --- ▼ (테스트용 코드) AI 서버 연동을 테스트하기 위한 임시 API 엔드포인트 ---
