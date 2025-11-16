@@ -6,7 +6,7 @@ import { useMusicMonitor } from '@/hooks/useMusicMonitor';
 import { useLyricsSync } from '@/hooks/useLyricsSync';
 import { useGameWs } from '@/hooks/useGameWs';
 import { useActionTimelineSync } from '@/hooks/useActionTimelineSync';
-import type  { LyricLine, FeedbackMessage } from '@/types/game';
+import type  { LyricLine, FeedbackMessage, GameEndResponse } from '@/types/game';
 import { useGameStore } from '@/store/gameStore';
 import { gameEndApi } from '@/api/game';
 import  VoiceButton from '@/components/VoiceButton'
@@ -26,6 +26,7 @@ function GamePage() {
   const songBpmRef = useRef<number>(120);
   const currentSectionRef = useRef<'intro' | 'break' | 'verse1' | 'verse2'>('break');
   const announcedSectionRef = useRef<SectionKey | null>(null);
+  const verse2LevelRef = useRef<'level1' | 'level2' | 'level3'>('level2');
 
   const [isCounting, setIsCounting] = useState(false);
   const [count, setCount] = useState(5);
@@ -36,6 +37,7 @@ function GamePage() {
   const [redirectReason, setRedirectReason] = useState<null | 'wsError' | 'timeout'>(null);
   const [lastFeedback, setLastFeedback] = useState<FeedbackMessage['data'] | null>(null);
   const feedbackHideTimerRef = useRef<number | null>(null);
+  const [verse2Level, setVerse2Level] = useState<'level1' | 'level2' | 'level3'>('level2');
 
   const { connect, disconnect, sendFrame, isConnected } = useGameWs({
     onError: () => {
@@ -47,17 +49,28 @@ function GamePage() {
       setWsMessage('연결이 끊어졌습니다. 재시도 중…');
     },
     onFeedback: (msg) => {
-      // 기존 타이머 제거
+      if (msg.type === 'LEVEL_DECISION') {
+        const { nextLevel } = msg.data;
+        console.log(msg.data);
+
+        const levelKey = (`level${nextLevel}` as 'level1' | 'level2' | 'level3');
+        verse2LevelRef.current = levelKey;
+        setVerse2Level(levelKey);
+
+        if (currentSectionRef.current === 'verse2') {
+          switchSectionVideo('verse2', levelKey);
+        }
+        return;
+      }
+
       if (feedbackHideTimerRef.current) {
         clearTimeout(feedbackHideTimerRef.current);
         feedbackHideTimerRef.current = null;
       }
-      console.log('[피드백] ', msg.data.judgment);
+      // console.log('[피드백] ', msg.data.judgment);
 
-      // 새 피드백 저장
       setLastFeedback(msg.data);
 
-      // 1초 정도 보여주고 자동으로 숨김
       feedbackHideTimerRef.current = window.setTimeout(() => {
         setLastFeedback(null);
         feedbackHideTimerRef.current = null;
@@ -94,27 +107,43 @@ function GamePage() {
     verse1Timeline,
     verse2Timelines,
     sectionInfo,
-    verse2Level: 'level2',  // 또는 상태 기반으로 동적으로 설정 가능
+    verse2Level,
   });
 
   // === 영상 메타 ===
-  // 필요 시 videoUrls를 활용해 교체 가능합니다.
   const pub = (p: string) => `${import.meta.env.BASE_URL}${p}`;
   const VIDEO_META = {
     intro:  { src: pub('break.mp4'),      bpm: 100,  loopBeats: 8  },
     break:  { src: pub('break.mp4'),      bpm: 100,  loopBeats: 8  },
     verse1: { src: pub('part1.mp4'),      bpm: 98.6, loopBeats: 16 },
-    verse2: { src: pub('part2_level2.mp4'), bpm: 99, loopBeats: 16 },
+    // verse2: { src: pub(`part2_${verse2Level}.mp4`), bpm: 99, loopBeats: 16 },
   } as const;
-  type SectionKey = keyof typeof VIDEO_META;
+  type SectionKey = 'intro' | 'break' | 'verse1' | 'verse2';
 
   // === 수동 루프 파라미터 ===
   const LOOP_EPS = 0.02;     // 경계 여유
   const LOOP_RESTART = 0.04; // 되감을 위치(싱크 보정)
 
+  function getVideoMeta(
+    section: SectionKey,
+    levelForVerse2: 'level1' | 'level2' | 'level3',
+  ) {
+    if (section === 'verse2') {
+      return {
+        src: pub(`part2_${levelForVerse2}.mp4`),
+        bpm: 99,
+        loopBeats: 16,
+      };
+    }
+    return VIDEO_META[section];
+  }
+
   const getLoopLenSec = (section: SectionKey) => {
-    const { bpm, loopBeats } = VIDEO_META[section];
-    return (60 / bpm) * loopBeats;
+    const level = verse2LevelRef.current;
+    const meta = section === 'verse2'
+      ? getVideoMeta('verse2', level)
+      : getVideoMeta(section, level);
+    return (60 / meta.bpm) * meta.loopBeats;
   };
 
   // === 모니터링 (섹션 감지 → 영상 전환) ===
@@ -132,8 +161,26 @@ function GamePage() {
           setTimeout(() => setSectionMessage(null), 8000);
         }
         if (nextSection === 'break') {
-          setSectionMessage('잘 따라하셔서 2절은 한 단계 높은 동작으로 바꿔볼게요!');
-          window.setTimeout(() => setSectionMessage(null), 12000);
+          let msg = '';
+
+          switch (verse2LevelRef.current) {
+            case 'level1':
+              msg = '잘 하고 계세요! 조금만 더 힘내세요!';
+              break;
+            case 'level2':
+              msg = '잘 따라하셔서 2절은 한 단계 높은 동작으로 바꿔볼게요!';
+              break;
+            case 'level3':
+              msg = '멋진 실력이에요! 2절은 최상 난이도로 함께해요!';
+              break;
+            default:
+              msg = '';
+          }
+
+          if (msg) {
+            setSectionMessage(msg);
+            window.setTimeout(() => setSectionMessage(null), 12000);
+          }
         }
       }
     },
@@ -212,14 +259,22 @@ function GamePage() {
   }, []);
 
   // === 섹션별 영상 전환 ===
-  function switchSectionVideo(next: SectionKey) {
+  function switchSectionVideo(
+    next: SectionKey,
+    overrideLevel?: 'level1' | 'level2' | 'level3',
+  ) {
     const mv = motionVideoRef.current;
     const au = audioRef.current;
     if (!mv) return;
 
     currentSectionRef.current = next;
 
-    const { src, bpm: videoBpm } = VIDEO_META[next];
+    const levelToUse =
+    next === 'verse2'
+      ? (overrideLevel ?? verse2LevelRef.current)
+      : verse2LevelRef.current;
+
+    const { src, bpm: videoBpm } = getVideoMeta(next, levelToUse);
     const shouldPlayNow = !!au && !au.paused;
     const needSrcSwap = mv.src !== src;
 
@@ -353,7 +408,7 @@ function GamePage() {
   }
 
   // === 종료 시 결과 페이지 이동 ===
-  function goToResultOnce() {
+  async function goToResultOnce() {
     if (hasNavigatedRef.current) return;
     hasNavigatedRef.current = true;
     stopMonitoring();
@@ -363,8 +418,14 @@ function GamePage() {
     disconnect();
     if (audioRef.current) audioRef.current.pause();
 
-    gameEndApi();
-    navigate('/result');
+    const res: GameEndResponse = await gameEndApi();
+
+    navigate('/result', {
+      state: {
+        finalScore: res.finalScore,
+        message: res.message,
+      },
+    });
   }
 
   function mapJudgment(judgment: 1 | 2 | 3) {
