@@ -436,33 +436,51 @@ public class GameService {
     }
 
     /**
-     * (신규) 1초마다 실행되는 게임 세션 감시자
-     * 프레임 수신이 1초 이상 중단된 세션을 찾아 절(verse) 종료 처리를 수행합니다.
+     * 1초마다 실행되는 게임 세션 감시자
+     * 1. 인터럽트 요청 확인
+     * 2. 프레임 수신 타임아웃 확인
      */
     @Scheduled(fixedRate = 1000)
     public void checkGameSessionTimeout() {
+        // "game_session:" 패턴을 가진 모든 키를 스캔하는 것은 부하가 있을 수 있으므로,
+        // 실제 운영 환경에서는 더 효율적인 방법을 고려할 수 있습니다. (예: 별도의 Set 관리)
         Set<String> sessionKeys = gameSessionRedisTemplate.keys(GAME_SESSION_KEY_PREFIX + "*");
         if (sessionKeys == null || sessionKeys.isEmpty()) {
             return;
         }
+
         long now = Instant.now().toEpochMilli();
+
         for (String key : sessionKeys) {
             GameSession session = gameSessionRedisTemplate.opsForValue().get(key);
             if (session == null || session.isProcessing()) {
                 continue;
             }
 
-            // --- ▼ (핵심 수정) 2절 종료 로직을 제거하고 1절 타임아웃만 처리 ---
+            String sessionId = session.getSessionId(); // 세션 ID를 변수에 저장
+
+            // --- ▼ (핵심 추가 1) 인터럽트 상태를 먼저 확인합니다. ---
+            String status = sessionStateService.getSessionStatus(sessionId);
+            if ("INTERRUPTING".equals(status)) {
+                log.info("세션 {}에 대한 인터럽트 요청 감지. 게임 중단 처리를 시작합니다.", sessionId);
+
+                // 중복 실행을 막기 위해 락을 해제하고, 게임 로직을 실행
+                sessionStateService.releaseInterruptLock(sessionId);
+                interruptGame(sessionId, "외부 요청에 의한 중단"); // interruptGame 호출
+                continue; // 이 세션에 대한 나머지 검사(타임아웃)는 건너뜁니다.
+            }
+            // --- ▲ --------------------------------------------------- ▲ ---
+
+
+            // 기존 타임아웃 검사 로직
             if (session.getLastFrameReceivedTime() > 0 && now - session.getLastFrameReceivedTime() > 1000) {
                 if (session.getNextLevel() == null) {
-                    log.info("세션 {}의 1절 종료 감지. 레벨 결정을 시작합니다.", session.getSessionId());
+                    log.info("세션 {}의 1절 종료 감지. 레벨 결정을 시작합니다.", sessionId);
                     session.setProcessing(true);
-                    saveGameSession(session.getSessionId(), session);
-                    decideAndSendNextLevel(session.getSessionId());
+                    saveGameSession(sessionId, session);
+                    decideAndSendNextLevel(sessionId);
                 }
-                // 2절 진행 중 타임아웃은 더 이상 게임을 종료시키지 않습니다.
             }
-            // --- ▲ -------------------------------------------------------- ▲ ---
         }
     }
 
@@ -705,17 +723,29 @@ public class GameService {
     }
 
     /**
-     * 게임 인터럽트 처리 (외부 호출용)
+     * 게임 인터럽트 처리 (외부 호출용 및 스케줄러 호출용)
+     * sessionId와 중단 사유를 받아 게임을 중단 상태로 종료합니다.
      */
     @Transactional
     public void interruptGame(String sessionId, String reason) {
         GameSession finalSession = getGameSession(sessionId);
         if (finalSession == null) {
-            log.warn("존재하지 않는 세션 ID로 인터럽트 요청: {}", sessionId);
+            log.warn("존재하지 않거나 이미 처리된 세션 ID로 인터럽트 요청: {}", sessionId);
+            // 이미 Redis에서 삭제된 후 DB에만 남아있는 경우를 대비한 처리
+            GameResult gameResult = gameResultRepository.findBySessionId(sessionId).orElse(null);
+            if (gameResult != null && gameResult.getStatus() == GameSessionStatus.IN_PROGRESS) {
+                gameResult.interrupt(reason);
+                gameResultRepository.save(gameResult);
+                log.info("DB에만 남아있던 세션 {}의 게임을 중단 처리했습니다.", sessionId);
+            }
             return;
         }
+
+        // 1, 2절 판정 결과를 바탕으로 점수 계산
         double verse1Avg = calculateScoreFromJudgments(finalSession.getVerse1Judgments());
         double verse2Avg = calculateScoreFromJudgments(finalSession.getVerse2Judgments());
+
+        // MongoDB: 상세 데이터 저장 (진행된 부분까지)
         GameDetail.Statistics verse1Stats = calculateStatistics(finalSession.getVerse1Judgments());
         GameDetail.Statistics verse2Stats = calculateStatistics(finalSession.getVerse2Judgments());
 
@@ -726,23 +756,26 @@ public class GameService {
                 .build();
         gameDetailRepository.save(gameDetail);
 
+        // MySQL: 게임 결과 업데이트 (중단 처리)
         GameResult gameResult = gameResultRepository.findBySessionId(sessionId)
                 .orElseThrow(() -> new CustomException(ErrorCode.GAME_SESSION_NOT_FOUND));
 
         gameResult.setVerse1AvgScore(verse1Avg);
         gameResult.setVerse2AvgScore(verse2Avg);
-        gameResult.interrupt(reason);
+        gameResult.interrupt(reason); // <-- 상태 = INTERRUPTED, endTime, interruptReason 설정
 
         gameResultRepository.save(gameResult);
         log.info("세션 {}의 게임 중단 처리 완료. 사유: {}", sessionId, reason);
 
-        // <-- (수정) 삭제 시에도 올바른 Key를 사용합니다.
+        // Redis: 상태 정리
         gameSessionRedisTemplate.delete(GAME_SESSION_KEY_PREFIX + sessionId);
-        gameStateRedisTemplate.delete(GAME_STATE_KEY_PREFIX + sessionId); // GameState도 함께 삭제
-
+        gameStateRedisTemplate.delete(GAME_STATE_KEY_PREFIX + sessionId);
         sessionStateService.clearSessionStatus(sessionId);
-        sessionStateService.clearActivity(finalSession.getUserId());
+        if (finalSession.getUserId() != null) {
+            sessionStateService.clearActivity(finalSession.getUserId());
+        }
 
+        // WebSocket: 프론트에 중단 알림 전송
         sendGameInterruptNotification(sessionId);
     }
 
