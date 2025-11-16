@@ -17,11 +17,11 @@ export interface GameState {
   // 미디어/메타
   audioUrl: string | null;
   videoUrls: {
-    intro: string | null,
-    verse1: string | null,
-    verse2_level1: string | null,
-    verse2_level2: string | null,
-    verse2_level3: string | null,
+    intro: string | null;
+    verse1: string | null;
+    verse2_level1: string | null;
+    verse2_level2: string | null;
+    verse2_level3: string | null;
   };
   bpm: number | null;
   duration: number | null;
@@ -36,7 +36,7 @@ export interface GameState {
   // 가사/액션 타임라인
   lyricsInfo: {
     id: string | null;
-    lines: LyricLine[]; 
+    lines: LyricLine[];
   };
   verse1Timeline: actionLine[];
   verse2Timelines: {
@@ -45,15 +45,20 @@ export interface GameState {
     level3: actionLine[];
   };
 
+  // 강제 종료 플래그
+  stopRequested: boolean;
+
   // 업데이트 유틸
   setAll: (p: Partial<GameState>) => void;
   setFromApi: (resp: GameStartResponse) => void;
+  requestStop: () => void;
   clear: () => void;
 }
 
-
-export const useGameStore = create<GameState>((set) => ({
-  // 기본값
+const initialState: Omit<
+  GameState,
+  'setAll' | 'setFromApi' | 'requestStop' | 'clear'
+> = {
   sessionId: null,
   songId: null,
   songTitle: null,
@@ -92,10 +97,14 @@ export const useGameStore = create<GameState>((set) => ({
     level3: [],
   },
 
-  // 부분 업데이트
+  stopRequested: false,
+};
+
+export const useGameStore = create<GameState>((set) => ({
+  ...initialState,
+
   setAll: (p) => set(p),
 
-  // API 응답 전체 주입
   setFromApi: (resp) => {
     const d = resp.gameInfo;
     set({
@@ -118,48 +127,12 @@ export const useGameStore = create<GameState>((set) => ({
       lyricsInfo: d.lyricsInfo,
       verse1Timeline: d.verse1Timeline,
       verse2Timelines: d.verse2Timelines,
+
+      stopRequested: false,
     });
   },
 
-  // 초기화
-  clear: () =>
-    set({
-      sessionId: null,
-      songId: null,
-      songTitle: null,
-      songArtist: null,
+  requestStop: () => set({ stopRequested: true }),
 
-      audioUrl: null,
-      videoUrls: {
-        intro: null,
-        verse1: null,
-        verse2_level1: null,
-        verse2_level2: null,
-        verse2_level3: null,
-      },
-      bpm: null,
-      duration: null,
-
-      sectionInfo: {
-        introStartTime: 0,
-        verse1StartTime: 0,
-        breakStartTime: 0,
-        verse2StartTime: 0,
-      },
-      segmentInfo: {
-        verse1cam: null,
-        verse2cam: null,
-      },
-
-      lyricsInfo: {
-        id: null,
-        lines: [],
-      },
-      verse1Timeline: [],
-      verse2Timelines: {
-        level1: [],
-        level2: [],
-        level3: [],
-      },
-    }),
+  clear: () => set(initialState),
 }));
