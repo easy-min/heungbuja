@@ -75,6 +75,14 @@ public class SongVisualizationResponse {
     private Map<String, List<ActionTimelineEvent>> verse2Timelines;
 
     /**
+     * 섹션별 패턴 시퀀스
+     * - 섹션 전체 길이만큼 패턴이 반복된 전체 배열
+     * - verse1: 1절 패턴 배열 (예: ["P1","P1","P2","P2", ...])
+     * - verse2: 2절 레벨별 패턴 배열
+     */
+    private com.heungbuja.game.dto.GameStartResponse.SectionPatterns sectionPatterns;
+
+    /**
      * SongGameData로부터 변환
      */
     public static SongVisualizationResponse from(SongGameData gameData) {
@@ -87,6 +95,7 @@ public class SongVisualizationResponse {
                 .duration(gameData.getDuration())
                 .verse1Timeline(gameData.getVerse1Timeline())
                 .verse2Timelines(gameData.getVerse2Timelines())
+                .sectionPatterns(gameData.getSectionPatterns())
                 .build();
     }
 }
