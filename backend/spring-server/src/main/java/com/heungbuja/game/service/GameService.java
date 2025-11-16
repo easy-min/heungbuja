@@ -207,9 +207,15 @@ public class GameService {
         SongChoreography.Version version = choreography.getVersions().get(0);
         SongChoreography.VersePatternInfo verseInfo = version.getVerse1(); // 1절 정보 가져오기
         SongBeat.Section section = findSectionByLabel(songBeat, sectionLabel);
-        List<Integer> patternSeq = findPatternSequenceById(patternData, verseInfo.getPatternId());
 
-        return generateTimelineForSection(beatNumToTimeMap, section, patternSeq, verseInfo.getRepeat());
+        // ⭐ 패턴 시퀀스 배열을 순회하며 각 패턴의 시퀀스를 가져옴
+        List<List<Integer>> patternSequenceList = new ArrayList<>();
+        for (String patternId : verseInfo.getPatternSequence()) {
+            List<Integer> patternSeq = findPatternSequenceById(patternData, patternId);
+            patternSequenceList.add(patternSeq);
+        }
+
+        return generateTimelineForSection(beatNumToTimeMap, section, patternSequenceList, verseInfo.getEachRepeat());
     }
 
     /**
@@ -221,19 +227,26 @@ public class GameService {
             SongChoreography.VerseLevelPatternInfo levelInfo) {
 
         SongBeat.Section section = findSectionByLabel(songBeat, sectionLabel);
-        List<Integer> patternSeq = findPatternSequenceById(patternData, levelInfo.getPatternId());
 
-        return generateTimelineForSection(beatNumToTimeMap, section, patternSeq, levelInfo.getRepeat());
+        // ⭐ 패턴 시퀀스 배열을 순회하며 각 패턴의 시퀀스를 가져옴
+        List<List<Integer>> patternSequenceList = new ArrayList<>();
+        for (String patternId : levelInfo.getPatternSequence()) {
+            List<Integer> patternSeq = findPatternSequenceById(patternData, patternId);
+            patternSequenceList.add(patternSeq);
+        }
+
+        return generateTimelineForSection(beatNumToTimeMap, section, patternSequenceList, levelInfo.getEachRepeat());
     }
 
     /**
      * (신규) 특정 구간과 동작 시퀀스를 받아 실제 타임라인 리스트를 생성하는 공통 메소드
+     * 여러 패턴을 병합하여 타임라인을 생성합니다
      */
     private List<ActionTimelineEvent> generateTimelineForSection(
             Map<Integer, Double> beatNumToTimeMap,
             SongBeat.Section section,
-            List<Integer> patternSequence,
-            int repeatCount) {
+            List<List<Integer>> patternSequenceList,
+            int eachRepeat) {
 
         List<ActionTimelineEvent> timeline = new ArrayList<>();
         Map<Integer, String> actionCodeToNameMap = actionRepository.findAll().stream()
@@ -241,12 +254,22 @@ public class GameService {
 
         int startBeat = section.getStartBeat();
         int endBeat = section.getEndBeat();
-        int patternLength = patternSequence.size();
 
+        // ⭐ 1. 패턴 배열을 하나의 큰 패턴으로 병합
+        List<Integer> mergedPattern = new ArrayList<>();
+        for (List<Integer> pattern : patternSequenceList) {
+            for (int i = 0; i < eachRepeat; i++) {
+                mergedPattern.addAll(pattern);
+            }
+        }
+
+        int mergedPatternLength = mergedPattern.size();
+
+        // ⭐ 2. Modulo로 섹션 전체를 채움 (기존 로직 유지)
         for (int currentBeatIndex = startBeat; currentBeatIndex <= endBeat; currentBeatIndex++) {
             int beatWithinSection = currentBeatIndex - startBeat;
-            int patternIndex = beatWithinSection % patternLength;
-            int actionCode = patternSequence.get(patternIndex);
+            int patternIndex = beatWithinSection % mergedPatternLength;
+            int actionCode = mergedPattern.get(patternIndex);
 
             if (actionCode != 0) {
                 double time = beatNumToTimeMap.getOrDefault(currentBeatIndex, -1.0);
