@@ -659,15 +659,16 @@ function GamePage() {
           </div>
           <div className="left__main">
             <div className="character-section">
-              <video
-                ref={motionVideoRef}
-                preload="auto"
-                muted
-                playsInline
-                src={VIDEO_META.break.src}
-                className="motion-video"
-                style={{ width: '800px' }}
-              />
+              <div className="motion-video-wrapper">
+                <video
+                  ref={motionVideoRef}
+                  preload="auto"
+                  muted
+                  playsInline
+                  src={VIDEO_META.break.src}
+                  className="motion-video"
+                />
+              </div>
               {currentActionName && (
                 <div className="action-label-overlay">
                   {currentActionName}
