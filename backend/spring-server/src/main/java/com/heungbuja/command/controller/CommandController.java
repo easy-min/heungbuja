@@ -55,7 +55,7 @@ public class CommandController {
                 log.warn("⚠️ Whisper 오인식 감지, 무시: '{}'", transcribedText);
                 return ResponseEntity.ok(CommandResponse.builder()
                         .success(false)
-                        .intent(null)
+                        .intent(com.heungbuja.voice.enums.Intent.UNKNOWN)
                         .responseText("음성이 명확하지 않습니다. 다시 말씀해주세요.")
                         .build());
             }
@@ -314,7 +314,12 @@ public class CommandController {
             "감사합니다",
             "구독",
             "좋아요",
-            "알림설정"
+            "알림설정",
+            "유료광고",
+            "유료광고가포함",
+            "광고가포함",
+            "자막",
+            "번역"
         };
 
         for (String pattern : hallucinationPatterns) {
