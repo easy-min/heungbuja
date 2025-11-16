@@ -57,14 +57,15 @@ public class SongChoreography {
     @Setter
     public static class VersePatternInfo {
         /**
-         * 사용할 패턴의 ID (ChoreographyPattern의 Pattern.id 참조)
+         * 사용할 패턴 ID 배열 (순서대로 사용됨)
+         * 예: ["P1", "P2", "P1", "P2"]
          */
-        private String patternId;
+        private List<String> patternSequence;
 
         /**
-         * 해당 패턴을 몇 번 반복할지
+         * 각 패턴을 몇 번씩 반복할지
          */
-        private int repeat;
+        private int eachRepeat;
     }
 
     /**
@@ -79,13 +80,14 @@ public class SongChoreography {
         private int level;
 
         /**
-         * 사용할 패턴의 ID (ChoreographyPattern의 Pattern.id 참조)
+         * 사용할 패턴 ID 배열 (순서대로 사용됨)
+         * 예: ["P2", "P3", "P2", "P1"]
          */
-        private String patternId;
+        private List<String> patternSequence;
 
         /**
-         * 해당 패턴을 몇 번 반복할지
+         * 각 패턴을 몇 번씩 반복할지
          */
-        private int repeat;
+        private int eachRepeat;
     }
 }
