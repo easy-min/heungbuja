@@ -62,6 +62,9 @@ public class GameStartResponse {
     /** 2절의 레벨별 동작 타임라인 */
     private Verse2Timeline verse2Timeline;
 
+    /** 섹션별로 반복되는 패턴 시퀀스 (eachRepeat 적용된 실제 반복 순서) */
+    private SectionPatterns sectionPatterns;
+
     /**
      * 각 절(verse)의 카메라 타이밍 정보를 담는 내부 DTO
      */
@@ -97,5 +100,34 @@ public class GameStartResponse {
         private List<ActionTimelineEvent> level1;
         private List<ActionTimelineEvent> level2;
         private List<ActionTimelineEvent> level3;
+    }
+
+    /**
+     * 섹션별로 반복되는 패턴 시퀀스
+     * 예: patternSequence=["P1","P2"], eachRepeat=2 -> ["P1","P1","P2","P2"]
+     */
+    @Getter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class SectionPatterns {
+        /** 1절에서 반복되는 패턴 ID 배열 (예: ["P1", "P1", "P2", "P2"]) */
+        private List<String> verse1;
+
+        /** 2절 레벨별로 반복되는 패턴 정보 */
+        private Verse2Patterns verse2;
+    }
+
+    /**
+     * 2절 레벨별 패턴 시퀀스
+     */
+    @Getter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Verse2Patterns {
+        private List<String> level1;
+        private List<String> level2;
+        private List<String> level3;
     }
 }
