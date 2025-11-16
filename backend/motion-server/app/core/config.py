@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8000
 
+    # MongoDB 설정 (Spring과 동일한 MongoDB 사용)
+    mongodb_uri: str = "mongodb://heungbu:lastdance@heungbuja-mongo:27017/heungbudb?authSource=admin"
+
 
 @lru_cache
 def get_settings() -> Settings:
