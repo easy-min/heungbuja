@@ -10,14 +10,32 @@ import asyncio
 import time
 from collections import defaultdict
 from typing import Dict, List
+from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pymongo import MongoClient
 
 from app.ml import PoseExtractionError, predict_action_from_frames
 from app.ml.model_loader import ModelLoaderError
+from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
+
+# MongoDB 연결
+settings = get_settings()
+try:
+    mongo_client = MongoClient(settings.mongodb_uri, serverSelectionTimeoutMS=5000)
+    # 연결 테스트
+    mongo_client.admin.command('ping')
+    db = mongo_client['heungbudb']
+    perf_collection = db['motion_server_performance']
+    logger.info("✅ MongoDB 연결 성공")
+except Exception as e:
+    logger.warning(f"⚠️ MongoDB 연결 실패: {e}. 성능 로그는 메모리에만 저장됩니다.")
+    mongo_client = None
+    db = None
+    perf_collection = None
 
 # 성능 측정을 위한 통계 수집기
 class PerformanceStats:
@@ -41,7 +59,7 @@ class PerformanceStats:
             self.reset()
 
     def report(self):
-        """통계 출력"""
+        """통계 출력 및 MongoDB 저장"""
         if self.request_count == 0:
             return
 
@@ -50,19 +68,43 @@ class PerformanceStats:
         logger.info(f"Total Requests: {self.request_count}")
         logger.info("-" * 80)
 
+        stats_data = {
+            "timestamp": datetime.utcnow(),
+            "interval_seconds": self.report_interval,
+            "total_requests": self.request_count,
+            "stages": {}
+        }
+
         for stage, times in sorted(self.total_times.items()):
             if times:
                 avg = sum(times) / len(times)
                 min_t = min(times)
                 max_t = max(times)
                 total = sum(times)
+
                 logger.info(f"  {stage}:")
                 logger.info(f"    - Average: {avg*1000:.2f}ms")
                 logger.info(f"    - Min: {min_t*1000:.2f}ms")
                 logger.info(f"    - Max: {max_t*1000:.2f}ms")
                 logger.info(f"    - Total: {total*1000:.2f}ms ({len(times)} calls)")
 
+                stats_data["stages"][stage] = {
+                    "average_ms": round(avg * 1000, 2),
+                    "min_ms": round(min_t * 1000, 2),
+                    "max_ms": round(max_t * 1000, 2),
+                    "total_ms": round(total * 1000, 2),
+                    "count": len(times)
+                }
+
         logger.info("=" * 80)
+
+        # MongoDB에 저장
+        if perf_collection is not None:
+            try:
+                perf_collection.insert_one(stats_data)
+                logger.info("✅ 성능 통계를 MongoDB에 저장했습니다.")
+            except Exception as e:
+                logger.error(f"❌ MongoDB 저장 실패: {e}")
 
     def reset(self):
         """통계 초기화"""
