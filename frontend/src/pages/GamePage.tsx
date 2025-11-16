@@ -161,8 +161,26 @@ function GamePage() {
           setTimeout(() => setSectionMessage(null), 8000);
         }
         if (nextSection === 'break') {
-          setSectionMessage('잘 따라하셔서 2절은 한 단계 높은 동작으로 바꿔볼게요!');
-          window.setTimeout(() => setSectionMessage(null), 12000);
+          let msg = '';
+
+          switch (verse2LevelRef.current) {
+            case 'level1':
+              msg = '잘 하고 계세요! 조금만 더 힘내세요!';
+              break;
+            case 'level2':
+              msg = '잘 따라하셔서 2절은 한 단계 높은 동작으로 바꿔볼게요!';
+              break;
+            case 'level3':
+              msg = '멋진 실력이에요! 2절은 최상 난이도로 함께해요!';
+              break;
+            default:
+              msg = '';
+          }
+
+          if (msg) {
+            setSectionMessage(msg);
+            window.setTimeout(() => setSectionMessage(null), 12000);
+          }
         }
       }
     },
