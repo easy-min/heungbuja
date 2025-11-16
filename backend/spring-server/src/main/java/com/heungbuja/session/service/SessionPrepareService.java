@@ -11,17 +11,18 @@ import com.heungbuja.game.repository.jpa.GameResultRepository;
 import com.heungbuja.game.state.GameSession;
 import com.heungbuja.game.state.GameState;
 import com.heungbuja.session.state.ActivityState;
+import com.heungbuja.song.domain.SongChoreography;
 import com.heungbuja.song.dto.SongGameData;
+import com.heungbuja.s3.service.MediaUrlService;
 import com.heungbuja.song.entity.Song;
+import com.heungbuja.song.repository.mongo.SongChoreographyRepository;
 import com.heungbuja.user.entity.User;
 import com.heungbuja.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.reactive.function.client.WebClient;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -41,6 +42,8 @@ public class SessionPrepareService {
 
     private final UserRepository userRepository;
     private final GameResultRepository gameResultRepository;
+    private final SongChoreographyRepository songChoreographyRepository;
+    private final MediaUrlService mediaUrlService;
 
     // Redis
     private final RedisTemplate<String, GameState> gameStateRedisTemplate;
@@ -48,12 +51,6 @@ public class SessionPrepareService {
 
     // Session State 서비스
     private final SessionStateService sessionStateService;
-
-    // WebClient
-    private final WebClient webClient;
-
-    @Value("${app.base-url:http://localhost:8080/api}")
-    private String baseUrl;
 
     private static final int SESSION_TIMEOUT_MINUTES = 30;
     private static final String GAME_STATE_KEY_PREFIX = "game_state:";
@@ -73,8 +70,8 @@ public class SessionPrepareService {
         log.info("게임 세션 준비: userId={}, songId={}", userId, song.getId());
         User user = userRepository.findById(userId).orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
-        // 1. 비디오 URL 생성
-        Map<String, String> videoUrls = generateVideoUrls();
+        // 1. 비디오 URL 생성 (패턴 기반)
+        Map<String, String> videoUrls = generateVideoUrls(song.getId());
 
         // 2. sessionId 생성
         String sessionId = UUID.randomUUID().toString();
@@ -140,43 +137,71 @@ public class SessionPrepareService {
         gameResultRepository.save(gameResult);
         log.info("게임 세션 준비 완료: sessionId={}", sessionId);
 
-        // 7. 응답 생성 (sessionId 반환)
+        // 7. 응답 생성 (sessionId + videoUrls 반환)
         return GameSessionPrepareResponse.builder()
                 .sessionId(sessionId)
                 .songTitle(song.getTitle())
                 .songArtist(song.getArtist())
                 .tutorialVideoUrl(videoUrls.get("intro"))
+                .videoUrls(videoUrls)
                 .build();
     }
 
     /**
-     * 비디오 URL 생성
+     * 비디오 URL 생성 (패턴 기반)
      */
-    private Map<String, String> generateVideoUrls() {
+    private Map<String, String> generateVideoUrls(Long songId) {
         Map<String, String> videoUrls = new HashMap<>();
-        videoUrls.put("intro", getTestUrl("/media/test/video/break"));
-        videoUrls.put("verse1", getTestUrl("/media/test/video/part1"));
-        videoUrls.put("verse2_level1", getTestUrl("/media/test/video/part2_1"));
-        videoUrls.put("verse2_level2", getTestUrl("/media/test/video/part2_2"));
-        videoUrls.put("verse2_level3", "https://example.com/video_v2_level3.mp4");
+
+        // SongChoreography 조회
+        SongChoreography choreography = songChoreographyRepository.findBySongId(songId)
+                .orElseThrow(() -> new CustomException(
+                        ErrorCode.GAME_METADATA_NOT_FOUND, "안무 정보를 찾을 수 없습니다"));
+
+        SongChoreography.Version version = choreography.getVersions().get(0);
+
+        // intro: 공통 튜토리얼
+        String introS3Key = "video/break.mp4";
+        videoUrls.put("intro", mediaUrlService.issueUrlByKey(introS3Key));
+
+        // verse1: 첫 번째 패턴
+        String verse1PatternId = version.getVerse1().getPatternSequence().get(0);
+        String verse1S3Key = convertPatternIdToVideoUrl(verse1PatternId);
+        videoUrls.put("verse1", mediaUrlService.issueUrlByKey(verse1S3Key));
+
+        // verse2: 각 레벨의 첫 번째 패턴
+        for (SongChoreography.VerseLevelPatternInfo levelInfo : version.getVerse2()) {
+            String patternId = levelInfo.getPatternSequence().get(0);
+            String s3Key = convertPatternIdToVideoUrl(patternId);
+            String key = "verse2_level" + levelInfo.getLevel();
+            videoUrls.put(key, mediaUrlService.issueUrlByKey(s3Key));
+        }
+
         return videoUrls;
     }
 
-    private String getTestUrl(String path) {
-        try {
-            Map<String, String> response = webClient.get()
-                    .uri(baseUrl + path)
-                    .retrieve()
-                    .bodyToMono(Map.class)
-                    .block();
-
-            if (response != null && response.containsKey("url")) {
-                return response.get("url");
-            }
-        } catch (Exception e) {
-            log.error("테스트 URL 조회 실패: {}", path, e);
+    /**
+     * 패턴 ID → 비디오 URL 변환
+     * TODO: 패턴별 비디오 준비 완료 시 임시 매핑 제거하고 "video/pattern_" + patternId.toLowerCase() + ".mp4" 사용
+     */
+    private String convertPatternIdToVideoUrl(String patternId) {
+        // 임시 매핑: 현재 존재하는 비디오 파일 사용
+        switch (patternId) {
+            case "P1":
+                return "video/part1.mp4";
+            case "P2":
+                return "video/part2_level1.mp4";
+            case "P3":
+                return "video/part2_level2.mp4";
+            case "P4":
+                return "video/part1.mp4";  // 반복
+            default:
+                log.warn("알 수 없는 패턴 ID: {}. 기본 비디오 사용", patternId);
+                return "video/part1.mp4";
         }
-        return "https://example.com/error.mp4";
+
+        // 나중에 패턴별 비디오 준비되면 아래 코드로 교체:
+        // return "video/pattern_" + patternId.toLowerCase() + ".mp4";
     }
 
     /**
