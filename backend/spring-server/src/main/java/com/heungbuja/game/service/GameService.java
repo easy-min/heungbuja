@@ -538,6 +538,7 @@ public class GameService {
 
             // --- ▼ (핵심 수정) "EMERGENCY_INTERRUPT" 상태를 확인하도록 변경 ---
             String status = sessionStateService.getSessionStatus(sessionId);
+            log.info("------ !!!!! 세션ID : {}, 현재 상태 : {}", sessionId, status);
             if ("EMERGENCY_INTERRUPT".equals(status)) {
 
                 log.info("-------- !!!!!! 세션 {}에 대한 인터럽트 요청 감지 (상태: {}). 게임 중단 처리를 시작합니다.", sessionId, status);
