@@ -335,31 +335,60 @@ class MotionInferenceService:
 
     @staticmethod
     def _score_by_probability(probability: float) -> int:
+        # ========================================================================
+        # ⚠️ CRITICAL: Stricter scoring criteria to prevent high scores for
+        # incorrect or minimal movements
+        # ========================================================================
+        # Previous issue: 51% threshold was too lenient
+        # - Even when stationary, model could predict 51-60% → judgment=2 (66.7점)
+        # - Resulted in unfair scores: moving=75점 vs stationary=73점
+        #
+        # New stricter criteria:
+        # - 90%+ → 3점 (Perfect, 100점)
+        # - 75%+ → 2점 (Good, 66.7점)
+        # - 60%+ → 1점 (Needs improvement, 33.3점)
+        # - <60% → 0점 (Incorrect or no movement, 0점)
+        # ========================================================================
         if probability >= 0.90:
             return 3
-        if probability >= 0.51:
+        if probability >= 0.75:
             return 2
-        return 1
+        if probability >= 0.60:
+            return 1
+        return 0
 
     def _fallback_score(
         self, predicted_label: str, confidence: float, target_action: str | None
     ) -> int:
+        # ========================================================================
+        # Fallback scoring when target_probability is not available
+        # Aligned with stricter _score_by_probability criteria
+        # ========================================================================
         if not target_action:
-            return 2 if confidence >= 0.5 else 1
+            # No target specified - use general confidence thresholds
+            if confidence >= 0.90:
+                return 3
+            if confidence >= 0.75:
+                return 2
+            if confidence >= 0.60:
+                return 1
+            return 0
 
         target_key = target_action.strip().upper()
         predicted_key = predicted_label.strip().upper()
 
         if target_key == predicted_key:
-            if confidence >= 0.8:
+            # Predicted correctly - use confidence thresholds
+            if confidence >= 0.90:
                 return 3
-            if confidence >= 0.5:
+            if confidence >= 0.75:
                 return 2
-            return 1
-
-        if confidence >= 0.75:
-            return 2
-        return 1
+            if confidence >= 0.60:
+                return 1
+            return 0
+        else:
+            # Predicted incorrectly - always 0 points
+            return 0
 
     # ========================================================================
     # ⚠️ CRITICAL: Filter out invalid frames (zero vectors) to prevent
@@ -394,8 +423,9 @@ class MotionInferenceService:
                 keypoints.append(coords)
                 valid_count += 1
 
-        # Require at least 3 valid frames for reliable prediction
-        MIN_VALID_FRAMES = 3
+        # Require at least 5 valid frames for reliable prediction
+        # (Increased from 3 to reduce false positives when stationary)
+        MIN_VALID_FRAMES = 5
         if valid_count < MIN_VALID_FRAMES:
             raise ValueError(
                 f"유효한 동작 프레임이 부족합니다 ({valid_count}/{total_count}개). "
