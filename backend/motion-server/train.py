@@ -27,7 +27,7 @@ from tqdm import tqdm
 sys.path.insert(0, str(Path(__file__).parent))
 from app.ml.models import PoseGCNTemporalModel
 from app.ml.constants import BODY_LANDMARK_INDICES
-from app.ml.inference import extract_landmarks_from_image
+from app.ml import extract_landmarks_from_image
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

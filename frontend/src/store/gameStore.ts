@@ -44,6 +44,14 @@ export interface GameState {
     level2: actionLine[];
     level3: actionLine[];
   };
+  sectionPatterns: {
+  verse1: string[];
+  verse2: {
+    level1: string[],
+    level2: string[],
+    level3: string[],
+  }
+};
 
   // 강제 종료 플래그
   stopRequested: boolean;
@@ -96,6 +104,14 @@ const initialState: Omit<
     level2: [],
     level3: [],
   },
+  sectionPatterns: {
+  verse1: [],
+  verse2: {
+    level1: [],
+    level2: [],
+    level3: [],
+  }
+},
 
   stopRequested: false,
 };
@@ -107,6 +123,9 @@ export const useGameStore = create<GameState>((set) => ({
 
   setFromApi: (resp) => {
     const d = resp.gameInfo;
+    // const = (arr: string[] | undefined | ull): string[] =>
+    // Array.isArray(arr) ? arr.slice(0, 4) : [];
+    
     set({
       sessionId: d.sessionId,
       songId: d.songId,
@@ -129,10 +148,62 @@ export const useGameStore = create<GameState>((set) => ({
       verse2Timelines: d.verse2Timelines,
 
       stopRequested: false,
+      
+      sectionPatterns: {
+        verse1: d.sectionPatterns.verse1,
+        verse2: {
+          level1: d.sectionPatterns.verse2.level1,
+          level2: d.sectionPatterns.verse2.level2,
+          level3: d.sectionPatterns.verse2.level3,
+        },
+      },
     });
   },
 
   requestStop: () => set({ stopRequested: true }),
 
   clear: () => set(initialState),
-}));
+
+      audioUrl: null,
+      videoUrls: {
+        intro: null,
+        verse1: null,
+        verse2_level1: null,
+        verse2_level2: null,
+        verse2_level3: null,
+      },
+      bpm: null,
+      duration: null,
+
+      sectionInfo: {
+        introStartTime: 0,
+        verse1StartTime: 0,
+        breakStartTime: 0,
+        verse2StartTime: 0,
+      },
+      segmentInfo: {
+        verse1cam: null,
+        verse2cam: null,
+      },
+
+      lyricsInfo: {
+        id: null,
+        lines: [],
+      },
+      verse1Timeline: [],
+      verse2Timelines: {
+        level1: [],
+        level2: [],
+        level3: [],
+      },
+      sectionPatterns: {
+        verse1: [],
+        verse2: {
+          level1: [],
+          level2: [],
+          level3: [],
+        }
+      },
+    }),
+
+  );

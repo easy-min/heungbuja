@@ -401,7 +401,7 @@ public class McpToolService {
                 .songTitle(song.getTitle())
                 .songArtist(song.getArtist())
                 .audioUrl(audioUrl)
-                .videoUrls(generateVideoUrls())
+                .videoUrls(prepareResponse.getVideoUrls())
                 .bpm(songGameData.getBpm())
                 .duration(songGameData.getDuration())
                 .sectionInfo(gameSessionAdapter.toCommandSectionInfo(songGameData.getSectionInfo()))
@@ -409,6 +409,7 @@ public class McpToolService {
                 .lyricsInfo(songGameData.getLyricsInfo())
                 .verse1Timeline(gameSessionAdapter.toCommandActionTimelineEvents(songGameData.getVerse1Timeline()))
                 .verse2Timelines(gameSessionAdapter.toCommandActionTimelinesMap(songGameData.getVerse2Timelines()))
+                .sectionPatterns(songGameData.getSectionPatterns())
                 .build();
 
         // 8. 프론트엔드에 전달할 데이터 구성
@@ -542,7 +543,7 @@ public class McpToolService {
                     .songTitle(song.getTitle())
                     .songArtist(song.getArtist())
                     .audioUrl(audioUrl)
-                    .videoUrls(generateVideoUrls())
+                    .videoUrls(prepareResponse.getVideoUrls())
                     .bpm(songGameData.getBpm())
                     .duration(songGameData.getDuration())
                     .sectionInfo(gameSessionAdapter.toCommandSectionInfo(songGameData.getSectionInfo()))
@@ -550,6 +551,7 @@ public class McpToolService {
                     .lyricsInfo(songGameData.getLyricsInfo())
                     .verse1Timeline(gameSessionAdapter.toCommandActionTimelineEvents(songGameData.getVerse1Timeline()))
                     .verse2Timelines(gameSessionAdapter.toCommandActionTimelinesMap(songGameData.getVerse2Timelines()))
+                    .sectionPatterns(songGameData.getSectionPatterns())
                     .build();
 
             // 8. 응답 데이터 구성
@@ -605,16 +607,4 @@ public class McpToolService {
         return Integer.parseInt(value.toString());
     }
 
-    /**
-     * 비디오 URL 생성 (SessionPrepareService와 동일한 로직)
-     */
-    private Map<String, String> generateVideoUrls() {
-        Map<String, String> videoUrls = new HashMap<>();
-        videoUrls.put("intro", "https://example.com/tutorial.mp4");
-        videoUrls.put("verse1", "https://example.com/part1.mp4");
-        videoUrls.put("verse2_level1", "https://example.com/part2_1.mp4");
-        videoUrls.put("verse2_level2", "https://example.com/part2_2.mp4");
-        videoUrls.put("verse2_level3", "https://example.com/part2_3.mp4");
-        return videoUrls;
-    }
 }

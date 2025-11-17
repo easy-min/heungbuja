@@ -10,6 +10,7 @@ import com.heungbuja.emergency.entity.EmergencyReport;
 import com.heungbuja.emergency.repository.EmergencyReportRepository;
 import com.heungbuja.emergency.service.EmergencyNotificationService;
 import com.heungbuja.emergency.service.EmergencyService;
+import com.heungbuja.game.service.GameService;
 import com.heungbuja.session.enums.ActivityType;
 import com.heungbuja.session.service.SessionStateService;
 import com.heungbuja.session.state.ActivityState;
@@ -43,6 +44,7 @@ public class EmergencyServiceImpl implements EmergencyService {
     private final SessionStateService sessionStateService;
     private final EmergencyNotificationService notificationService;
     private final TaskScheduler taskScheduler;
+    private final GameService gameService;
 
     @Override
     @Transactional
@@ -102,26 +104,30 @@ public class EmergencyServiceImpl implements EmergencyService {
                 String sessionId = currentActivity.getSessionId();
                 if (sessionStateService.trySetInterrupt(sessionId, "EMERGENCY")) {
                     sessionStateService.setSessionStatus(sessionId, "EMERGENCY_INTERRUPT");
-                    log.info("응급신호로 게임 중단 플래그 설정: sessionId={}", sessionId);
+                    log.info("응급신호로 게임 중단: sessionId={}", sessionId);
+//                    gameService.interruptGame(sessionId, "EMERGENCY_INTERRUPT"); // "EMERGENCY"라는 중단 사유 전달
                 }
                 break;
 
             case MUSIC:
                 // 음악 즉시 중단
                 log.info("응급신호로 음악 중단: userId={}", userId);
+                sessionStateService.clearActivity(userId);
                 break;
 
             case EMERGENCY:
                 // 이미 응급 상황
                 log.warn("이미 응급 상황 진행 중: userId={}", userId);
+                sessionStateService.clearActivity(userId);
                 break;
 
             default:
+                sessionStateService.clearActivity(userId);
                 break;
         }
 
         // 현재 활동 상태 초기화
-        sessionStateService.clearActivity(userId);
+//        sessionStateService.clearActivity(userId);
     }
 
     /**
