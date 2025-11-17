@@ -34,6 +34,9 @@ public class GameState implements Serializable {
     private List<ActionTimelineEvent> verse1Timeline;
     private GameStartResponse.Verse2Timeline verse2Timeline;
 
+    // 섹션별 패턴 시퀀스 (eachRepeat 적용된 실제 반복 순서)
+    private GameStartResponse.SectionPatterns sectionPatterns;
+
     /** 튜토리얼 성공 횟수 */
     @Builder.Default
     private Integer tutorialSuccessCount = 0;
