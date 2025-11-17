@@ -334,8 +334,8 @@ def main():
     parser.add_argument(
         "--end",
         type=int,
-        default=15,
-        help="끝 동작 코드 (기본값: 15)"
+        default=8,
+        help="끝 동작 코드 (기본값: 8)"
     )
     parser.add_argument(
         "--actions",
