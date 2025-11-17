@@ -45,6 +45,9 @@ public class SecurityConfig {
                         // Admin HTML 페이지 (정적 파일)
                         .requestMatchers("/test-admin.html", "/test-admin-prod.html", "/test-admin-prod-backup.html").permitAll()
 
+                        // 곡 관리 API (임시로 권한 체크 제거)
+                        .requestMatchers("/admins/songs", "/admins/songs/**").permitAll()
+
                         // Voice & Commands
                         .requestMatchers("/commands/tts/**").permitAll()  // TTS 다운로드는 인증 불필요
                         .requestMatchers("/commands/**").authenticated()  // 명령 처리는 JWT 필요
@@ -55,7 +58,6 @@ public class SecurityConfig {
                         .requestMatchers("/emergency/*/confirm").permitAll()
 
                         // ADMIN and SUPER_ADMIN (구체적인 경로를 먼저 매칭)
-                        .requestMatchers("/admins/songs", "/admins/songs/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPER_ADMIN")
                         .requestMatchers("/admins/devices", "/admins/devices/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPER_ADMIN")
                         .requestMatchers("/admins/users", "/admins/users/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPER_ADMIN", "ROLE_USER")
                         .requestMatchers("/admins/activity-logs", "/admins/activity-logs/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPER_ADMIN")
