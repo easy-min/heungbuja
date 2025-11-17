@@ -213,6 +213,13 @@ export const useVoiceCommand = (
       }
 
     } catch (err) {
+      // 403 에러면 팝업 후 로그인 페이지로 이동
+      if (err instanceof Error && 'status' in err && (err as Error & { status?: number }).status === 403) {
+        alert('세션이 만료되었습니다. 다시 로그인해주세요.');
+        navigate('/', { replace: true });
+        return;
+      }
+
       const errorMessage = err instanceof Error ? err.message : '음성 명령 처리 중 오류가 발생했습니다.';
       console.error('음성 명령 전송 실패:', err);
       setError(errorMessage);
