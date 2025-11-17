@@ -8,5 +8,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor // JSON 역직렬화를 위해 기본 생성자 추가
 @AllArgsConstructor
 public class AiJudgmentResponse {
+    private int actionCode;
     private int judgment;
 }
