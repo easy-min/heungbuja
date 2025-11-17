@@ -2783,6 +2783,88 @@
         // 곡 목록 새로고침
         loadSongList();
     }
+
+    // ========== 테스트 함수 ==========
+    async function testSongEndpoint() {
+        try {
+            console.log('🧪 [TEST] 곡 엔드포인트 테스트 시작');
+            console.log('🔑 [TEST] 토큰:', accessToken ? '있음 (길이: ' + accessToken.length + ')' : '❌ 없음!');
+
+            const res = await fetch(`${API_BASE}/admins/songs/test`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${accessToken}`
+                },
+                body: JSON.stringify({ test: "hello", timestamp: new Date().toISOString() })
+            });
+
+            console.log('📥 [TEST] 응답 상태:', res.status, res.statusText);
+
+            if (res.ok) {
+                const result = await res.json();
+                console.log('✅ [TEST] 성공:', result);
+                alert(`테스트 성공! ${JSON.stringify(result, null, 2)}`);
+            } else {
+                const error = await res.json().catch(() => ({ message: res.statusText }));
+                console.error('❌ [TEST] 실패:', error);
+                alert(`테스트 실패 (${res.status}): ${error.error || error.message || res.statusText}`);
+            }
+        } catch (e) {
+            console.error('❌ [TEST] 예외 발생:', e);
+            alert(`테스트 중 오류: ${e.message}`);
+        }
+    }
+
+    async function testSongEndpointMultipart() {
+        try {
+            console.log('🧪 [TEST-MULTIPART] 곡 엔드포인트 multipart 테스트 시작');
+            console.log('🔑 [TEST-MULTIPART] 토큰:', accessToken ? '있음 (길이: ' + accessToken.length + ')' : '❌ 없음!');
+
+            // 더미 파일 생성
+            const dummyAudio = new File(['dummy audio content'], 'test.mp3', { type: 'audio/mpeg' });
+            const dummyLyrics = new File(['가사 테스트'], 'test.txt', { type: 'text/plain' });
+            const dummyChoreography = new File(['{"moves":[]}'], 'test.json', { type: 'application/json' });
+
+            const formData = new FormData();
+            formData.append('title', 'TEST SONG');
+            formData.append('artist', 'TEST ARTIST');
+            formData.append('audioFile', dummyAudio);
+            formData.append('lyricsFile', dummyLyrics);
+            formData.append('choreographyJson', dummyChoreography);
+
+            console.log('📤 [TEST-MULTIPART] API 요청 URL:', `${API_BASE}/admins/songs`);
+
+            const res = await fetch(`${API_BASE}/admins/songs`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                    // Content-Type은 자동 설정 (multipart/form-data; boundary=...)
+                },
+                body: formData
+            });
+
+            console.log('📥 [TEST-MULTIPART] 응답 상태:', res.status, res.statusText);
+
+            if (res.ok) {
+                const result = await res.json();
+                console.log('✅ [TEST-MULTIPART] 성공:', result);
+                alert(`Multipart 테스트 성공! ${JSON.stringify(result, null, 2)}`);
+            } else {
+                const error = await res.json().catch(() => ({ message: res.statusText }));
+                console.error('❌ [TEST-MULTIPART] 실패:', error);
+                alert(`Multipart 테스트 실패 (${res.status}): ${error.error || error.message || res.statusText}`);
+            }
+        } catch (e) {
+            console.error('❌ [TEST-MULTIPART] 예외 발생:', e);
+            alert(`Multipart 테스트 중 오류: ${e.message}`);
+        }
+    }
+
+    // 콘솔에서 테스트 함수 사용 안내
+    console.log('🧪 테스트 함수 준비 완료:');
+    console.log('   - testSongEndpoint() : JSON POST 테스트');
+    console.log('   - testSongEndpointMultipart() : Multipart POST 테스트');
 </script>
 </body>
 </html>
