@@ -2,8 +2,8 @@ import { type GameConfig  } from '@/types';
 
 // ===== 체조 설정 상수 =====
 export const GAME_CONFIG: GameConfig = {
-  FPS: 30,
-  FRAME_MS: 1000 / 30,
+  FPS: 15, // 30에서 15로 변경
+  FRAME_MS: 1000 / 15, // 30에서 15로 변경
   EPS: 0.03,            // 타이밍 오차 허용 (30ms)
   LATE_GUARD: 0.08,     // 늦은 시작 방지 
   MAX_RETRIES: 3,       // 최대 재시도 횟수
@@ -16,8 +16,8 @@ export const WAKE_WORD = '흥부야';
 
 // ===== 카메라 설정 =====
 export const CAMERA_CONFIG = {
-  width: 240,
-  height: 180,
+  width: 180,
+  height: 240,
   fps: GAME_CONFIG.FPS,
 };
 

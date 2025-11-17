@@ -50,6 +50,16 @@ public class CommandController {
             String transcribedText = sttService.transcribe(audioFile);
             log.info("STT 변환 완료: text='{}'", transcribedText);
 
+            // 1-1. Whisper 오인식 필터링 (잡음을 "시청해주셔서 감사합니다"로 인식하는 버그)
+            if (isWhisperHallucination(transcribedText)) {
+                log.warn("⚠️ Whisper 오인식 감지, 무시: '{}'", transcribedText);
+                return ResponseEntity.ok(CommandResponse.builder()
+                        .success(false)
+                        .intent(com.heungbuja.voice.enums.Intent.UNKNOWN)
+                        .responseText("음성이 명확하지 않습니다. 다시 말씀해주세요.")
+                        .build());
+            }
+
             // 2. 텍스트 명령 처리
             CommandRequest request = CommandRequest.builder()
                     .userId(userId)
@@ -130,6 +140,20 @@ public class CommandController {
             // 1. STT: 음성 → 텍스트
             String transcribedText = sttService.transcribe(audioFile);
             log.info("STT 변환 완료: text='{}'", transcribedText);
+
+            // 1-1. Whisper 오인식 필터링 (잡음을 "시청해주셔서 감사합니다"로 인식하는 버그)
+            if (isWhisperHallucination(transcribedText)) {
+                log.warn("⚠️ Whisper 오인식 감지, 무시: '{}'", transcribedText);
+
+                // 음성으로 에러 응답
+                byte[] errorAudio = ttsService.synthesizeBytes("음성이 명확하지 않습니다. 다시 말씀해주세요.", "default");
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.parseMediaType("audio/mpeg"));
+                headers.set("X-Success", "false");
+                headers.set("X-Response-Text", java.net.URLEncoder.encode("음성이 명확하지 않습니다", "UTF-8"));
+
+                return new ResponseEntity<>(errorAudio, headers, HttpStatus.OK);
+            }
 
             // 2. 텍스트 명령 처리
             CommandRequest request = CommandRequest.builder()
@@ -268,5 +292,42 @@ public class CommandController {
                 com.heungbuja.common.exception.ErrorCode.UNAUTHORIZED,
                 "유효하지 않은 인증 정보입니다"
         );
+    }
+
+    /**
+     * Whisper 오인식 감지 (잡음을 "시청해주셔서 감사합니다" 등으로 인식하는 버그)
+     *
+     * Whisper가 한국어 유튜브 영상을 많이 학습해서,
+     * 불명확한 소리나 잡음을 자주 들었던 문구로 인식하는 경향이 있음
+     */
+    private boolean isWhisperHallucination(String text) {
+        if (text == null || text.trim().isEmpty()) {
+            return true;
+        }
+
+        String normalized = text.toLowerCase().replaceAll("\\s+", "");
+
+        // Whisper가 자주 오인식하는 문구들
+        String[] hallucinationPatterns = {
+            "시청해주셔서감사합니다",
+            "시청해주셔서감사",
+            "감사합니다",
+            "구독",
+            "좋아요",
+            "알림설정",
+            "유료광고",
+            "유료광고가포함",
+            "광고가포함",
+            "자막",
+            "번역"
+        };
+
+        for (String pattern : hallucinationPatterns) {
+            if (normalized.contains(pattern)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

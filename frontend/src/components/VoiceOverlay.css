@@ -24,6 +24,22 @@
   pointer-events: auto;
 }
 
+/* 응급 상황 스타일 */
+.voice-overlay.emergency {
+  background: rgba(139, 0, 0, 0.85); /* 어두운 빨간색 */
+  animation: heartbeat 1s infinite;
+}
+
+/* 두근거림 애니메이션 */
+@keyframes heartbeat {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.03);
+  }
+}
+
 /* 컨텐츠 컨테이너 */
 .voice-overlay-content {
   display: flex;

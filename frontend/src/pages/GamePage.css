@@ -42,6 +42,27 @@
   position: relative;
 }
 
+/* 비디오를 감싸는 박스: 비율 유지 + 크롭 영역 */
+.motion-video-wrapper {
+  width: 100%;
+  max-width: 850px;        /* 필요에 따라 조절 */
+  aspect-ratio: 10 / 5;    /* 원하면 4/3 등으로 변경 */
+  overflow: hidden;
+  border-radius: 20px;
+  background: #000;        /* 비디오 로딩 전 배경 */
+}
+
+/* 실제 비디오: 확대 + 가운데 정렬 */
+.motion-video {
+  width: 100%;             /* 100% → 딱 맞게, 110~130% → 줌 인 */
+  height: 100%;            /* 세로도 같이 키워줌 */
+  object-fit: cover;       /* 비율 유지하면서 박스를 꽉 채우고 남는 부분은 크롭 */
+  transform-origin: center center;
+  /* scale: 얼마나 확대할지, translateX/Y: 어느 방향으로 옮길지 */
+  transform: scale(1.2) translateX(-1%) translateY(-6%);
+  display: block;
+}
+
 /* 동작 이름 말풍선(예시) */
 .action-label-overlay {
   position: absolute;
@@ -319,4 +340,53 @@
   font-weight: 700;
   text-align: center;
   animation: fadeInOut 4s ease-in-out forwards;
+}
+
+
+/* 동작 인식 피드백 */
+
+.feedback-section {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+}
+
+.feedback-placeholder {
+  opacity: 0.6;
+}
+
+.feedback-badge {
+  min-width: 200px;
+  padding: 16px 24px;
+  border-radius: 999px;
+  text-align: center;
+  font-weight: 700;
+  box-shadow: 0 0 12px rgba(0, 0, 0, 0.35);
+}
+
+.feedback-main-text {
+  font-size: 1.6rem;
+  margin-bottom: 4px;
+}
+
+.feedback-sub-text {
+  font-size: 0.9rem;
+  opacity: 0.85;
+}
+
+/* 색상은 예시 – 시니어용으로 대비/채도 적당히 조절해서 사용하시면 됩니다. */
+.feedback-perfect {
+  background: #ffe08a;
+  color: #3d1f00;
+}
+
+.feedback-good {
+  background: #a4d8ff;
+  color: #00263b;
+}
+
+.feedback-soso {
+  background: #e0e0e0;
+  color: #333;
 }

@@ -7,6 +7,7 @@ import com.heungbuja.command.mcp.dto.McpToolCall;
 import com.heungbuja.command.mcp.dto.McpToolResult;
 import com.heungbuja.command.service.ResponseGenerator;
 import com.heungbuja.common.exception.CustomException;
+import com.heungbuja.performance.annotation.MeasurePerformance;
 import com.heungbuja.context.entity.ConversationContext;
 import com.heungbuja.context.service.ConversationContextService;
 import com.heungbuja.emergency.dto.EmergencyRequest;
@@ -50,6 +51,8 @@ public class McpToolService {
     private final com.heungbuja.session.service.SessionPrepareService sessionPrepareService;
     private final com.heungbuja.song.service.SongGameDataCache songGameDataCache;
     private final GameSessionAdapter gameSessionAdapter;
+    private final com.heungbuja.activity.service.ActivityLogService activityLogService;
+    private final com.heungbuja.song.repository.mongo.SongChoreographyRepository songChoreographyRepository;
 //    private final com.heungbuja.game.service.GameService gameService;
 
     /**
@@ -59,8 +62,10 @@ public class McpToolService {
     public McpToolResult executeTool(McpToolCall toolCall) {
         log.info("MCP Tool 실행: name={}, args={}", toolCall.getName(), toolCall.getArguments());
 
+        McpToolResult result;
+
         try {
-            return switch (toolCall.getName()) {
+            result = switch (toolCall.getName()) {
                 case "search_song" -> searchSong(toolCall);
                 case "control_playback" -> controlPlayback(toolCall);
                 case "add_to_queue" -> addToQueue(toolCall);
@@ -81,22 +86,31 @@ public class McpToolService {
         } catch (CustomException e) {
             log.error("Tool 실행 실패 (CustomException): tool={}, error={}",
                     toolCall.getName(), e.getMessage(), e);
-            return McpToolResult.failure(toolCall.getId(), toolCall.getName(), e.getMessage());
+            result = McpToolResult.failure(toolCall.getId(), toolCall.getName(), e.getMessage());
 
         } catch (Exception e) {
             log.error("Tool 실행 실패 (Exception): tool={}", toolCall.getName(), e);
-            return McpToolResult.failure(
+            result = McpToolResult.failure(
                     toolCall.getId(),
                     toolCall.getName(),
                     "Tool 실행 중 오류가 발생했습니다: " + e.getMessage()
             );
         }
+
+        // ✅ 활동 로그 저장 (Tool 실행 성공/실패 모두 기록)
+        Long userId = getLongArg(toolCall.getArguments(), "userId");
+        if (userId != null) {
+            saveToolActivityLog(userId, toolCall.getName(), toolCall.getArguments(), result);
+        }
+
+        return result;
     }
 
     /**
      * Tool: search_song
      * 가수명, 제목, 연대, 장르, 분위기로 노래 검색
      */
+    @MeasurePerformance(component = "Tool-SearchSong", saveToDb = false)
     private McpToolResult searchSong(McpToolCall toolCall) {
         Map<String, Object> args = toolCall.getArguments();
 
@@ -350,6 +364,7 @@ public class McpToolService {
      * 주의: 이 메서드는 게임 시작만 처리하고 즉시 응답합니다 (1-2초 소요)
      *       게임 진행(3-5분)은 프론트엔드가 /game/frame으로 별도 처리합니다
      */
+    @MeasurePerformance(component = "Tool-StartGame", saveToDb = false)
     private McpToolResult startGame(McpToolCall toolCall) {
         Map<String, Object> args = toolCall.getArguments();
 
@@ -398,7 +413,7 @@ public class McpToolService {
                 .songTitle(song.getTitle())
                 .songArtist(song.getArtist())
                 .audioUrl(audioUrl)
-                .videoUrls(generateVideoUrls())
+                .videoUrls(prepareResponse.getVideoUrls())
                 .bpm(songGameData.getBpm())
                 .duration(songGameData.getDuration())
                 .sectionInfo(gameSessionAdapter.toCommandSectionInfo(songGameData.getSectionInfo()))
@@ -406,6 +421,7 @@ public class McpToolService {
                 .lyricsInfo(songGameData.getLyricsInfo())
                 .verse1Timeline(gameSessionAdapter.toCommandActionTimelineEvents(songGameData.getVerse1Timeline()))
                 .verse2Timelines(gameSessionAdapter.toCommandActionTimelinesMap(songGameData.getVerse2Timelines()))
+                .sectionPatterns(extractOriginalPatternSequence(song.getId()))
                 .build();
 
         // 8. 프론트엔드에 전달할 데이터 구성
@@ -484,6 +500,7 @@ public class McpToolService {
      * Tool: start_game_with_song
      * 특정 노래로 게임(체조) 시작 - 노래 검색 + 게임 시작을 한 번에 처리
      */
+    @MeasurePerformance(component = "Tool-StartGameWithSong", saveToDb = false)
     private McpToolResult startGameWithSong(McpToolCall toolCall) {
         Map<String, Object> args = toolCall.getArguments();
 
@@ -538,7 +555,7 @@ public class McpToolService {
                     .songTitle(song.getTitle())
                     .songArtist(song.getArtist())
                     .audioUrl(audioUrl)
-                    .videoUrls(generateVideoUrls())
+                    .videoUrls(prepareResponse.getVideoUrls())
                     .bpm(songGameData.getBpm())
                     .duration(songGameData.getDuration())
                     .sectionInfo(gameSessionAdapter.toCommandSectionInfo(songGameData.getSectionInfo()))
@@ -546,6 +563,7 @@ public class McpToolService {
                     .lyricsInfo(songGameData.getLyricsInfo())
                     .verse1Timeline(gameSessionAdapter.toCommandActionTimelineEvents(songGameData.getVerse1Timeline()))
                     .verse2Timelines(gameSessionAdapter.toCommandActionTimelinesMap(songGameData.getVerse2Timelines()))
+                    .sectionPatterns(extractOriginalPatternSequence(song.getId()))
                     .build();
 
             // 8. 응답 데이터 구성
@@ -578,6 +596,42 @@ public class McpToolService {
 
     // ========== 헬퍼 메서드 ==========
 
+    /**
+     * 원본 패턴 시퀀스를 추출하는 헬퍼 메서드 (eachRepeat 미적용)
+     * 프론트엔드가 필요로 하는 형식으로 변환
+     */
+    private com.heungbuja.game.dto.GameStartResponse.SectionPatterns extractOriginalPatternSequence(Long songId) {
+        com.heungbuja.song.domain.SongChoreography choreography =
+                songChoreographyRepository.findBySongId(songId)
+                        .orElseThrow(() -> new com.heungbuja.common.exception.CustomException(
+                                com.heungbuja.common.exception.ErrorCode.GAME_METADATA_NOT_FOUND,
+                                "안무 정보를 찾을 수 없습니다."));
+
+        com.heungbuja.song.domain.SongChoreography.Version version = choreography.getVersions().get(0);
+
+        // 1절 원본 패턴 시퀀스
+        List<String> verse1Patterns = version.getVerse1().getPatternSequence();
+
+        // 2절 레벨별 원본 패턴 시퀀스
+        Map<Integer, List<String>> verse2PatternsMap = new HashMap<>();
+        for (com.heungbuja.song.domain.SongChoreography.VerseLevelPatternInfo levelInfo : version.getVerse2()) {
+            verse2PatternsMap.put(levelInfo.getLevel(), levelInfo.getPatternSequence());
+        }
+
+        // Verse2Patterns 객체 생성
+        com.heungbuja.game.dto.GameStartResponse.Verse2Patterns verse2Patterns =
+                com.heungbuja.game.dto.GameStartResponse.Verse2Patterns.builder()
+                        .level1(verse2PatternsMap.get(1))
+                        .level2(verse2PatternsMap.get(2))
+                        .level3(verse2PatternsMap.get(3))
+                        .build();
+
+        return com.heungbuja.game.dto.GameStartResponse.SectionPatterns.builder()
+                .verse1(verse1Patterns)
+                .verse2(verse2Patterns)
+                .build();
+    }
+
     private Long getLongArg(Map<String, Object> args, String key) {
         Object value = args.get(key);
         if (value == null) return null;
@@ -602,15 +656,91 @@ public class McpToolService {
     }
 
     /**
-     * 비디오 URL 생성 (SessionPrepareService와 동일한 로직)
+     * 활동 로그 저장 헬퍼 메서드
+     * Tool 이름과 결과에 따라 적절한 Intent를 결정하여 로그 저장
      */
-    private Map<String, String> generateVideoUrls() {
-        Map<String, String> videoUrls = new HashMap<>();
-        videoUrls.put("intro", "https://example.com/tutorial.mp4");
-        videoUrls.put("verse1", "https://example.com/part1.mp4");
-        videoUrls.put("verse2_level1", "https://example.com/part2_1.mp4");
-        videoUrls.put("verse2_level2", "https://example.com/part2_2.mp4");
-        videoUrls.put("verse2_level3", "https://example.com/part2_3.mp4");
-        return videoUrls;
+    private void saveToolActivityLog(Long userId, String toolName, Map<String, Object> args, McpToolResult result) {
+        try {
+            User user = userService.findById(userId);
+            com.heungbuja.voice.enums.Intent intent = determineIntentFromTool(toolName, args, result);
+
+            if (intent != null) {
+                activityLogService.saveActivityLog(user, intent);
+                log.debug("MCP Tool 활동 로그 저장: userId={}, tool={}, intent={}",
+                        userId, toolName, intent);
+            }
+        } catch (Exception e) {
+            log.error("활동 로그 저장 실패: userId={}, tool={}", userId, toolName, e);
+            // 로그 저장 실패는 Tool 실행에 영향을 주지 않음
+        }
     }
+
+    /**
+     * Tool 이름과 매개변수로부터 Intent 결정
+     */
+    private com.heungbuja.voice.enums.Intent determineIntentFromTool(
+            String toolName,
+            Map<String, Object> args,
+            McpToolResult result) {
+
+        // 실패한 Tool은 UNKNOWN으로 기록
+        if (!result.isSuccess()) {
+            return com.heungbuja.voice.enums.Intent.UNKNOWN;
+        }
+
+        return switch (toolName) {
+            case "search_song" -> {
+                String artist = getStringArg(args, "artist");
+                String title = getStringArg(args, "title");
+
+                if (artist != null && title != null) {
+                    yield com.heungbuja.voice.enums.Intent.SELECT_BY_ARTIST_TITLE;
+                } else if (artist != null) {
+                    yield com.heungbuja.voice.enums.Intent.SELECT_BY_ARTIST;
+                } else if (title != null) {
+                    yield com.heungbuja.voice.enums.Intent.SELECT_BY_TITLE;
+                } else {
+                    yield com.heungbuja.voice.enums.Intent.UNKNOWN;
+                }
+            }
+
+            case "control_playback" -> {
+                String action = getStringArg(args, "action");
+                if (action == null) yield com.heungbuja.voice.enums.Intent.UNKNOWN;
+
+                yield switch (action.toUpperCase()) {
+                    case "PAUSE" -> com.heungbuja.voice.enums.Intent.MUSIC_PAUSE;
+                    case "RESUME" -> com.heungbuja.voice.enums.Intent.MUSIC_RESUME;
+                    case "NEXT" -> com.heungbuja.voice.enums.Intent.MUSIC_NEXT;
+                    case "STOP" -> com.heungbuja.voice.enums.Intent.MUSIC_STOP;
+                    default -> com.heungbuja.voice.enums.Intent.UNKNOWN;
+                };
+            }
+
+            case "add_to_queue" -> com.heungbuja.voice.enums.Intent.PLAY_NEXT_IN_QUEUE;
+
+            case "handle_emergency" -> com.heungbuja.voice.enums.Intent.EMERGENCY;
+            case "cancel_emergency" -> com.heungbuja.voice.enums.Intent.EMERGENCY_CANCEL;
+            case "confirm_emergency" -> com.heungbuja.voice.enums.Intent.EMERGENCY_CONFIRM;
+
+            case "change_mode" -> {
+                String mode = getStringArg(args, "mode");
+                if (mode == null) yield com.heungbuja.voice.enums.Intent.UNKNOWN;
+
+                yield switch (mode.toUpperCase()) {
+                    case "HOME" -> com.heungbuja.voice.enums.Intent.MODE_HOME;
+                    case "LISTENING" -> com.heungbuja.voice.enums.Intent.MODE_LISTENING;
+                    case "EXERCISE" -> com.heungbuja.voice.enums.Intent.MODE_EXERCISE;
+                    default -> com.heungbuja.voice.enums.Intent.UNKNOWN;
+                };
+            }
+
+            case "start_game", "start_game_with_song" -> com.heungbuja.voice.enums.Intent.MODE_EXERCISE;
+
+            case "get_current_context" -> null; // 조회는 로그 저장 안 함
+
+            default -> com.heungbuja.voice.enums.Intent.UNKNOWN;
+        };
+    }
+
 }

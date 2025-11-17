@@ -40,6 +40,10 @@ public enum ErrorCode {
 
     // Song
     SONG_NOT_FOUND(HttpStatus.NOT_FOUND, "Song not found"),
+    SONG_ALREADY_EXISTS(HttpStatus.CONFLICT, "Song already exists"),
+    INVALID_FILE_FORMAT(HttpStatus.BAD_REQUEST, "Invalid file format"),
+    FILE_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "File upload failed"),
+    SONG_REGISTRATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "Song registration failed"),
 
     // Game
     GAME_SESSION_NOT_FOUND(HttpStatus.NOT_FOUND, "Game session not found or has expired"),  // Redis에서 GameState를 찾지 못했을 때

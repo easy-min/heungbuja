@@ -10,6 +10,7 @@ import com.heungbuja.emergency.entity.EmergencyReport;
 import com.heungbuja.emergency.repository.EmergencyReportRepository;
 import com.heungbuja.emergency.service.EmergencyNotificationService;
 import com.heungbuja.emergency.service.EmergencyService;
+import com.heungbuja.game.service.GameService;
 import com.heungbuja.session.enums.ActivityType;
 import com.heungbuja.session.service.SessionStateService;
 import com.heungbuja.session.state.ActivityState;
@@ -43,6 +44,7 @@ public class EmergencyServiceImpl implements EmergencyService {
     private final SessionStateService sessionStateService;
     private final EmergencyNotificationService notificationService;
     private final TaskScheduler taskScheduler;
+    private final GameService gameService;
 
     @Override
     @Transactional
@@ -58,10 +60,12 @@ public class EmergencyServiceImpl implements EmergencyService {
                 .findFirstByUserIdAndStatusOrderByReportedAtDesc(userId, EmergencyReport.ReportStatus.PENDING);
 
         if (existingReport.isPresent()) {
-            // 중복 응급 신호 = 정말 응급 상황 → 즉시 확정
+            // 중복 응급 신호 = 정말 응급 상황 → 기존 신고 즉시 확정
             log.info("중복 응급 신호 감지, 기존 신고 즉시 확정: reportId={}, userId={}",
                     existingReport.get().getId(), userId);
-            return confirmRecentReport(userId);
+            confirmRecentReport(userId);
+            log.info("기존 신고 확정 후 새로운 신고를 생성합니다: userId={}", userId);
+            // 새로운 신고도 생성하기 위해 아래로 계속 진행
         }
 
         // 3. 응급 신고 생성 및 저장
@@ -100,26 +104,30 @@ public class EmergencyServiceImpl implements EmergencyService {
                 String sessionId = currentActivity.getSessionId();
                 if (sessionStateService.trySetInterrupt(sessionId, "EMERGENCY")) {
                     sessionStateService.setSessionStatus(sessionId, "EMERGENCY_INTERRUPT");
-                    log.info("응급신호로 게임 중단 플래그 설정: sessionId={}", sessionId);
+                    log.info("응급신호로 게임 중단: sessionId={}", sessionId);
+//                    gameService.interruptGame(sessionId, "EMERGENCY_INTERRUPT"); // "EMERGENCY"라는 중단 사유 전달
                 }
                 break;
 
             case MUSIC:
                 // 음악 즉시 중단
                 log.info("응급신호로 음악 중단: userId={}", userId);
+                sessionStateService.clearActivity(userId);
                 break;
 
             case EMERGENCY:
                 // 이미 응급 상황
                 log.warn("이미 응급 상황 진행 중: userId={}", userId);
+                sessionStateService.clearActivity(userId);
                 break;
 
             default:
+                sessionStateService.clearActivity(userId);
                 break;
         }
 
         // 현재 활동 상태 초기화
-        sessionStateService.clearActivity(userId);
+//        sessionStateService.clearActivity(userId);
     }
 
     /**

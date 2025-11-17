@@ -1,11 +1,14 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 import { useVoiceCommand } from '../hooks/useVoiceCommand';
-import VoiceOverlay from './Voiceoverlay';
+import VoiceOverlay from './VoiceOverlay';
 import { useAudioStore } from '@/store/audioStore';
+import { useGameStore } from '@/store/gameStore';
 import './VoiceButton.css';
 
 const VoiceButton: React.FC = () => {
+  const navigate = useNavigate();
   const {
     isRecording,
     countdown,
@@ -13,31 +16,85 @@ const VoiceButton: React.FC = () => {
     startRecording
   } = useVoiceRecorder();
 
+  const autoRetryFlagRef = useRef(false); // 수동 녹음당 1회 자동 재녹음 플래그
+
   const {
     isUploading,
     isPlaying,
     responseText,
+    response,
     sendCommand,
-  } = useVoiceCommand();
+  } = useVoiceCommand({
+    onRetry: () => {
+      // 실패 시 자동 재녹음: 이번 수동 녹음에 대해 1번만 허용
+      if (!autoRetryFlagRef.current) {
+        console.log('❌ 자동 재녹음 기회 없음(이미 사용됨)');
+        return;
+      }
+      console.log('🔁 실패 자동 재녹음 시작');
+      autoRetryFlagRef.current = false; // 1회 사용
+      startRecording();
+    }
+  });
 
   const { pause } = useAudioStore();
+  const requestGameStop = useGameStore((s) => s.requestStop);
 
-  // 🔍 디버깅: 상태 변화 추적
-  // console.log('🎤 VoiceButton 상태:', {
-  //   isRecording,
-  //   isUploading,
-  //   isPlaying,
-  //   조건: isRecording || isUploading || isPlaying,
-  //   오버레이표시: (isRecording || isUploading || isPlaying) ? 'YES' : 'NO'
-  // });
+  // Emergency 체크
+  const isEmergency = response?.intent === 'EMERGENCY';
+
+  // TTS 재생 상태 추적 (이전 값)
+  const prevIsPlayingRef = useRef(false);
+
+  // 수동 녹음(버튼 클릭)으로 시작했는지 추적
+  const isManualRecordingRef = useRef(false);
+  const emergencyRetryCountRef = useRef(0);
+
+  // Emergency 시 TTS 끝나면 자동으로 다시 녹음 (수동 녹음일 때만 1회)
+  useEffect(() => {
+
+    // TTS 재생 중이었다가 막 끝난 순간만 감지
+    const ttsJustFinished =
+      prevIsPlayingRef.current === true &&
+      !isPlaying &&
+      !isRecording &&
+      !isUploading;
+
+    if (
+      isManualRecordingRef.current &&
+      isEmergency &&
+      ttsJustFinished
+    ) {
+      if (emergencyRetryCountRef.current === 0) {
+        // 🔴 첫 번째 응급 인식 후: 재녹음 1회
+        console.log('🚨 응급 상황 인식 → 재녹음 1회 실행');
+        emergencyRetryCountRef.current = 1;
+        startRecording();
+      } else {
+        // 🔴 두 번째 응급 인식 후: 홈으로 이동
+        console.log('🚨 두 번째 응급 인식 → 홈으로 이동');
+        isManualRecordingRef.current = false;
+        emergencyRetryCountRef.current = 0;
+        navigate('/home');
+      }
+    }
+
+    // 현재 isPlaying 값을 다음 렌더링을 위해 저장
+    prevIsPlayingRef.current = isPlaying;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEmergency, isPlaying, isRecording, isUploading]);
 
   const handleClick = () => {
     console.log('🎤 VoiceButton 클릭됨');
     if (!isRecording && !isUploading && !isPlaying) {
-      // 녹음 시작 전에 노래 멈추기
-      console.log('⏸️ 노래 일시정지 시도');
+      autoRetryFlagRef.current = true;
+      console.log('⏸️ 노래 & 게임 일시정지');
+      requestGameStop();
       pause();
-      console.log('🎙️ 녹음 시작');
+      console.log('🎙️ 녹음 시작 (수동)');
+      isManualRecordingRef.current = true; // 수동 녹음 플래그 설정
+      emergencyRetryCountRef.current = 0;
+      autoRetryFlagRef.current = true; // 수동 녹음 시작 시: 자동 재녹음 기회 리셋
       startRecording();
     } else {
       console.log('⚠️ 버튼 비활성 상태 (isRecording:', isRecording, 'isUploading:', isUploading, 'isPlaying:', isPlaying, ')');
@@ -52,19 +109,17 @@ const VoiceButton: React.FC = () => {
     }
   }, [audioBlob, sendCommand]);
 
-  // 통합 에러 메시지
-  // const error = recordError || uploadError; // unused for now
-
   return (
     <>
       {/* 음성 인식 오버레이 - 항상 렌더링 */}
-      <VoiceOverlay 
+      <VoiceOverlay
         isVisible={isRecording || isUploading || isPlaying}
         countdown={countdown}
         isRecording={isRecording}
         isUploading={isUploading}
         isPlaying={isPlaying}
         responseText={responseText}
+        isEmergency={isEmergency}
       />
 
       {/* 마이크 버튼 */}
@@ -75,7 +130,7 @@ const VoiceButton: React.FC = () => {
           disabled={isRecording || isUploading || isPlaying}
           aria-label="음성 인식"
         >
-         
+        
             {/* 기본 - 마이크 아이콘 */}
             <svg 
               className="mic-icon" 
@@ -92,10 +147,6 @@ const VoiceButton: React.FC = () => {
           
         </button>
 
-        {/* 에러 메시지 */}
-        {/* {error && (
-          <div className="error-message">{error}</div>
-        )} */}
       </div>
     </>
   );

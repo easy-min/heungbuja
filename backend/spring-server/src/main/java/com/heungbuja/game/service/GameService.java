@@ -3,10 +3,13 @@ package com.heungbuja.game.service;
 import com.heungbuja.common.exception.CustomException;
 import com.heungbuja.common.exception.ErrorCode;
 import com.heungbuja.game.domain.GameDetail;
+import com.heungbuja.game.domain.SpringServerPerformance;
 import com.heungbuja.game.dto.*;
 import com.heungbuja.game.entity.GameResult;
+import com.heungbuja.game.entity.ScoreByAction;
 import com.heungbuja.game.enums.GameSessionStatus;
 import com.heungbuja.game.repository.mongo.GameDetailRepository;
+import com.heungbuja.game.repository.mongo.SpringServerPerformanceRepository;
 import com.heungbuja.game.repository.jpa.GameResultRepository;
 import com.heungbuja.game.state.GameState;
 import com.heungbuja.session.state.ActivityState;
@@ -26,6 +29,8 @@ import com.heungbuja.user.entity.User;
 import com.heungbuja.user.repository.UserRepository;
 import com.heungbuja.game.repository.jpa.ActionRepository;
 import com.heungbuja.game.state.GameSession;
+import com.heungbuja.game.repository.jpa.ScoreByActionRepository;
+import com.heungbuja.s3.service.MediaUrlService;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,6 +45,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Scheduled;
 import reactor.core.publisher.Mono;
 
+import jakarta.annotation.PostConstruct;
 import java.time.Instant;
 
 import java.time.Duration;
@@ -54,6 +60,9 @@ import java.util.stream.IntStream;
 @RequiredArgsConstructor
 public class GameService {
 
+    // --- 동작 코드와 이름을 매핑하는 캐시 ---
+    private final Map<Integer, String> actionCodeToNameMap = new HashMap<>();
+
     // --- 상수 정의 ---
     /** Redis 세션 만료 시간 (분) */
     private static final int SESSION_TIMEOUT_MINUTES = 30;
@@ -63,6 +72,74 @@ public class GameService {
     // --- Redis Key 접두사 상수 ---
     private static final String GAME_STATE_KEY_PREFIX = "game_state:";
     private static final String GAME_SESSION_KEY_PREFIX = "game_session:";
+
+    private final ScoreByActionRepository scoreByActionRepository;
+    // --- AI 서버 응답 시간 통계 ---
+
+    private static class AiResponseStats {
+        private final List<Long> responseTimes = new ArrayList<>();
+        private long lastReportTime = System.currentTimeMillis();
+        private final long REPORT_INTERVAL_MS = 60000; // 60초마다 리포트
+        private static GameService gameServiceInstance; // MongoDB 저장용
+
+        public synchronized void record(long responseTimeMs) {
+            responseTimes.add(responseTimeMs);
+            maybeReport();
+        }
+
+        private void maybeReport() {
+            long now = System.currentTimeMillis();
+            if (now - lastReportTime >= REPORT_INTERVAL_MS && !responseTimes.isEmpty()) {
+                report();
+                reset();
+            }
+        }
+
+        private void report() {
+            if (responseTimes.isEmpty()) return;
+
+            double avg = responseTimes.stream().mapToLong(Long::longValue).average().orElse(0.0);
+            long min = responseTimes.stream().mapToLong(Long::longValue).min().orElse(0);
+            long max = responseTimes.stream().mapToLong(Long::longValue).max().orElse(0);
+
+            log.info("================================================================================");
+            log.info("📊 AI Server Response Time Statistics (Last 60s)");
+            log.info("Total Requests: {}", responseTimes.size());
+            log.info("  - Average: {}ms", String.format("%.2f", avg));
+            log.info("  - Min: {}ms", min);
+            log.info("  - Max: {}ms", max);
+            log.info("================================================================================");
+
+            // MongoDB에 저장
+            if (gameServiceInstance != null) {
+                try {
+                    SpringServerPerformance perf = SpringServerPerformance.builder()
+                            .timestamp(LocalDateTime.now())
+                            .intervalSeconds(60)
+                            .totalRequests(responseTimes.size())
+                            .averageResponseTimeMs(avg)
+                            .minResponseTimeMs(min)
+                            .maxResponseTimeMs(max)
+                            .build();
+                    gameServiceInstance.springServerPerformanceRepository.save(perf);
+                    log.info("✅ 성능 통계를 MongoDB에 저장했습니다.");
+                } catch (Exception e) {
+                    log.error("❌ MongoDB 저장 실패: {}", e.getMessage());
+                }
+            }
+        }
+
+        private void reset() {
+            responseTimes.clear();
+            lastReportTime = System.currentTimeMillis();
+        }
+
+        public static void setGameServiceInstance(GameService instance) {
+            gameServiceInstance = instance;
+        }
+    }
+
+    private static final AiResponseStats aiResponseStats = new AiResponseStats();
 
     // --- application.yml에서 서버 기본 주소 읽어오기 ---
     @Value("${app.base-url:http://localhost:8080/api}") // 기본값은 로컬
@@ -84,9 +161,24 @@ public class GameService {
     private final SessionStateService sessionStateService;
     private final ChoreographyPatternRepository choreographyPatternRepository;
     private final ActionRepository actionRepository;
+    private final MediaUrlService mediaUrlService;
+    private final SpringServerPerformanceRepository springServerPerformanceRepository;
+    private final com.heungbuja.game.repository.mongo.MotionInferenceLogRepository motionInferenceLogRepository;
 
     @Qualifier("aiWebClient") // 여러 WebClient Bean 중 aiWebClient를 특정
     private final WebClient aiWebClient;
+
+    @PostConstruct
+    public void init() {
+        // AI 응답 통계를 위해 GameService 인스턴스 설정
+        AiResponseStats.setGameServiceInstance(this);
+
+        // --- 서버 시작 시 Action 정보를 캐시에 저장 ---
+        actionRepository.findAll().forEach(action ->
+                actionCodeToNameMap.put(action.getActionCode(), action.getName())
+        );
+        // --- ▲ ---------------------------------------------------- ▲ ---
+    }
 
     /**
      * 1. 게임 시작 로직 (디버깅용 - GameState, GameSession 동시 생성)
@@ -124,6 +216,9 @@ public class GameService {
                 .level3(verse2TimelinesMap.get("level3"))
                 .build();
 
+        // 섹션별 패턴 시퀀스 생성 (섹션 전체 길이만큼)
+        GameStartResponse.SectionPatterns sectionPatterns = createSectionPatterns(songBeat, choreography);
+
         // SectionInfo (Map)와 SegmentInfo 생성
         Map<String, Double> sectionInfo = createSectionInfo(songBeat, barStartTimes);
         GameStartResponse.SegmentRange verse1cam = createSegmentRange(songBeat, "verse1", beatNumToTimeMap);
@@ -135,12 +230,7 @@ public class GameService {
 
         String sessionId = UUID.randomUUID().toString();
         String audioUrl = getTestUrl("/media/test");
-        Map<String, String> videoUrls = new HashMap<>();
-        videoUrls.put("intro", getTestUrl("/media/test/video/break"));
-        videoUrls.put("verse1", getTestUrl("/media/test/video/part1"));
-        videoUrls.put("verse2_level1", getTestUrl("/media/test/video/part2_1"));
-        videoUrls.put("verse2_level2", getTestUrl("/media/test/video/part2_2"));
-        videoUrls.put("verse2_level3", "https://example.com/video_v2_level3.mp4");
+        Map<String, String> videoUrls = generateVideoUrls(choreography);
 
         GameState gameState = GameState.builder()
                 .sessionId(sessionId)
@@ -155,6 +245,7 @@ public class GameService {
                 .lyricsInfo(lyricsInfo.getLines())
                 .verse1Timeline(verse1Timeline)
                 .verse2Timeline(verse2Timeline)
+                .sectionPatterns(sectionPatterns)
                 .tutorialSuccessCount(0)
                 .build();
 
@@ -194,6 +285,7 @@ public class GameService {
                 .lyricsInfo(lyricsInfo.getLines())
                 .verse1Timeline(verse1Timeline)
                 .verse2Timeline(verse2Timeline)
+                .sectionPatterns(sectionPatterns)
                 .build();
     }
 
@@ -207,9 +299,15 @@ public class GameService {
         SongChoreography.Version version = choreography.getVersions().get(0);
         SongChoreography.VersePatternInfo verseInfo = version.getVerse1(); // 1절 정보 가져오기
         SongBeat.Section section = findSectionByLabel(songBeat, sectionLabel);
-        List<Integer> patternSeq = findPatternSequenceById(patternData, verseInfo.getPatternId());
 
-        return generateTimelineForSection(beatNumToTimeMap, section, patternSeq, verseInfo.getRepeat());
+        // ⭐ 패턴 시퀀스 배열을 순회하며 각 패턴의 시퀀스를 가져옴
+        List<List<Integer>> patternSequenceList = new ArrayList<>();
+        for (String patternId : verseInfo.getPatternSequence()) {
+            List<Integer> patternSeq = findPatternSequenceById(patternData, patternId);
+            patternSequenceList.add(patternSeq);
+        }
+
+        return generateTimelineForSection(beatNumToTimeMap, section, patternSequenceList, verseInfo.getEachRepeat());
     }
 
     /**
@@ -221,19 +319,26 @@ public class GameService {
             SongChoreography.VerseLevelPatternInfo levelInfo) {
 
         SongBeat.Section section = findSectionByLabel(songBeat, sectionLabel);
-        List<Integer> patternSeq = findPatternSequenceById(patternData, levelInfo.getPatternId());
 
-        return generateTimelineForSection(beatNumToTimeMap, section, patternSeq, levelInfo.getRepeat());
+        // ⭐ 패턴 시퀀스 배열을 순회하며 각 패턴의 시퀀스를 가져옴
+        List<List<Integer>> patternSequenceList = new ArrayList<>();
+        for (String patternId : levelInfo.getPatternSequence()) {
+            List<Integer> patternSeq = findPatternSequenceById(patternData, patternId);
+            patternSequenceList.add(patternSeq);
+        }
+
+        return generateTimelineForSection(beatNumToTimeMap, section, patternSequenceList, levelInfo.getEachRepeat());
     }
 
     /**
      * (신규) 특정 구간과 동작 시퀀스를 받아 실제 타임라인 리스트를 생성하는 공통 메소드
+     * 여러 패턴을 병합하여 타임라인을 생성합니다
      */
     private List<ActionTimelineEvent> generateTimelineForSection(
             Map<Integer, Double> beatNumToTimeMap,
             SongBeat.Section section,
-            List<Integer> patternSequence,
-            int repeatCount) {
+            List<List<Integer>> patternSequenceList,
+            int eachRepeat) {
 
         List<ActionTimelineEvent> timeline = new ArrayList<>();
         Map<Integer, String> actionCodeToNameMap = actionRepository.findAll().stream()
@@ -241,12 +346,22 @@ public class GameService {
 
         int startBeat = section.getStartBeat();
         int endBeat = section.getEndBeat();
-        int patternLength = patternSequence.size();
 
+        // ⭐ 1. 패턴 배열을 하나의 큰 패턴으로 병합 (패턴 전체를 eachRepeat번 반복)
+        List<Integer> mergedPattern = new ArrayList<>();
+        for (int i = 0; i < eachRepeat; i++) {
+            for (List<Integer> pattern : patternSequenceList) {
+                mergedPattern.addAll(pattern);
+            }
+        }
+
+        int mergedPatternLength = mergedPattern.size();
+
+        // ⭐ 2. Modulo로 섹션 전체를 채움 (기존 로직 유지)
         for (int currentBeatIndex = startBeat; currentBeatIndex <= endBeat; currentBeatIndex++) {
             int beatWithinSection = currentBeatIndex - startBeat;
-            int patternIndex = beatWithinSection % patternLength;
-            int actionCode = patternSequence.get(patternIndex);
+            int patternIndex = beatWithinSection % mergedPatternLength;
+            int actionCode = mergedPattern.get(patternIndex);
 
             if (actionCode != 0) {
                 double time = beatNumToTimeMap.getOrDefault(currentBeatIndex, -1.0);
@@ -268,6 +383,80 @@ public class GameService {
                         SongBeat.Section::getLabel,
                         s -> barStartTimes.getOrDefault(s.getStartBar(), 0.0)
                 ));
+    }
+
+    /**
+     * 섹션별 패턴 시퀀스 생성 (섹션 전체 길이만큼 패턴 반복)
+     * 예: verse1이 80비트이고 patternSequence=["P1","P2"], eachRepeat=2라면
+     *     ["P1","P1","P2","P2", "P1","P1","P2","P2", ...] (80개)
+     */
+    private GameStartResponse.SectionPatterns createSectionPatterns(SongBeat songBeat, SongChoreography choreography) {
+        SongChoreography.Version version = choreography.getVersions().get(0);
+
+        // 1절 패턴 시퀀스 생성 (섹션 전체 길이만큼)
+        List<String> verse1Patterns = createFullSectionPatternSequence(
+                songBeat,
+                version.getVerse1().getPatternSequence(),
+                version.getVerse1().getEachRepeat(),
+                "verse1"
+        );
+
+        // 2절 레벨별 패턴 시퀀스 생성
+        Map<Integer, List<String>> verse2PatternsMap = new HashMap<>();
+        for (SongChoreography.VerseLevelPatternInfo levelInfo : version.getVerse2()) {
+            List<String> levelPatterns = createFullSectionPatternSequence(
+                    songBeat,
+                    levelInfo.getPatternSequence(),
+                    levelInfo.getEachRepeat(),
+                    "verse2"
+            );
+            verse2PatternsMap.put(levelInfo.getLevel(), levelPatterns);
+        }
+
+        // Verse2Patterns 객체 생성
+        GameStartResponse.Verse2Patterns verse2Patterns = GameStartResponse.Verse2Patterns.builder()
+                .level1(verse2PatternsMap.get(1))
+                .level2(verse2PatternsMap.get(2))
+                .level3(verse2PatternsMap.get(3))
+                .build();
+
+        return GameStartResponse.SectionPatterns.builder()
+                .verse1(verse1Patterns)
+                .verse2(verse2Patterns)
+                .build();
+    }
+
+    /**
+     * 섹션 전체 길이만큼 패턴을 반복하여 배열 생성
+     */
+    private List<String> createFullSectionPatternSequence(
+            SongBeat songBeat,
+            List<String> patternSequence,
+            int eachRepeat,
+            String sectionLabel) {
+
+        // 1. 기본 패턴 시퀀스 생성 (패턴 전체를 eachRepeat번 반복)
+        List<String> mergedPattern = new ArrayList<>();
+        for (int i = 0; i < eachRepeat; i++) {
+            for (String patternId : patternSequence) {
+                mergedPattern.add(patternId);
+            }
+        }
+
+        // 2. 섹션의 비트 범위 가져오기
+        SongBeat.Section section = findSectionByLabel(songBeat, sectionLabel);
+        int sectionBeatCount = section.getEndBeat() - section.getStartBeat() + 1;
+
+        // 3. 섹션 전체 길이만큼 패턴 반복
+        List<String> fullPatternSequence = new ArrayList<>();
+        int mergedPatternLength = mergedPattern.size();
+
+        for (int i = 0; i < sectionBeatCount; i++) {
+            int patternIndex = i % mergedPatternLength;
+            fullPatternSequence.add(mergedPattern.get(patternIndex));
+        }
+
+        return fullPatternSequence;
     }
 
     /**
@@ -413,33 +602,60 @@ public class GameService {
     }
 
     /**
-     * (신규) 1초마다 실행되는 게임 세션 감시자
-     * 프레임 수신이 1초 이상 중단된 세션을 찾아 절(verse) 종료 처리를 수행합니다.
+     * 1초마다 실행되는 게임 세션 감시자
+     * 1. 인터럽트 요청 확인 (수정됨)
+     * 2. 프레임 수신 타임아웃 확인
      */
+    @Transactional
     @Scheduled(fixedRate = 1000)
     public void checkGameSessionTimeout() {
         Set<String> sessionKeys = gameSessionRedisTemplate.keys(GAME_SESSION_KEY_PREFIX + "*");
         if (sessionKeys == null || sessionKeys.isEmpty()) {
             return;
         }
+
         long now = Instant.now().toEpochMilli();
+
         for (String key : sessionKeys) {
             GameSession session = gameSessionRedisTemplate.opsForValue().get(key);
-            if (session == null || session.isProcessing()) {
+            // --- (수정) session이 null일 경우를 대비하여 Null-safe하게 처리 ---
+            if (session == null) {
+                log.warn("Redis에서 GameSession을 찾았으나 (key: {}), 실제 객체가 null입니다. 데이터 손상 가능성이 있습니다.", key);
+                continue;
+            }
+            if (session.isProcessing()) {
                 continue;
             }
 
-            // --- ▼ (핵심 수정) 2절 종료 로직을 제거하고 1절 타임아웃만 처리 ---
+            String sessionId = session.getSessionId();
+
+            // --- ▼ (핵심 수정) "EMERGENCY_INTERRUPT" 상태를 확인하도록 변경 ---
+            String status = sessionStateService.getSessionStatus(sessionId);
+//            log.info("------ !!!!! 세션ID : {}, 현재 상태 : {}", sessionId, status);
+            if ("EMERGENCY_INTERRUPT".equals(status)) {
+
+                log.info("-------- !!!!!! 세션 {}에 대한 인터럽트 요청 감지 (상태: {}). 게임 중단 처리를 시작합니다.", sessionId, status);
+
+                // interruptGame 메소드가 내부적으로 중복 실행 방지(락) 처리를 하므로
+                // 여기서는 바로 호출하기만 하면 됩니다.
+                interruptGame(sessionId, "EMERGENCY");
+
+                // interruptGame이 모든 정리를 담당하므로, 여기서는 더 이상 할 일이 없습니다.
+                // 다음 세션 검사를 위해 continue 합니다.
+                continue;
+            }
+            // --- ▲ ----------------------------------------------------------- ▲ ---
+
+
+            // 기존 타임아웃 검사 로직
             if (session.getLastFrameReceivedTime() > 0 && now - session.getLastFrameReceivedTime() > 1000) {
                 if (session.getNextLevel() == null) {
-                    log.info("세션 {}의 1절 종료 감지. 레벨 결정을 시작합니다.", session.getSessionId());
+                    log.info("세션 {}의 1절 종료 감지. 레벨 결정을 시작합니다.", sessionId);
                     session.setProcessing(true);
-                    saveGameSession(session.getSessionId(), session);
-                    decideAndSendNextLevel(session.getSessionId());
+                    saveGameSession(sessionId, session);
+                    decideAndSendNextLevel(sessionId);
                 }
-                // 2절 진행 중 타임아웃은 더 이상 게임을 종료시키지 않습니다.
             }
-            // --- ▲ -------------------------------------------------------- ▲ ---
         }
     }
 
@@ -447,6 +663,7 @@ public class GameService {
      * 모인 프레임 묶음을 AI 서버로 보내고, 결과를 처리하는 메소드 (비동기)
      */
     private void callAiServerForJudgment(String sessionId, GameSession gameSession, ActionTimelineEvent action, List<String> frames) {
+        long startTime = System.currentTimeMillis();
         log.info("세션 {}의 동작 '{}'에 대한 AI 분석 요청 전송. (프레임 {}개)", sessionId, action.getActionName(), frames.size());
 
         AiAnalyzeRequest requestBody = AiAnalyzeRequest.builder()
@@ -457,40 +674,69 @@ public class GameService {
                 .build();
 
         aiWebClient.post()
-                .uri("/api/ai/analyze") // WebClient의 baseUrl 뒤에 붙는 경로
+                .uri("/api/ai/analyze")
                 .bodyValue(requestBody)
                 .retrieve()
-                .bodyToMono(AiJudgmentResponse.class) // {"judgment": 3} 응답을 DTO로 변환
+                .bodyToMono(AiJudgmentResponse.class)
                 .subscribe(
-                        aiResponse -> { // AI 서버 응답 성공 시
+                        aiResponse -> { // 성공 시
+                            long responseTime = System.currentTimeMillis() - startTime;
+                            aiResponseStats.record(responseTime);
+
+                            int actionCode = aiResponse.getActionCode();
                             int judgment = aiResponse.getJudgment();
-                            log.info(" > AI 분석 결과 수신 (세션 {}): {}점", sessionId, judgment);
+                            log.info("⏱️ AI 분석 결과 수신 (세션 {}): actionCode={}, judgment={}, 목표확률={}, 신뢰도={} (응답시간: {}ms)",
+                                    sessionId, actionCode, judgment,
+                                    String.format("%.1f%%", (aiResponse.getTargetProbability() != null ? aiResponse.getTargetProbability() : 0) * 100),
+                                    String.format("%.1f%%", aiResponse.getConfidence() * 100),
+                                    responseTime);
 
-                            // 판정 결과를 처리하는 후속 로직 실행
-                            handleJudgmentResult(sessionId, judgment, action.getTime());
+                            // ========================================================================
+                            // MongoDB에 추론 상세 로그 저장 (정확도 분석용)
+                            // ========================================================================
+                            saveMotionInferenceLog(sessionId, gameSession.getUserId(), action, aiResponse, responseTime, frames.size(), true, null);
+
+                            handleJudgmentResult(sessionId, actionCode, judgment, action.getTime());
                         },
-                        error -> { // AI 서버 응답 실패 시
-                            log.error("AI 서버 호출 실패 (세션 {}): {}", sessionId, error.getMessage());
+                        error -> { // 실패 시
+                            long responseTime = System.currentTimeMillis() - startTime;
+                            // AI 서버 통신 중 에러가 발생하면, 서버가 중단되지 않고
+                            // 판정 점수를 1점으로 처리하여 게임을 계속 진행합니다.
+                            log.error("AI 서버 호출 중 오류 발생 (세션 ID: {}). 기본 점수(1점)으로 처리합니다. (소요시간: {}ms)", sessionId, responseTime, error);
 
-                            // 실패 시 기본 점수(1점)로 처리
-                            handleJudgmentResult(sessionId, 1, action.getTime());
+                            // ========================================================================
+                            // AI 서버 에러 처리 (0점)
+                            // ========================================================================
+                            // 주요 실패 원인:
+                            // 1. 유효한 프레임 부족 (< 5개) → 사람이 화면에 안 보임 또는 움직이지 않음
+                            // 2. Mediapipe 감지 실패 → 카메라 각도/조명 문제
+                            // 3. 네트워크 타임아웃 또는 서버 장애
+                            //
+                            // → 모든 실패는 0점 처리 (공정한 채점)
+                            // ========================================================================
+
+                            // MongoDB에 실패 로그 저장
+                            saveMotionInferenceLog(sessionId, gameSession.getUserId(), action, null, responseTime, frames.size(), false, error.getMessage());
+
+                            handleJudgmentResult(sessionId, action.getActionCode(), 0, action.getTime());
                         }
                 );
     }
+
 
     /**
      * AI 판정 결과를 받아 후속 처리를 하는 메소드
      * (주의: 이 메소드는 비동기 콜백에서 호출되므로, 여기서 가져오는 gameSession은 최신이 아닐 수 있음)
      */
-    private void handleJudgmentResult(String sessionId, int judgment, double actionTime) {
-        // WebSocket으로 프론트에 실시간 피드백 발송
+    private void handleJudgmentResult(String sessionId, int actionCode, int judgment, double actionTime) {
         sendFeedback(sessionId, judgment, actionTime);
 
-        // Redis에서 최신 GameSession을 다시 가져와서 점수 기록
         GameSession latestGameSession = getGameSession(sessionId);
         if (latestGameSession != null) {
-            recordJudgment(judgment, latestGameSession);
-            saveGameSession(sessionId, latestGameSession); // 점수 기록 후 저장
+            // --- ▼ (핵심 수정) actionCode도 함께 전달합니다. ---
+            recordJudgment(actionCode, judgment, latestGameSession);
+            // --- ▲ ------------------------------------------- ▲ ---
+            saveGameSession(sessionId, latestGameSession);
         } else {
             log.warn("AI 응답 처리 시점(세션 {})에 Redis에서 GameSession을 찾을 수 없습니다.", sessionId);
         }
@@ -500,15 +746,19 @@ public class GameService {
     /**
      * 판정 결과를 Redis('GameSession')에 기록하는 헬퍼 메소드
      */
-    private void recordJudgment(int judgment, GameSession currentSession) {
+    private void recordJudgment(int actionCode, int judgment, GameSession currentSession) {
         int verse = (currentSession.getNextLevel() == null) ? 1 : 2;
 
+        // JudgmentResult 객체 생성
+        GameSession.JudgmentResult result = new GameSession.JudgmentResult(actionCode, judgment);
+
         if (verse == 1) {
-            currentSession.getVerse1Judgments().add(judgment);
+            currentSession.getVerse1Judgments().add(result);
         } else {
-            currentSession.getVerse2Judgments().add(judgment);
+            currentSession.getVerse2Judgments().add(result);
         }
-        log.trace("판정 기록 준비: sessionId={}, judgment={}, verse={}", currentSession.getSessionId(), judgment, verse);
+        log.trace("판정 기록 준비: sessionId={}, actionCode={}, judgment={}, verse={}",
+                currentSession.getSessionId(), actionCode, judgment, verse);
     }
 
 
@@ -584,60 +834,74 @@ public class GameService {
      * sessionId를 받아 점수를 계산하고, DB에 저장한 뒤, 최종 점수와 평가 문구를 반환합니다.
      */
     @Transactional
-    public GameEndResponse endGame(String sessionId) { // <-- 파라미터를 String으로, 반환 타입을 DTO로 변경
-        GameSession finalSession = getGameSession(sessionId);
+    public GameEndResponse endGame(String sessionId) {
+        String sessionKey = GAME_SESSION_KEY_PREFIX + sessionId;
+        GameSession finalSession = gameSessionRedisTemplate.opsForValue().get(sessionKey);
+
+        Double verse1Avg;
+        Double verse2Avg;
+        Map<Integer, Double> avgScoresByActionCode; // actionCode를 Key로 하는 점수 맵
+
         if (finalSession == null) {
-            // Redis에 세션이 만료/삭제된 경우, DB에서 기록을 찾아 반환
-            GameResult existingResult = gameResultRepository.findBySessionId(sessionId)
-                    .orElseThrow(() -> new CustomException(ErrorCode.GAME_SESSION_NOT_FOUND));
+            // Redis에 세션이 없는 경우: DB에서 기존 기록을 조회하여 응답 구성
+            GameResult existingResult = gameResultRepository.findBySessionIdWithScores(sessionId)
+                    .orElseThrow(() -> new CustomException(ErrorCode.GAME_SESSION_NOT_FOUND, "Redis와 DB 모두에서 세션을 찾을 수 없습니다: " + sessionId));
 
             log.warn("Redis에서 세션 {}을 찾을 수 없었으나, DB 기록을 바탕으로 결과를 반환합니다.", sessionId);
-            double finalScore = calculateFinalScore(existingResult.getVerse1AvgScore(), existingResult.getVerse2AvgScore());
-            String message = getResultMessage(finalScore);
-            return GameEndResponse.builder()
-                    .finalScore(finalScore)
-                    .message(message)
-                    .build();
+            verse1Avg = existingResult.getVerse1AvgScore();
+            verse2Avg = existingResult.getVerse2AvgScore();
+
+            // DB에 저장된 ScoreByAction 리스트를 Map으로 변환
+            avgScoresByActionCode = existingResult.getScoresByAction().stream()
+                    .collect(Collectors.toMap(ScoreByAction::getActionCode, ScoreByAction::getAverageScore));
+
+        } else {
+            // Redis에 세션이 있는 경우: Redis 데이터를 기반으로 모든 정보 계산 및 저장
+            verse1Avg = calculateScoreFromJudgments(finalSession.getVerse1Judgments());
+            verse2Avg = null;
+            if (finalSession.getNextLevel() != null || (finalSession.getVerse2Judgments() != null && !finalSession.getVerse2Judgments().isEmpty())) {
+                verse2Avg = calculateScoreFromJudgments(finalSession.getVerse2Judgments());
+            }
+
+            // MongoDB 저장
+            GameDetail.Statistics verse1Stats = calculateStatistics(finalSession.getVerse1Judgments());
+            GameDetail.Statistics verse2Stats = calculateStatistics(finalSession.getVerse2Judgments());
+            GameDetail gameDetail = GameDetail.builder().sessionId(sessionId).verse1Stats(verse1Stats).verse2Stats(verse2Stats).build();
+            gameDetailRepository.save(gameDetail);
+
+            // MySQL 저장
+            GameResult gameResult = gameResultRepository.findBySessionId(sessionId)
+                    .orElseThrow(() -> new CustomException(ErrorCode.GAME_SESSION_NOT_FOUND));
+
+            gameResult.setVerse1AvgScore(verse1Avg);
+            gameResult.setVerse2AvgScore(verse2Avg);
+            gameResult.setFinalLevel(finalSession.getNextLevel());
+            gameResult.complete();
+
+            // 동작별 점수 계산 및 GameResult에 추가 후, 계산된 Map을 반환받음
+            avgScoresByActionCode = calculateAndSaveScoresByAction(finalSession, gameResult);
+
+            gameResultRepository.save(gameResult);
+            log.info("세션 {}의 게임 결과 저장 완료. 1절 점수: {}, 2절 점수: {}", sessionId, verse1Avg, verse2Avg);
+
+            // Redis 데이터 정리
+            gameSessionRedisTemplate.delete(sessionKey);
+            gameStateRedisTemplate.delete(GAME_STATE_KEY_PREFIX + sessionId);
+            sessionStateService.clearSessionStatus(sessionId);
+            if(finalSession.getUserId() != null) {
+                sessionStateService.clearActivity(finalSession.getUserId());
+            }
+            log.info("세션 {}의 Redis 데이터 삭제 완료.", sessionId);
         }
 
-        // Redis에 세션이 있는 경우 점수 계산
-        Double verse1Avg = calculateScoreFromJudgments(finalSession.getVerse1Judgments());
-        Double verse2Avg = null; // 기본값 null
-
-        // 2절을 시작했거나(nextLevel != null), 2절 판정 기록이 있으면 2절 점수 계산
-        if (finalSession.getNextLevel() != null || (finalSession.getVerse2Judgments() != null && !finalSession.getVerse2Judgments().isEmpty())) {
-            verse2Avg = calculateScoreFromJudgments(finalSession.getVerse2Judgments());
-        }
-
-        // MongoDB 상세 데이터 저장
-        GameDetail.Statistics verse1Stats = calculateStatistics(finalSession.getVerse1Judgments());
-        GameDetail.Statistics verse2Stats = calculateStatistics(finalSession.getVerse2Judgments());
-        GameDetail gameDetail = GameDetail.builder()
-                .sessionId(sessionId)
-                .verse1Stats(verse1Stats)
-                .verse2Stats(verse2Stats)
-                .build();
-        gameDetailRepository.save(gameDetail);
-
-        // MySQL 게임 결과 업데이트
-        GameResult gameResult = gameResultRepository.findBySessionId(sessionId)
-                .orElseThrow(() -> new CustomException(ErrorCode.GAME_SESSION_NOT_FOUND));
-
-        gameResult.setVerse1AvgScore(verse1Avg);
-        gameResult.setVerse2AvgScore(verse2Avg); // 1절만 했으면 null이 저장됨
-        gameResult.setFinalLevel(finalSession.getNextLevel());
-        gameResult.complete(); // 상태를 'COMPLETED'로 변경
-        gameResultRepository.save(gameResult);
-        log.info("세션 {}의 게임 결과 저장 완료. 1절 점수: {}, 2절 점수: {}", sessionId, verse1Avg, verse2Avg);
-
-        // Redis 데이터 정리
-        gameSessionRedisTemplate.delete(GAME_SESSION_KEY_PREFIX + sessionId);
-        gameStateRedisTemplate.delete(GAME_STATE_KEY_PREFIX + sessionId);
-        sessionStateService.clearSessionStatus(sessionId);
-        if(finalSession.getUserId() != null) {
-            sessionStateService.clearActivity(finalSession.getUserId());
-        }
-        log.info("세션 {}의 Redis 데이터 삭제 완료.", sessionId);
+        // --- ▼ (핵심 수정) 최종 응답을 생성하기 전에 actionCode 맵을 actionName 맵으로 변환 ---
+        Map<String, Double> scoresByActionName = avgScoresByActionCode.entrySet().stream()
+                .collect(Collectors.toMap(
+                        // entry의 key(actionCode)를 캐시에서 찾아 actionName으로 변환
+                        entry -> actionCodeToNameMap.getOrDefault(entry.getKey(), "알 수 없는 동작 #" + entry.getKey()),
+                        Map.Entry::getValue
+                ));
+        // --- ▲ ------------------------------------------------------------------------- ▲ ---
 
         // 최종 점수와 메시지 계산하여 반환
         double finalScore = calculateFinalScore(verse1Avg, verse2Avg);
@@ -646,24 +910,42 @@ public class GameService {
         return GameEndResponse.builder()
                 .finalScore(finalScore)
                 .message(message)
+                .scoresByAction(scoresByActionName) // <-- 변환된 Map을 응답에 추가
                 .build();
     }
 
     /**
-     * 게임 인터럽트 처리 (외부 호출용)
+     * 게임 인터럽트 처리 (외부 호출용 및 스케줄러 호출용)
+     * sessionId와 중단 사유를 받아 게임을 중단 상태로 종료합니다.
      */
     @Transactional
     public void interruptGame(String sessionId, String reason) {
-        GameSession finalSession = getGameSession(sessionId);
-        if (finalSession == null) {
-            log.warn("존재하지 않는 세션 ID로 인터럽트 요청: {}", sessionId);
+        // 중복 실행 방지를 위해 락을 시도합니다. (이 메소드는 외부에서 직접 호출될 수 있으므로 유지)
+        if (!sessionStateService.trySetInterrupt(sessionId, reason)) {
+            log.warn("세션 {}에 대한 인터럽트가 이미 처리 중이므로 건너뜁니다.", sessionId);
             return;
         }
-        double verse1Avg = calculateScoreFromJudgments(finalSession.getVerse1Judgments());
-        double verse2Avg = calculateScoreFromJudgments(finalSession.getVerse2Judgments());
+
+        GameSession finalSession = getGameSession(sessionId);
+        if (finalSession == null) {
+            log.warn("존재하지 않거나 이미 처리된 세션 ID로 인터럽트 요청: {}", sessionId);
+            GameResult gameResult = gameResultRepository.findBySessionId(sessionId).orElse(null);
+            if (gameResult != null && gameResult.getStatus() == GameSessionStatus.IN_PROGRESS) {
+                gameResult.interrupt(reason);
+                gameResultRepository.save(gameResult);
+                log.info("DB에만 남아있던 세션 {}의 게임을 중단 처리했습니다.", sessionId);
+            }
+            sessionStateService.releaseInterruptLock(sessionId); // 락 해제
+            return;
+        }
+
+        // --- 1. 절별 평균 점수 계산 (기존 로직) ---
+        Double verse1Avg = calculateScoreFromJudgments(finalSession.getVerse1Judgments());
+        Double verse2Avg = calculateScoreFromJudgments(finalSession.getVerse2Judgments());
+
+        // --- 2. MongoDB 상세 데이터 저장 (기존 로직) ---
         GameDetail.Statistics verse1Stats = calculateStatistics(finalSession.getVerse1Judgments());
         GameDetail.Statistics verse2Stats = calculateStatistics(finalSession.getVerse2Judgments());
-
         GameDetail gameDetail = GameDetail.builder()
                 .sessionId(sessionId)
                 .verse1Stats(verse1Stats)
@@ -671,62 +953,115 @@ public class GameService {
                 .build();
         gameDetailRepository.save(gameDetail);
 
+        // --- 3. MySQL 게임 결과 엔티티 조회 (기존 로직) ---
         GameResult gameResult = gameResultRepository.findBySessionId(sessionId)
                 .orElseThrow(() -> new CustomException(ErrorCode.GAME_SESSION_NOT_FOUND));
 
+        // --- 4. 절별 평균 점수 및 상태 설정 (기존 로직) ---
         gameResult.setVerse1AvgScore(verse1Avg);
         gameResult.setVerse2AvgScore(verse2Avg);
-        gameResult.interrupt(reason);
+        gameResult.interrupt(reason); // <-- 상태를 'INTERRUPTED'로 설정
 
+        // --- 5. (핵심 추가) 동작별 점수 계산 및 GameResult에 추가 ---
+        calculateAndSaveScoresByAction(finalSession, gameResult);
+        // --- ▲ ---------------------------------------------- ▲ ---
+
+        // --- 6. MySQL에 최종 결과 저장 ---
         gameResultRepository.save(gameResult);
         log.info("세션 {}의 게임 중단 처리 완료. 사유: {}", sessionId, reason);
 
-        // <-- (수정) 삭제 시에도 올바른 Key를 사용합니다.
+        // --- 7. Redis 데이터 정리 (기존 로직) ---
         gameSessionRedisTemplate.delete(GAME_SESSION_KEY_PREFIX + sessionId);
-        gameStateRedisTemplate.delete(GAME_STATE_KEY_PREFIX + sessionId); // GameState도 함께 삭제
-
+        gameStateRedisTemplate.delete(GAME_STATE_KEY_PREFIX + sessionId);
         sessionStateService.clearSessionStatus(sessionId);
-        sessionStateService.clearActivity(finalSession.getUserId());
+        if (finalSession.getUserId() != null) {
+            sessionStateService.clearActivity(finalSession.getUserId());
+        }
 
+        // --- 8. 모든 처리가 끝난 후 락 해제 (기존 로직) ---
+        sessionStateService.releaseInterruptLock(sessionId);
+
+        // --- 9. WebSocket으로 프론트에 중단 알림 전송 (기존 로직) ---
         sendGameInterruptNotification(sessionId);
+
+        log.info("세션 {}의 모든 인터럽트 처리 및 뒷정리 완료.", sessionId);
     }
 
     // ##########################################################
     //                      헬퍼 메서드
     // ##########################################################
-    
-    // (신규) 판정 리스트를 100점 만점 점수로 변환하는 메소드
-    private double calculateScoreFromJudgments(List<Integer> judgments) {
+
+    /**
+     * (신규) 동작별 평균 점수를 계산하고 GameResult 엔티티에 추가하는 헬퍼 메소드
+     */
+    private Map<Integer, Double> calculateAndSaveScoresByAction(GameSession finalSession, GameResult gameResult) {
+        List<GameSession.JudgmentResult> allJudgments = new ArrayList<>();
+        if (finalSession.getVerse1Judgments() != null) {
+            allJudgments.addAll(finalSession.getVerse1Judgments());
+        }
+        if (finalSession.getVerse2Judgments() != null) {
+            allJudgments.addAll(finalSession.getVerse2Judgments());
+        }
+
+        if (allJudgments.isEmpty()) {
+            return Collections.emptyMap(); // 판정 기록이 없으면 빈 Map 반환
+        }
+
+        Map<Integer, Double> avgScoresByAction = allJudgments.stream()
+                .collect(Collectors.groupingBy(
+                        GameSession.JudgmentResult::getActionCode,
+                        Collectors.averagingDouble(r -> (double) r.getJudgment() / 3.0 * 100.0)
+                ));
+
+        log.info("동작별 평균 점수 계산 완료: {}", avgScoresByAction);
+
+        gameResult.getScoresByAction().clear();
+        avgScoresByAction.forEach((actionCode, avgScore) -> {
+            ScoreByAction score = ScoreByAction.builder()
+                    .gameResult(gameResult)
+                    .actionCode(actionCode)
+                    .averageScore(avgScore)
+                    .build();
+            gameResult.addScoreByAction(score);
+        });
+
+        return avgScoresByAction; // <-- (핵심 추가) 계산된 Map을 반환
+    }
+
+
+    /**
+     * (수정) JudgmentResult 리스트를 받아 100점 만점 점수로 변환하는 메소드
+     */
+    private double calculateScoreFromJudgments(List<GameSession.JudgmentResult> judgments) {
         if (judgments == null || judgments.isEmpty()) {
             return 0.0;
         }
-        // 각 판정 점수(1,2,3)를 100점 만점으로 환산 (3점=100, 2점=66.6, 1점=33.3)
-        double totalScore = judgments.stream()
-                .mapToDouble(judgment -> (double) judgment / 3.0 * 100.0)
-                .sum();
-        return totalScore / judgments.size();
+        // 각 판정 점수(1,2,3)를 100점 만점으로 환산
+        return judgments.stream()
+                .mapToDouble(j -> (double) j.getJudgment() / 3.0 * 100.0)
+                .average()
+                .orElse(0.0);
     }
 
-    // 판정 리스트에서 통계 계산
-    private GameDetail.Statistics calculateStatistics(List<Integer> judgments) {
+    /**
+     * (수정) JudgmentResult 리스트를 받아 통계를 계산하는 메소드
+     */
+    private GameDetail.Statistics calculateStatistics(List<GameSession.JudgmentResult> judgments) {
         if (judgments == null || judgments.isEmpty()) {
-            return GameDetail.Statistics.builder()
-                    .totalMovements(0)
-                    .correctMovements(0)
-                    .averageScore(0.0)
-                    .perfectCount(0)
-                    .goodCount(0)
-                    .badCount(0)
-                    .build();
+            return GameDetail.Statistics.builder().build(); // 기본값 반환
         }
 
-        int perfectCount = (int) judgments.stream().filter(j -> j == 3).count();
-        int goodCount = (int) judgments.stream().filter(j -> j == 2).count();
-        int badCount = (int) judgments.stream().filter(j -> j == 1).count();
+        List<Integer> judgmentScores = judgments.stream()
+                .map(GameSession.JudgmentResult::getJudgment)
+                .collect(Collectors.toList());
+
+        int perfectCount = (int) judgmentScores.stream().filter(j -> j == 3).count();
+        int goodCount = (int) judgmentScores.stream().filter(j -> j == 2).count();
+        int badCount = (int) judgmentScores.stream().filter(j -> j == 1).count();
 
         return GameDetail.Statistics.builder()
-                .totalMovements(judgments.size())
-                .correctMovements(perfectCount + goodCount) // PERFECT + GOOD
+                .totalMovements(judgmentScores.size())
+                .correctMovements(perfectCount + goodCount)
                 .averageScore(calculateScoreFromJudgments(judgments))
                 .perfectCount(perfectCount)
                 .goodCount(goodCount)
@@ -755,16 +1090,9 @@ public class GameService {
     }
 
     public GameSession getGameSession(String sessionId) {
-        String key = GAME_SESSION_KEY_PREFIX + sessionId; // <-- (수정) 올바른 Key를 정의합니다.
-        GameSession gameSession = gameSessionRedisTemplate.opsForValue().get(key); // <-- (수정) 정의된 Key를 사용합니다.
-        if (gameSession == null) {
-            log.warn("세션 {}에 대한 GameSession이 없어 새로 생성합니다. (Key: {})", sessionId, key);
-            GameState gameState = getGameState(sessionId);
-            gameSession = GameSession.initial(sessionId, gameState.getUserId(), gameState.getSongId());
-            saveGameSession(sessionId, gameSession); // 새로 생성했으면 저장도 해줍니다.
-            return gameSession;
-        }
-        return gameSession;
+        String key = GAME_SESSION_KEY_PREFIX + sessionId;
+        // 이제 이 메소드는 순수하게 조회만 담당. 없으면 null 반환.
+        return gameSessionRedisTemplate.opsForValue().get(key);
     }
 
     private void saveGameSession(String sessionId, GameSession gameSession) {
@@ -835,6 +1163,114 @@ public class GameService {
         } else {
             return "다음 기회에 더 멋진 무대 기대할게요!";
         }
+    }
+
+    /**
+     * Motion AI 추론 결과를 MongoDB에 저장 (정확도 분석용)
+     */
+    private void saveMotionInferenceLog(
+            String sessionId,
+            Long userId,
+            ActionTimelineEvent action,
+            AiJudgmentResponse aiResponse,
+            long totalResponseTimeMs,
+            int totalFrameCount,
+            boolean success,
+            String errorMessage) {
+
+        try {
+            com.heungbuja.game.domain.MotionInferenceLog.MotionInferenceLogBuilder builder =
+                    com.heungbuja.game.domain.MotionInferenceLog.builder()
+                    .sessionId(sessionId)
+                    .userId(userId)
+                    .timestamp(LocalDateTime.now())
+                    .targetActionCode(action.getActionCode())
+                    .targetActionName(action.getActionName())
+                    .totalFrameCount(totalFrameCount)
+                    .totalResponseTimeMs(totalResponseTimeMs)
+                    .success(success);
+
+            if (aiResponse != null) {
+                // 성공 케이스: AI 응답 데이터 저장
+                builder.predictedActionCode(aiResponse.getActionCode())
+                        .predictedActionName(aiResponse.getPredictedLabel())
+                        .targetProbability(aiResponse.getTargetProbability())
+                        .maxConfidence(aiResponse.getConfidence())
+                        .judgment(aiResponse.getJudgment())
+                        .validFrameCount(totalFrameCount)  // Motion 서버에서 필터링된 개수는 현재 전달 안 됨
+                        .decodeTimeMs(aiResponse.getDecodeTimeMs())
+                        .poseExtractionTimeMs(aiResponse.getPoseTimeMs())
+                        .inferenceTimeMs(aiResponse.getInferenceTimeMs());
+            } else {
+                // 실패 케이스: 에러 정보만 저장
+                builder.judgment(0)
+                        .validFrameCount(0)
+                        .errorMessage(errorMessage);
+            }
+
+            motionInferenceLogRepository.save(builder.build());
+
+            log.debug("MongoDB에 추론 로그 저장 완료: sessionId={}, targetAction={}, success={}",
+                    sessionId, action.getActionName(), success);
+
+        } catch (Exception e) {
+            // MongoDB 저장 실패해도 게임 진행에는 영향 없음
+            log.error("MongoDB 추론 로그 저장 실패: {}", e.getMessage());
+        }
+    }
+
+    // --- 비디오 URL 생성 (패턴 기반) ---
+
+    /**
+     * 비디오 URL 생성 (패턴 기반)
+     */
+    private Map<String, String> generateVideoUrls(SongChoreography choreography) {
+        Map<String, String> videoUrls = new HashMap<>();
+
+        SongChoreography.Version version = choreography.getVersions().get(0);
+
+        // intro: 공통 튜토리얼
+        String introS3Key = "video/break.mp4";
+        videoUrls.put("intro", mediaUrlService.issueUrlByKey(introS3Key));
+
+        // verse1: 첫 번째 패턴
+        String verse1PatternId = version.getVerse1().getPatternSequence().get(0);
+        String verse1S3Key = convertPatternIdToVideoUrl(verse1PatternId);
+        videoUrls.put("verse1", mediaUrlService.issueUrlByKey(verse1S3Key));
+
+        // verse2: 각 레벨의 첫 번째 패턴
+        for (SongChoreography.VerseLevelPatternInfo levelInfo : version.getVerse2()) {
+            String patternId = levelInfo.getPatternSequence().get(0);
+            String s3Key = convertPatternIdToVideoUrl(patternId);
+            String key = "verse2_level" + levelInfo.getLevel();
+            videoUrls.put(key, mediaUrlService.issueUrlByKey(s3Key));
+        }
+
+        return videoUrls;
+    }
+
+    /**
+     * 패턴 ID → 비디오 URL 변환
+     * TODO: 패턴별 비디오 준비 완료 시 임시 매핑 제거하고 "video/pattern_" + patternId.toLowerCase() + ".mp4" 사용
+     */
+    private String convertPatternIdToVideoUrl(String patternId) {
+        // 임시 매핑: 현재 존재하는 비디오 파일 사용
+        switch (patternId) {
+            case "P1":
+                return "video/part1.mp4";
+            case "P2":
+                return "video/part2_level1.mp4";
+            case "P3":
+                return "video/part2_level2.mp4";
+            case "P4":
+                return "video/part1.mp4";  // 반복
+            default:
+                log.warn("알 수 없는 패턴 ID: {}. 기본 비디오 사용", patternId);
+                return "video/part1.mp4";
+        }
+
+        // 나중에 패턴별 비디오 준비되면 아래 코드로 교체:
+        // return "video/pattern_" + patternId.toLowerCase() + ".mp4";
     }
 
     // --- ▼ (테스트용 코드) AI 서버 연동을 테스트하기 위한 임시 메소드 ---

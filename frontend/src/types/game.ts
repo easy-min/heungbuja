@@ -29,7 +29,6 @@ export interface SongTimeline {
   verse2StartTime: number;
 }
 
-// Record 필드는 추후 수정 고민 필요
 export interface GameStartResponse {
   intent: string;
   gameInfo:  {
@@ -38,7 +37,13 @@ export interface GameStartResponse {
     songTitle: string;
     songArtist: string;
     audioUrl: string;
-    videoUrls: Record<string, string>;
+    videoUrls: {
+      intro: string,
+      verse1: string,
+      verse2_level1: string,
+      verse2_level2: string,
+      verse2_level3: string,
+    };
     bpm: number;
     duration: number;
     sectionInfo: SongTimeline;
@@ -49,12 +54,20 @@ export interface GameStartResponse {
     lyricsInfo: {
       id: string;
       lines: LyricLine[];
-    }
+    };
     verse1Timeline: actionLine[];
     verse2Timelines: {
       level1: actionLine[];
       level2: actionLine[];
       level3: actionLine[];
+    };
+    sectionPatterns: {
+      verse1: string[];
+      verse2: {
+        level1: string[],
+        level2: string[],
+        level3: string[],
+      }
     };
   };
 }
@@ -68,3 +81,21 @@ export interface GameEndResponse {
   finalScore: number;
   message: string;
 }
+
+
+export type Judgment = 1 | 2 | 3;
+
+export interface FeedbackMessage {
+  type: 'FEEDBACK';
+  data: { judgment: Judgment; timestamp: number };
+}
+
+export interface LevelDecisionMessage {
+  type: 'LEVEL_DECISION';
+  data: {
+    nextLevel: 1 | 2 | 3;
+    characterVideoUrl: string;
+  };
+}
+
+export type GameWsMessage = FeedbackMessage | LevelDecisionMessage;

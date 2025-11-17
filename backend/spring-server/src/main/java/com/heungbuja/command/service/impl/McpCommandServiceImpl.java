@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.heungbuja.command.dto.CommandRequest;
 import com.heungbuja.command.dto.CommandResponse;
+import com.heungbuja.performance.annotation.MeasurePerformance;
 import com.heungbuja.command.mcp.McpToolService;
 import com.heungbuja.command.mcp.dto.McpToolCall;
 import com.heungbuja.command.mcp.dto.McpToolDefinition;
@@ -49,11 +50,13 @@ public class McpCommandServiceImpl implements CommandService {
     private final GptService gptService;
     private final McpToolService mcpToolService;
     private final ConversationContextService conversationContextService;
+    private final com.heungbuja.session.service.SessionStateService sessionStateService;
     private final TtsService ttsService;
     private final VoiceCommandRepository voiceCommandRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
+    @MeasurePerformance(component = "Command")
     @Transactional(noRollbackFor = {CustomException.class, Exception.class})
     public CommandResponse processTextCommand(CommandRequest request) {
         User user = userService.findById(request.getUserId());
@@ -62,6 +65,28 @@ public class McpCommandServiceImpl implements CommandService {
         log.info("[MCP] 명령 처리 시작: userId={}, text='{}'", user.getId(), text);
 
         try {
+            // 0. 응급 상황 진행 중인지 먼저 체크
+            boolean isEmergencyInProgress = sessionStateService.isEmergency(user.getId());
+
+            if (isEmergencyInProgress) {
+                // 응급 상황 진행 중일 때는 빈 입력이거나 애매한 입력이면 바로 안내 메시지 반환
+                if (text.isEmpty() || text.isBlank() || text.length() < 2) {
+                    log.info("⚠️ 응급 신고 진행 중 빈 입력 감지: userId={}, text='{}'", user.getId(), text);
+                    return buildEmergencyInProgressResponse(user, text);
+                }
+
+                // 응급 키워드가 아니고, 괜찮아/안괜찮아도 아닌 애매한 입력인지 체크
+                boolean isEmergencyKeyword = containsEmergencyKeyword(text);
+                boolean isOkayResponse = containsOkayKeyword(text);
+                boolean isNotOkayResponse = containsNotOkayKeyword(text);
+
+                if (!isEmergencyKeyword && !isOkayResponse && !isNotOkayResponse) {
+                    log.info("⚠️ 응급 신고 진행 중 애매한 입력: userId={}, text='{}'", user.getId(), text);
+                    // GPT에게 툴 선택을 맡기지 않고 바로 안내 메시지 반환
+                    return buildEmergencyInProgressResponse(user, text);
+                }
+            }
+
             // 1. Redis에서 대화 컨텍스트 조회
             String contextInfo = conversationContextService.formatContextForGpt(user.getId());
 
@@ -168,6 +193,32 @@ public class McpCommandServiceImpl implements CommandService {
      * Tool 선택을 위한 프롬프트 생성
      */
     private String buildToolSelectionPrompt(String userMessage, String contextInfo, Long userId) {
+        // 응급 상황 진행 중인지 체크
+        boolean isEmergencyInProgress = sessionStateService.isEmergency(userId);
+        String emergencyWarning = "";
+
+        if (isEmergencyInProgress) {
+            log.warn("⚠️ 응급 신호 진행 중 명령 입력: userId={}, text='{}'", userId, userMessage);
+            emergencyWarning = """
+
+                    ⚠️⚠️⚠️ 매우 중요: 현재 응급 신고가 진행 중입니다! ⚠️⚠️⚠️
+
+                    사용자가 "괜찮아"류 표현을 하면 반드시 cancel_emergency만 호출하세요:
+                    - "괜찮아", "괜찮습니다", "괜찮아요", "아니야", "아니에요", "취소", "취소해" → cancel_emergency만!
+
+                    사용자가 "안괜찮아"류 표현을 하면 반드시 confirm_emergency만 호출하세요:
+                    - "안괜찮아", "안 괜찮아", "빨리 신고", "신고해", "위급해", "심각해" → confirm_emergency만!
+
+                    사용자가 다시 응급 키워드를 말하면:
+                    - "살려줘", "도와줘", "아파" 등 → handle_emergency (중복 신고 = 즉시 확정)
+
+                    ⚠️ 주의: "괜찮아 XXX해줘" 같은 복합 명령도 cancel_emergency만 호출! XXX는 무시!
+
+                    """;
+        } else {
+            log.debug("일반 상황 명령 입력: userId={}, text='{}'", userId, userMessage);
+        }
+
         // Tools 설명
         String toolsDescription = """
                 [사용 가능한 Tools]
@@ -189,19 +240,19 @@ public class McpCommandServiceImpl implements CommandService {
                      * userId (필수): 사용자 ID
                      * action (필수): PAUSE, RESUME, NEXT, STOP 중 하나
 
-                3. add_to_queue
-                   - 설명: 대기열에 곡 추가
-                   - 파라미터:
-                     * userId (필수): 사용자 ID
-                     * artist (필수): 가수명
-                     * count: 추가할 곡 개수 (기본값: 1)
+                // 3. add_to_queue (사용 안 함 - 노인 사용자에게 복잡함)
+                //    - 설명: 대기열에 곡 추가
+                //    - 파라미터:
+                //      * userId (필수): 사용자 ID
+                //      * artist (필수): 가수명
+                //      * count: 추가할 곡 개수 (기본값: 1)
 
-                4. get_current_context
-                   - 설명: 현재 재생 상태, 대기열 정보 조회
-                   - 파라미터:
-                     * userId (필수): 사용자 ID
+                // 4. get_current_context (사용 안 함 - 이미 contextInfo로 제공됨)
+                //    - 설명: 현재 재생 상태, 대기열 정보 조회
+                //    - 파라미터:
+                //      * userId (필수): 사용자 ID
 
-                5. handle_emergency
+                3. handle_emergency
                    - 설명: **최초** 응급 상황 감지 및 신고 생성
                    - 파라미터:
                      * userId (필수): 사용자 ID
@@ -210,32 +261,33 @@ public class McpCommandServiceImpl implements CommandService {
                    - 사용 시점: "살려줘", "도와줘", "아파요" 등 응급 키워드를 **처음** 말할 때
                    - 참고: 응급 신고가 이미 진행 중이라면 즉시 확정됨
 
-                6. cancel_emergency
+                4. cancel_emergency
                    - 설명: 진행 중인 응급 신고 취소
                    - 파라미터:
                      * userId (필수): 사용자 ID
-                   - 사용 시점: 응급 신고 진행 중 "괜찮아", "괜찮아요", "취소", "잘못 눌렀어" 등으로 응답할 때
+                   - 사용 시점: 응급 신고 진행 중 사용자가 괜찮다고 응답할 때
+                   - 인식 키워드: "괜찮아", "괜찮습니다", "괜찮아요", "괜찮네요", "아니야", "아니에요", "취소", "취소해", "잘못 눌렀어", "실수야", "실수였어"
 
-                7. confirm_emergency
+                5. confirm_emergency
                    - 설명: **진행 중인** 응급 신고를 즉시 확정 (60초 대기 건너뛰기)
                    - 파라미터:
                      * userId (필수): 사용자 ID
                    - 사용 시점: 응급 신고 진행 중 "안 괜찮아", "안괜찮아", "빨리 신고해", "신고해", "위급해", "심각해" 등으로 응답할 때
                    - ⚠️ 주의: handle_emergency와 명확히 구분! confirm_emergency는 **이미 신고가 진행 중**일 때만 사용
 
-                8. change_mode
+                6. change_mode
                    - 설명: 모드 변경 (홈, 감상, 체조)
                    - 파라미터:
                      * userId (필수): 사용자 ID
                      * mode (필수): HOME, LISTENING, EXERCISE 중 하나
 
-                9. start_game
+                7. start_game
                    - 설명: 게임(체조)을 시작합니다. 현재 선택된 노래 또는 랜덤 노래로 시작합니다.
                    - 파라미터:
                      * userId (필수): 사용자 ID
                      * songId: 게임에 사용할 노래 ID (선택적)
 
-                10. start_game_with_song
+                8. start_game_with_song
                    - 설명: 특정 노래로 게임(체조)을 시작합니다. 노래 검색과 게임 시작을 한 번에 처리합니다.
                    - 파라미터:
                      * userId (필수): 사용자 ID
@@ -247,7 +299,7 @@ public class McpCommandServiceImpl implements CommandService {
         return String.format("""
                 당신은 노인을 위한 음성 인터페이스 AI입니다.
                 사용자의 음성 명령을 분석하여 적절한 Tool을 선택하세요.
-
+                %s
                 [현재 상황]
                 %s
 
@@ -263,13 +315,18 @@ public class McpCommandServiceImpl implements CommandService {
                   - 재생 키워드가 있는가? (틀어/들려/듣고)
 
                 STEP 2: 패턴 결정
-                  ⚠️ 중요: 하나의 명령에는 하나의 Tool만!
+                  ⚠️⚠️⚠️ 매우 중요: 하나의 명령에는 반드시 하나의 Tool만 호출! ⚠️⚠️⚠️
+                  ⚠️ 특히 응급 상황에서는 절대 여러 Tool 호출 금지!
+
                   - 패턴 A (노래로 체조): 노래 이름 + "체조/게임/운동" → start_game_with_song (한 번에!)
                   - 패턴 B (노래만 듣기): 노래 이름 + "틀어/들려/듣고" → search_song만
                   - 패턴 C (랜덤 체조): "체조/게임/운동"만 → start_game만
+                  - 패턴 D (응급 취소): "괜찮아" 포함 → cancel_emergency만! (뒤에 다른 말이 있어도 무시!)
+                  - 패턴 E (응급 확정): "안괜찮아" 포함 → confirm_emergency만!
 
                 STEP 3: Tool 호출 생성
-                  - 패턴에 맞는 Tool 하나만 호출
+                  - 패턴에 맞는 Tool 정확히 하나만 호출
+                  - 응급 상황에서 "괜찮아 XXX해줘"는 cancel_emergency만 호출! XXX 무시!
 
                 [패턴 A 예시: 노래로 체조 - start_game_with_song 사용]
                 "당돌한 여자로 체조하고 싶어" → start_game_with_song(title="당돌한 여자")
@@ -297,7 +354,11 @@ public class McpCommandServiceImpl implements CommandService {
 
                 시나리오 2 (신고 진행 중 - 취소):
                 (이미 신고 진행 중) "괜찮아" → cancel_emergency()
+                (이미 신고 진행 중) "괜찮습니다" → cancel_emergency()
+                (이미 신고 진행 중) "괜찮아요" → cancel_emergency()
+                (이미 신고 진행 중) "아니야" → cancel_emergency()
                 (이미 신고 진행 중) "취소해" → cancel_emergency()
+                (이미 신고 진행 중) "잘못 눌렀어" → cancel_emergency()
 
                 시나리오 3 (신고 진행 중 - 즉시 확정):
                 (이미 신고 진행 중) "안괜찮아" → confirm_emergency()
@@ -357,13 +418,47 @@ public class McpCommandServiceImpl implements CommandService {
                   ]
                 }
 
+                입력: "괜찮습니다" (신고 진행 중)
+                응답:
+                {
+                  "tool_calls": [
+                    {"name": "cancel_emergency", "arguments": {"userId": 1}}
+                  ]
+                }
+
+                입력: "아니야" (신고 진행 중)
+                응답:
+                {
+                  "tool_calls": [
+                    {"name": "cancel_emergency", "arguments": {"userId": 1}}
+                  ]
+                }
+
+                입력: "괜찮아 체조해줘" (신고 진행 중 - 복합 명령)
+                응답:
+                {
+                  "tool_calls": [
+                    {"name": "cancel_emergency", "arguments": {"userId": 1}}
+                  ]
+                }
+                ⚠️ 주의: "체조해줘"는 무시하고 cancel_emergency만 호출!
+
+                입력: "괜찮아요 노래 틀어줘" (신고 진행 중 - 복합 명령)
+                응답:
+                {
+                  "tool_calls": [
+                    {"name": "cancel_emergency", "arguments": {"userId": 1}}
+                  ]
+                }
+                ⚠️ 주의: "노래 틀어줘"는 무시하고 cancel_emergency만 호출!
+
                 [응답 형식]
                 - userId는 %d로 설정
                 - 반드시 JSON만 출력 (설명 금지)
                 - tool_calls는 배열이지만 대부분 하나의 Tool만 호출
 
                 JSON만 출력:
-                """, contextInfo, toolsDescription, userMessage, userId);
+                """, emergencyWarning, contextInfo, toolsDescription, userMessage, userId);
     }
 
     /**
@@ -382,11 +477,128 @@ public class McpCommandServiceImpl implements CommandService {
     }
 
     /**
-     * Tool 결과를 기반으로 GPT가 최종 응답 생성
+     * Tool 결과를 기반으로 최종 응답 생성
+     * 템플릿 기반으로 빠르게 응답하고, UNKNOWN일 때만 GPT 사용
      */
     private String generateFinalResponse(String originalMessage, String contextInfo,
                                           List<McpToolCall> toolCalls, List<McpToolResult> toolResults) {
 
+        // 템플릿 기반 응답 시도
+        String templateResponse = generateTemplateResponse(toolResults);
+
+        if (templateResponse != null) {
+            log.info("[MCP] 템플릿 기반 응답 사용: '{}'", templateResponse);
+            return templateResponse;
+        }
+
+        // 템플릿으로 처리 불가능한 경우에만 GPT 호출
+        log.info("[MCP] 템플릿 응답 없음 - GPT 호출");
+        return generateGptResponse(originalMessage, toolResults);
+    }
+
+    /**
+     * 템플릿 기반 응답 생성
+     * 각 Tool별로 정해진 응답 패턴 사용
+     */
+    private String generateTemplateResponse(List<McpToolResult> toolResults) {
+        if (toolResults.isEmpty()) {
+            return null;
+        }
+
+        // 마지막 Tool 결과 우선 처리
+        McpToolResult lastResult = toolResults.get(toolResults.size() - 1);
+        String toolName = lastResult.getToolName();
+
+        log.debug("[MCP] 템플릿 응답 생성 시도: toolName={}", toolName);
+
+        return switch (toolName) {
+            case "search_song" -> {
+                if (lastResult.getSongInfo() != null) {
+                    String artist = lastResult.getSongInfo().getArtist();
+                    String title = lastResult.getSongInfo().getTitle();
+
+                    if (artist != null && !artist.isEmpty()) {
+                        yield artist + "의 " + title + " 들려드릴게요";
+                    } else {
+                        yield title + " 들려드릴게요";
+                    }
+                }
+                yield "노래를 틀어드릴게요";
+            }
+
+            case "start_game" -> "게임을 시작할게요";
+
+            case "start_game_with_song" -> {
+                // Tool arguments에서 곡명 추출 시도
+                if (lastResult.getData() instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> data = (Map<String, Object>) lastResult.getData();
+                    Object songTitle = data.get("songTitle");
+                    if (songTitle != null) {
+                        yield songTitle + "로 게임을 시작할게요";
+                    }
+                }
+                yield "게임을 시작할게요";
+            }
+
+            case "control_playback" -> {
+                if (lastResult.getData() instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> data = (Map<String, Object>) lastResult.getData();
+                    String action = (String) data.get("action");
+
+                    if (action != null) {
+                        yield switch (action.toUpperCase()) {
+                            case "PAUSE" -> "일시정지했어요";
+                            case "RESUME" -> "재생할게요";
+                            case "NEXT" -> "다음 곡으로 넘길게요";
+                            case "STOP" -> "정지했어요";
+                            default -> "처리했어요";
+                        };
+                    }
+                }
+                yield "처리했어요";
+            }
+
+            // case "add_to_queue" -> "대기열에 추가했어요";  // 사용 안 함
+
+            case "handle_emergency" -> "응급 신고를 접수했어요. 괜찮으시면 '괜찮아'라고 말씀해주세요";
+
+            case "cancel_emergency" -> "응급 신고를 취소했어요";
+
+            case "confirm_emergency" -> "즉시 신고할게요";
+
+            case "change_mode" -> {
+                if (lastResult.getData() instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> data = (Map<String, Object>) lastResult.getData();
+                    String mode = (String) data.get("mode");
+
+                    if (mode != null) {
+                        yield switch (mode.toUpperCase()) {
+                            case "HOME" -> "홈 화면으로 이동할게요";
+                            case "LISTENING" -> "감상 모드로 전환할게요";
+                            case "EXERCISE" -> "체조 모드로 전환할게요";
+                            default -> "모드를 변경했어요";
+                        };
+                    }
+                }
+                yield "모드를 변경했어요";
+            }
+
+            // case "get_current_context" -> "현재 상태를 조회했어요";  // 사용 안 함
+
+            default -> {
+                log.debug("[MCP] 템플릿 없는 Tool: {}", toolName);
+                yield null; // 템플릿 없음 - GPT 호출 필요
+            }
+        };
+    }
+
+    /**
+     * GPT 기반 응답 생성 (템플릿으로 처리 불가능한 경우에만 사용)
+     */
+    private String generateGptResponse(String originalMessage, List<McpToolResult> toolResults) {
         // Tool 결과를 텍스트로 포맷팅
         StringBuilder toolResultsText = new StringBuilder();
         for (int i = 0; i < toolResults.size(); i++) {
@@ -422,6 +634,26 @@ public class McpCommandServiceImpl implements CommandService {
      * Tool을 호출하지 않고 GPT가 직접 응답한 경우
      */
     private CommandResponse handleDirectGptResponse(User user, String text) {
+        // 응급 상황 진행 중인지 체크
+        boolean isEmergencyInProgress = sessionStateService.isEmergency(user.getId());
+
+        if (isEmergencyInProgress) {
+            // 응급 신고 진행 중일 때는 상태 안내
+            log.info("응급 신고 진행 중 애매한 응답: userId={}, text='{}'", user.getId(), text);
+
+            String responseText = "신고가 진행되고 있습니다. 괜찮으시면 '괜찮아'라고, 정말 위급하시면 '안 괜찮아'라고 말씀해주세요";
+
+            saveVoiceCommand(user, text, Intent.EMERGENCY);
+
+            return CommandResponse.builder()
+                    .success(true)
+                    .intent(Intent.EMERGENCY)  // 응급 상황 유지
+                    .responseText(responseText)
+                    .ttsAudioUrl(null)  // TTS는 Controller에서 처리
+                    .build();
+        }
+
+        // 일반 상황
         String prompt = String.format("""
                 사용자 요청: "%s"
 
@@ -431,6 +663,8 @@ public class McpCommandServiceImpl implements CommandService {
                 - 반드시 1문장으로만 답변하세요
                 - 10단어 이내로 짧게 답변하세요
                 - 어르신이 이해하기 쉽게 답변하세요
+                - "죄송합니다. 이해하지 못했습니다" 또는 "다시 말씀해주세요" 형태로만 답변하세요
+                - "유료 광고", "시청해주셔서 감사합니다", "구독", "좋아요" 같은 문구는 절대 사용하지 마세요
                 """, text);
 
         var gptResponse = gptService.chat(prompt);
@@ -457,8 +691,10 @@ public class McpCommandServiceImpl implements CommandService {
      */
     private CommandResponse buildResponse(String responseText, String ttsUrl, List<McpToolResult> toolResults) {
         // Tool 결과에 따라 응답 생성 (역순 순회: 마지막 Tool 우선 처리)
+        log.debug("buildResponse 시작: toolResults 개수={}", toolResults.size());
         for (int i = toolResults.size() - 1; i >= 0; i--) {
             McpToolResult result = toolResults.get(i);
+            log.debug("Tool 결과 처리 중 [{}]: toolName={}, success={}", i, result.getToolName(), result.isSuccess());
             // search_song: 노래 재생 → LISTENING 모드로 화면 전환
             if ("search_song".equals(result.getToolName()) && result.getSongInfo() != null) {
                 return CommandResponse.builder()
@@ -537,6 +773,7 @@ public class McpCommandServiceImpl implements CommandService {
 
             // cancel_emergency: 응급 취소
             if ("cancel_emergency".equals(result.getToolName())) {
+                log.info("✅ cancel_emergency 처리: responseText='{}'", responseText);
                 return CommandResponse.builder()
                         .success(true)
                         .intent(Intent.EMERGENCY_CANCEL)  // ✅ 응급 취소 Intent
@@ -569,6 +806,7 @@ public class McpCommandServiceImpl implements CommandService {
         }
 
         // 일반 응답 (화면 전환 없음)
+        log.warn("⚠️ 매칭되는 Tool이 없음 - Intent.UNKNOWN 반환: responseText='{}'", responseText);
         return CommandResponse.builder()
                 .success(true)
                 .intent(Intent.UNKNOWN)
@@ -675,6 +913,77 @@ public class McpCommandServiceImpl implements CommandService {
                 .build();
 
         voiceCommandRepository.save(command);
+    }
+
+    /**
+     * 응급 상황 진행 중 안내 메시지 반환
+     */
+    private CommandResponse buildEmergencyInProgressResponse(User user, String text) {
+        String responseText = "신고가 진행되고 있습니다. 괜찮으시면 '괜찮아'라고, 정말 위급하시면 '안 괜찮아'라고 말씀해주세요";
+
+        saveVoiceCommand(user, text, Intent.EMERGENCY);
+
+        return CommandResponse.builder()
+                .success(true)
+                .intent(Intent.EMERGENCY)
+                .responseText(responseText)
+                .ttsAudioUrl(null)
+                .build();
+    }
+
+    /**
+     * 응급 키워드 포함 여부 체크
+     */
+    private boolean containsEmergencyKeyword(String text) {
+        String normalized = text.toLowerCase().replaceAll("\\s+", "");
+        String[] emergencyKeywords = {
+            "도와줘", "도와주세요", "살려줘", "살려주세요",
+            "아야", "아파", "쓰러졌어", "위험해"
+        };
+
+        for (String keyword : emergencyKeywords) {
+            if (normalized.contains(keyword)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * "괜찮아" 관련 키워드 포함 여부 체크
+     */
+    private boolean containsOkayKeyword(String text) {
+        String normalized = text.toLowerCase().replaceAll("\\s+", "");
+        String[] okayKeywords = {
+            "괜찮아", "괜찮습니다", "괜찮아요", "괜찮네요",
+            "아니야", "아니에요", "취소", "취소해",
+            "잘못", "실수"
+        };
+
+        for (String keyword : okayKeywords) {
+            if (normalized.contains(keyword)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * "안괜찮아" 관련 키워드 포함 여부 체크
+     */
+    private boolean containsNotOkayKeyword(String text) {
+        String normalized = text.toLowerCase().replaceAll("\\s+", "");
+        String[] notOkayKeywords = {
+            "안괜찮아", "안괜찮", "빨리", "신고해", "신고",
+            "위급해", "위급", "심각해", "심각"
+        };
+
+        for (String keyword : notOkayKeywords) {
+            if (normalized.contains(keyword)) {
+                return true;
+            }
+        }
+        return false;
     }
 
 }
