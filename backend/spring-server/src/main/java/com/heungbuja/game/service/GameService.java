@@ -60,6 +60,9 @@ import java.util.stream.IntStream;
 @RequiredArgsConstructor
 public class GameService {
 
+    // --- 동작 코드와 이름을 매핑하는 캐시 ---
+    private final Map<Integer, String> actionCodeToNameMap = new HashMap<>();
+
     // --- 상수 정의 ---
     /** Redis 세션 만료 시간 (분) */
     private static final int SESSION_TIMEOUT_MINUTES = 30;
@@ -168,7 +171,12 @@ public class GameService {
     public void init() {
         // AI 응답 통계를 위해 GameService 인스턴스 설정
         AiResponseStats.setGameServiceInstance(this);
-        log.info("GameService 초기화 완료 - MongoDB 성능 로그 활성화");
+
+        // --- 서버 시작 시 Action 정보를 캐시에 저장 ---
+        actionRepository.findAll().forEach(action ->
+                actionCodeToNameMap.put(action.getActionCode(), action.getName())
+        );
+        // --- ▲ ---------------------------------------------------- ▲ ---
     }
 
     /**
@@ -802,95 +810,83 @@ public class GameService {
      * sessionId를 받아 점수를 계산하고, DB에 저장한 뒤, 최종 점수와 평가 문구를 반환합니다.
      */
     @Transactional
-    public GameEndResponse endGame(String sessionId) { // <-- 파라미터를 String으로, 반환 타입을 DTO로 변경
-        // --- ▼ (핵심 수정) getGameSession의 '자동 생성' 로직을 신뢰하지 않고 직접 처리 ---
+    public GameEndResponse endGame(String sessionId) {
         String sessionKey = GAME_SESSION_KEY_PREFIX + sessionId;
         GameSession finalSession = gameSessionRedisTemplate.opsForValue().get(sessionKey);
-        // --- ▲ ------------------------------------------------------------------- ▲ ---
-        log.info("endGame 호출 완료: {}", sessionId);
-        log.info("endGame 관련 finalSession: {}", finalSession);
+
+        Double verse1Avg;
+        Double verse2Avg;
+        Map<Integer, Double> avgScoresByActionCode; // actionCode를 Key로 하는 점수 맵
+
         if (finalSession == null) {
-            // --- ▼ 디버깅 로그 추가 ▼ ---
-            log.error("endGame 호출 시 Redis에서 GameSession을 찾지 못했습니다. Key: '{}'", sessionKey);
-            log.warn("프론트에서 전달된 sessionId: \"{}\" (길이: {})", sessionId, sessionId.length());
-
-            // Redis에 있는 모든 game_session 키들을 출력하여 비교
-            Set<String> allSessionKeys = gameSessionRedisTemplate.keys(GAME_SESSION_KEY_PREFIX + "*");
-            if (allSessionKeys != null && !allSessionKeys.isEmpty()) {
-                log.info("현재 Redis에 있는 game_session 키 목록:");
-                allSessionKeys.forEach(existingKey -> log.info(" > \"{}\" (길이: {})", existingKey, existingKey.length()));
-            } else {
-                log.warn("현재 Redis에 game_session:* 패턴의 키가 하나도 없습니다.");
-            }
-            // --- ▲ -------------------- ▲ ---
-
-            // Redis에 없으면 DB에서 기록을 찾아 반환하는 기존 로직은 유지
-            GameResult existingResult = gameResultRepository.findBySessionId(sessionId)
+            // Redis에 세션이 없는 경우: DB에서 기존 기록을 조회하여 응답 구성
+            GameResult existingResult = gameResultRepository.findBySessionIdWithScores(sessionId)
                     .orElseThrow(() -> new CustomException(ErrorCode.GAME_SESSION_NOT_FOUND, "Redis와 DB 모두에서 세션을 찾을 수 없습니다: " + sessionId));
 
             log.warn("Redis에서 세션 {}을 찾을 수 없었으나, DB 기록을 바탕으로 결과를 반환합니다.", sessionId);
-            double finalScore = calculateFinalScore(existingResult.getVerse1AvgScore(), existingResult.getVerse2AvgScore());
-            String message = getResultMessage(finalScore);
-            return GameEndResponse.builder()
-                    .finalScore(finalScore)
-                    .message(message)
-                    .build();
+            verse1Avg = existingResult.getVerse1AvgScore();
+            verse2Avg = existingResult.getVerse2AvgScore();
+
+            // DB에 저장된 ScoreByAction 리스트를 Map으로 변환
+            avgScoresByActionCode = existingResult.getScoresByAction().stream()
+                    .collect(Collectors.toMap(ScoreByAction::getActionCode, ScoreByAction::getAverageScore));
+
+        } else {
+            // Redis에 세션이 있는 경우: Redis 데이터를 기반으로 모든 정보 계산 및 저장
+            verse1Avg = calculateScoreFromJudgments(finalSession.getVerse1Judgments());
+            verse2Avg = null;
+            if (finalSession.getNextLevel() != null || (finalSession.getVerse2Judgments() != null && !finalSession.getVerse2Judgments().isEmpty())) {
+                verse2Avg = calculateScoreFromJudgments(finalSession.getVerse2Judgments());
+            }
+
+            // MongoDB 저장
+            GameDetail.Statistics verse1Stats = calculateStatistics(finalSession.getVerse1Judgments());
+            GameDetail.Statistics verse2Stats = calculateStatistics(finalSession.getVerse2Judgments());
+            GameDetail gameDetail = GameDetail.builder().sessionId(sessionId).verse1Stats(verse1Stats).verse2Stats(verse2Stats).build();
+            gameDetailRepository.save(gameDetail);
+
+            // MySQL 저장
+            GameResult gameResult = gameResultRepository.findBySessionId(sessionId)
+                    .orElseThrow(() -> new CustomException(ErrorCode.GAME_SESSION_NOT_FOUND));
+
+            gameResult.setVerse1AvgScore(verse1Avg);
+            gameResult.setVerse2AvgScore(verse2Avg);
+            gameResult.setFinalLevel(finalSession.getNextLevel());
+            gameResult.complete();
+
+            // 동작별 점수 계산 및 GameResult에 추가 후, 계산된 Map을 반환받음
+            avgScoresByActionCode = calculateAndSaveScoresByAction(finalSession, gameResult);
+
+            gameResultRepository.save(gameResult);
+            log.info("세션 {}의 게임 결과 저장 완료. 1절 점수: {}, 2절 점수: {}", sessionId, verse1Avg, verse2Avg);
+
+            // Redis 데이터 정리
+            gameSessionRedisTemplate.delete(sessionKey);
+            gameStateRedisTemplate.delete(GAME_STATE_KEY_PREFIX + sessionId);
+            sessionStateService.clearSessionStatus(sessionId);
+            if(finalSession.getUserId() != null) {
+                sessionStateService.clearActivity(finalSession.getUserId());
+            }
+            log.info("세션 {}의 Redis 데이터 삭제 완료.", sessionId);
         }
-        // Redis에 세션이 있는 경우 점수 계산
-        Double verse1Avg = calculateScoreFromJudgments(finalSession.getVerse1Judgments());
-        Double verse2Avg = null; // 기본값 null
-        log.info("verse1Avg: {}", verse1Avg);
-        log.info("endGame - 2절 점수 계산 시작");
-        // 2절을 시작했거나(nextLevel != null), 2절 판정 기록이 있으면 2절 점수 계산
-        if (finalSession.getNextLevel() != null || (finalSession.getVerse2Judgments() != null && !finalSession.getVerse2Judgments().isEmpty())) {
-            verse2Avg = calculateScoreFromJudgments(finalSession.getVerse2Judgments());
-            log.info("verse2Avg: {}", verse2Avg);
-        }
 
-        // MongoDB 상세 데이터 저장
-        GameDetail.Statistics verse1Stats = calculateStatistics(finalSession.getVerse1Judgments());
-        GameDetail.Statistics verse2Stats = calculateStatistics(finalSession.getVerse2Judgments());
-        GameDetail gameDetail = GameDetail.builder()
-                .sessionId(sessionId)
-                .verse1Stats(verse1Stats)
-                .verse2Stats(verse2Stats)
-                .build();
-        gameDetailRepository.save(gameDetail);
-
-        log.info("endGame - MySQL 게임 결과 조회 시작");
-        // MySQL 게임 결과 업데이트
-        GameResult gameResult = gameResultRepository.findBySessionId(sessionId)
-                .orElseThrow(() -> new CustomException(ErrorCode.GAME_SESSION_NOT_FOUND));
-        log.info("endGame - MySQL 게임 결과 조회 완료");
-
-        gameResult.setVerse1AvgScore(verse1Avg);
-        gameResult.setVerse2AvgScore(verse2Avg); // 1절만 했으면 null이 저장됨
-        gameResult.setFinalLevel(finalSession.getNextLevel());
-        gameResult.complete(); // 상태를 'COMPLETED'로 변경
-
-        // ---  동작별 점수 계산 및 GameResult에 추가 ---
-        calculateAndSaveScoresByAction(finalSession, gameResult);
-
-        gameResultRepository.save(gameResult);  // GameResult와 ScoreByAction이 함께 저장됨
-        log.info("세션 {}의 게임 결과 저장 완료. 1절 점수: {}, 2절 점수: {}", sessionId, verse1Avg, verse2Avg);
-
-        // Redis 데이터 정리
-        gameSessionRedisTemplate.delete(GAME_SESSION_KEY_PREFIX + sessionId);
-        gameStateRedisTemplate.delete(GAME_STATE_KEY_PREFIX + sessionId);
-        sessionStateService.clearSessionStatus(sessionId);
-        if(finalSession.getUserId() != null) {
-            sessionStateService.clearActivity(finalSession.getUserId());
-        }
+        // --- ▼ (핵심 수정) 최종 응답을 생성하기 전에 actionCode 맵을 actionName 맵으로 변환 ---
+        Map<String, Double> scoresByActionName = avgScoresByActionCode.entrySet().stream()
+                .collect(Collectors.toMap(
+                        // entry의 key(actionCode)를 캐시에서 찾아 actionName으로 변환
+                        entry -> actionCodeToNameMap.getOrDefault(entry.getKey(), "알 수 없는 동작 #" + entry.getKey()),
+                        Map.Entry::getValue
+                ));
+        // --- ▲ ------------------------------------------------------------------------- ▲ ---
 
         // 최종 점수와 메시지 계산하여 반환
         double finalScore = calculateFinalScore(verse1Avg, verse2Avg);
         String message = getResultMessage(finalScore);
-        log.info("endGame - 최종 점수: {}, 메시지: {}", finalScore, message);
 
-        log.info("endGame - 응답 객체 생성 및 반환");
         return GameEndResponse.builder()
                 .finalScore(finalScore)
                 .message(message)
+                .scoresByAction(scoresByActionName) // <-- 변환된 Map을 응답에 추가
                 .build();
     }
 
@@ -974,8 +970,7 @@ public class GameService {
     /**
      * (신규) 동작별 평균 점수를 계산하고 GameResult 엔티티에 추가하는 헬퍼 메소드
      */
-    private void calculateAndSaveScoresByAction(GameSession finalSession, GameResult gameResult) {
-        // 1. 1, 2절 모든 판정 결과 병합
+    private Map<Integer, Double> calculateAndSaveScoresByAction(GameSession finalSession, GameResult gameResult) {
         List<GameSession.JudgmentResult> allJudgments = new ArrayList<>();
         if (finalSession.getVerse1Judgments() != null) {
             allJudgments.addAll(finalSession.getVerse1Judgments());
@@ -985,10 +980,9 @@ public class GameService {
         }
 
         if (allJudgments.isEmpty()) {
-            return; // 판정 기록이 없으면 아무것도 하지 않음
+            return Collections.emptyMap(); // 판정 기록이 없으면 빈 Map 반환
         }
 
-        // 2. actionCode 별로 그룹화하여 평균 점수 계산 (100점 만점)
         Map<Integer, Double> avgScoresByAction = allJudgments.stream()
                 .collect(Collectors.groupingBy(
                         GameSession.JudgmentResult::getActionCode,
@@ -997,8 +991,6 @@ public class GameService {
 
         log.info("동작별 평균 점수 계산 완료: {}", avgScoresByAction);
 
-        // 3. 계산된 점수를 ScoreByAction 엔티티로 만들어 GameResult에 추가
-        // (기존에 있던 점수는 모두 삭제하고 새로 추가하여 멱등성 보장)
         gameResult.getScoresByAction().clear();
         avgScoresByAction.forEach((actionCode, avgScore) -> {
             ScoreByAction score = ScoreByAction.builder()
@@ -1008,6 +1000,8 @@ public class GameService {
                     .build();
             gameResult.addScoreByAction(score);
         });
+
+        return avgScoresByAction; // <-- (핵심 추가) 계산된 Map을 반환
     }
 
 
