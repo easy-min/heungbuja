@@ -175,7 +175,7 @@
             transition: max-height 0.3s ease;
         }
         .du-details-panel.open {
-            max-height: 600px;
+            max-height: 1200px;
         }
         .du-detail-section {
             padding: 15px;
@@ -217,6 +217,94 @@
             font-size: 48px;
             margin-bottom: 10px;
             opacity: 0.5;
+        }
+
+        /* 건강 모니터링 스타일 */
+        .health-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .health-stat-card {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .health-stat-card .label {
+            font-size: 11px;
+            color: #7f8c8d;
+            margin-bottom: 5px;
+        }
+        .health-stat-card .value {
+            font-size: 18px;
+            font-weight: 700;
+            color: #2c3e50;
+        }
+        .health-stat-card .value.good {
+            color: #2ecc71;
+        }
+        .health-stat-card .value.warning {
+            color: #f39c12;
+        }
+        .health-stat-card .value.danger {
+            color: #e74c3c;
+        }
+        .action-performance-bar {
+            background: #e9ecef;
+            height: 20px;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 8px;
+            position: relative;
+        }
+        .action-performance-bar .fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s;
+        }
+        .action-performance-bar .label {
+            position: absolute;
+            top: 50%;
+            left: 10px;
+            transform: translateY(-50%);
+            font-size: 11px;
+            font-weight: 600;
+            color: white;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        }
+        .trend-chart {
+            display: flex;
+            align-items: flex-end;
+            gap: 4px;
+            height: 80px;
+            margin-top: 10px;
+        }
+        .trend-bar {
+            flex: 1;
+            background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+            border-radius: 4px 4px 0 0;
+            min-height: 5px;
+            position: relative;
+        }
+        .trend-bar .tooltip {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+        }
+        .trend-bar:hover .tooltip {
+            opacity: 1;
         }
 
         /* 활동 피드 */
@@ -701,6 +789,30 @@
                     </div>
                     <div class="du-details-panel" id="details-${device.id}">
                         <div class="du-detail-section">
+                            <h5>💪 건강 모니터링</h5>
+                            <div id="health-stats-${user.id}">
+                                <div style="text-align:center; padding:20px; color:#999; font-size:13px;">
+                                    건강 데이터를 불러오는 중...
+                                </div>
+                            </div>
+                        </div>
+                        <div class="du-detail-section">
+                            <h5>🎯 동작별 수행도</h5>
+                            <div id="action-performance-${user.id}">
+                                <div style="text-align:center; padding:20px; color:#999; font-size:13px;">
+                                    수행도 데이터를 불러오는 중...
+                                </div>
+                            </div>
+                        </div>
+                        <div class="du-detail-section">
+                            <h5>📈 활동 추이 (최근 7일)</h5>
+                            <div id="activity-trend-${user.id}">
+                                <div style="text-align:center; padding:20px; color:#999; font-size:13px;">
+                                    활동 추이를 불러오는 중...
+                                </div>
+                            </div>
+                        </div>
+                        <div class="du-detail-section">
                             <h5>📊 최근 활동</h5>
                             <div id="activities-${user.id}">
                                 <div style="text-align:center; padding:20px; color:#999; font-size:13px;">
@@ -734,12 +846,227 @@
             panel.classList.add('open');
             icon.classList.add('open');
 
-            // 활동 로그 로드 (한 번만)
+            // 데이터 로드 (한 번만)
             if (!panel.dataset.loaded) {
-                await loadUserActivitiesForCard(deviceId);
+                await loadUserHealthData(deviceId);
                 panel.dataset.loaded = 'true';
             }
         }
+    }
+
+    // 사용자 건강 데이터 로드 (통합)
+    async function loadUserHealthData(deviceId) {
+        try {
+            // deviceId로 user 찾기
+            const usersRes = await fetch(`${API_BASE}/admins/users`, {
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+            });
+            const users = await usersRes.json();
+            const user = users.find(u => u.deviceId === deviceId);
+
+            if (!user) {
+                console.error('사용자를 찾을 수 없습니다');
+                return;
+            }
+
+            // 병렬로 모든 데이터 로드
+            await Promise.all([
+                loadGameStats(user.id),
+                loadActionPerformance(user.id),
+                loadActivityTrend(user.id),
+                loadUserActivitiesForCard(deviceId)
+            ]);
+        } catch (error) {
+            console.error('건강 데이터 로드 실패:', error);
+        }
+    }
+
+    // 게임 통계 로드
+    async function loadGameStats(userId) {
+        try {
+            const response = await fetch(`${API_BASE}/admins/users/${userId}/game-stats`, {
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+            });
+
+            if (!response.ok) {
+                throw new Error('게임 통계 로드 실패');
+            }
+
+            const data = await response.json();
+            renderGameStats(userId, data);
+        } catch (error) {
+            console.error('게임 통계 로드 실패:', error);
+            document.getElementById(`health-stats-${userId}`).innerHTML =
+                '<div style="color:#e74c3c; padding:10px; text-align:center;">데이터 로드 실패</div>';
+        }
+    }
+
+    // 게임 통계 렌더링
+    function renderGameStats(userId, data) {
+        const container = document.getElementById(`health-stats-${userId}`);
+
+        if (!data || data.totalGames === 0) {
+            container.innerHTML = '<div style="color:#999; padding:10px; text-align:center;">아직 게임 기록이 없습니다</div>';
+            return;
+        }
+
+        const avgScore = data.overallAverageScore || 0;
+        const scoreClass = avgScore >= 2.5 ? 'good' : avgScore >= 2.0 ? 'warning' : 'danger';
+
+        const html = `
+            <div class="health-stats">
+                <div class="health-stat-card">
+                    <div class="label">총 게임 수</div>
+                    <div class="value">${data.totalGames}회</div>
+                </div>
+                <div class="health-stat-card">
+                    <div class="label">평균 점수</div>
+                    <div class="value ${scoreClass}">${avgScore.toFixed(2)}</div>
+                </div>
+                <div class="health-stat-card">
+                    <div class="label">PERFECT 비율</div>
+                    <div class="value good">${data.perfectRate.toFixed(1)}%</div>
+                </div>
+                <div class="health-stat-card">
+                    <div class="label">완료율</div>
+                    <div class="value">${data.totalGames > 0 ? ((data.completedGames / data.totalGames) * 100).toFixed(1) : 0}%</div>
+                </div>
+            </div>
+            ${data.lastPlayedAt ? `
+                <div style="font-size:11px; color:#7f8c8d; text-align:center; margin-top:10px;">
+                    마지막 플레이: ${new Date(data.lastPlayedAt).toLocaleString('ko-KR')}
+                </div>
+            ` : ''}
+        `;
+
+        container.innerHTML = html;
+    }
+
+    // 동작별 수행도 로드
+    async function loadActionPerformance(userId) {
+        try {
+            const response = await fetch(`${API_BASE}/admins/users/${userId}/action-performance`, {
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+            });
+
+            if (!response.ok) {
+                throw new Error('동작별 수행도 로드 실패');
+            }
+
+            const data = await response.json();
+            renderActionPerformance(userId, data);
+        } catch (error) {
+            console.error('동작별 수행도 로드 실패:', error);
+            document.getElementById(`action-performance-${userId}`).innerHTML =
+                '<div style="color:#e74c3c; padding:10px; text-align:center;">데이터 로드 실패</div>';
+        }
+    }
+
+    // 동작별 수행도 렌더링
+    function renderActionPerformance(userId, data) {
+        const container = document.getElementById(`action-performance-${userId}`);
+
+        if (!data || !data.topActions || data.topActions.length === 0) {
+            container.innerHTML = '<div style="color:#999; padding:10px; text-align:center;">수행도 데이터가 없습니다</div>';
+            return;
+        }
+
+        let html = '<div style="margin-bottom:10px; font-size:12px; font-weight:600; color:#2ecc71;">✅ 잘하는 동작</div>';
+        data.topActions.slice(0, 3).forEach(action => {
+            const percentage = (action.averageScore / 3.0) * 100;
+            html += `
+                <div class="action-performance-bar">
+                    <div class="fill" style="width:${percentage}%"></div>
+                    <div class="label">${action.actionName} (${action.averageScore.toFixed(2)}점)</div>
+                </div>
+            `;
+        });
+
+        if (data.weakActions && data.weakActions.length > 0) {
+            html += '<div style="margin:15px 0 10px 0; font-size:12px; font-weight:600; color:#f39c12;">⚠️ 개선이 필요한 동작</div>';
+            data.weakActions.slice(0, 3).forEach(action => {
+                const percentage = (action.averageScore / 3.0) * 100;
+                html += `
+                    <div class="action-performance-bar">
+                        <div class="fill" style="width:${percentage}%; background:linear-gradient(90deg, #f39c12 0%, #e74c3c 100%);"></div>
+                        <div class="label">${action.actionName} (${action.averageScore.toFixed(2)}점)</div>
+                    </div>
+                `;
+            });
+        }
+
+        container.innerHTML = html;
+    }
+
+    // 활동 추이 로드
+    async function loadActivityTrend(userId) {
+        try {
+            const response = await fetch(`${API_BASE}/admins/users/${userId}/activity-trend?periodDays=7`, {
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+            });
+
+            if (!response.ok) {
+                throw new Error('활동 추이 로드 실패');
+            }
+
+            const data = await response.json();
+            renderActivityTrend(userId, data);
+        } catch (error) {
+            console.error('활동 추이 로드 실패:', error);
+            document.getElementById(`activity-trend-${userId}`).innerHTML =
+                '<div style="color:#e74c3c; padding:10px; text-align:center;">데이터 로드 실패</div>';
+        }
+    }
+
+    // 활동 추이 렌더링
+    function renderActivityTrend(userId, data) {
+        const container = document.getElementById(`activity-trend-${userId}`);
+
+        if (!data || !data.dailyActivities || data.dailyActivities.length === 0) {
+            container.innerHTML = '<div style="color:#999; padding:10px; text-align:center;">활동 데이터가 없습니다</div>';
+            return;
+        }
+
+        const maxGames = Math.max(...data.dailyActivities.map(d => d.gameCount), 1);
+
+        const trendIcon = data.trend === 'INCREASING' ? '📈' : data.trend === 'DECREASING' ? '📉' : '➡️';
+        const trendText = data.trend === 'INCREASING' ? '증가' : data.trend === 'DECREASING' ? '감소' : '안정';
+        const trendColor = data.trend === 'INCREASING' ? '#2ecc71' : data.trend === 'DECREASING' ? '#e74c3c' : '#7f8c8d';
+
+        let html = `
+            <div style="display:flex; justify-content:space-between; margin-bottom:10px; font-size:12px;">
+                <div>
+                    <span style="color:#7f8c8d;">평균 일일 게임:</span>
+                    <span style="font-weight:600;">${data.averageDailyGames.toFixed(1)}회</span>
+                </div>
+                <div style="color:${trendColor}; font-weight:600;">
+                    ${trendIcon} ${trendText}
+                </div>
+            </div>
+            <div class="trend-chart">
+        `;
+
+        data.dailyActivities.forEach(day => {
+            const height = (day.gameCount / maxGames) * 100;
+            html += `
+                <div class="trend-bar" style="height:${height}%">
+                    <div class="tooltip">
+                        ${day.date}<br>
+                        ${day.dayOfWeek}<br>
+                        ${day.gameCount}회
+                    </div>
+                </div>
+            `;
+        });
+
+        html += `
+            </div>
+            <div style="font-size:11px; color:#7f8c8d; text-align:center; margin-top:10px;">
+                가장 활발한 요일: <strong>${data.mostActiveDayOfWeek}</strong>
+            </div>
+        `;
+
+        container.innerHTML = html;
     }
 
     // 카드용 사용자 활동 로드
