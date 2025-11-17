@@ -10,11 +10,11 @@ import { useEffect, useState } from 'react';
 import { checkIfRaspberryPi } from './utils/deviceDetector';
 import RaspberryLoginPage from './pages/RaspberryLoginPage';
 import WebLoginPage from './pages/WebLoginPage';
+import { useEnvironmentStore } from './store/environmentStore';
 
 function App() {
     const [isChecking, setIsChecking] = useState<boolean>(true);
-    const [isRaspberryPi, setIsRaspberryPi] = useState<boolean>(false);
-    const [deviceId, setDeviceId] = useState<string | undefined>(undefined);
+    const { isRaspberryPi, deviceId, setEnvironment } = useEnvironmentStore();
 
     useEffect(() => {
         detectEnvironment();
@@ -23,11 +23,10 @@ function App() {
     const detectEnvironment = async () => {
         try {
             const result = await checkIfRaspberryPi();
-            setIsRaspberryPi(result.isRaspberryPi);
-            setDeviceId(result.deviceId);
+            setEnvironment(result.isRaspberryPi, result.deviceId);
         } catch (error) {
             console.error('Environment detection error:', error);
-            setIsRaspberryPi(false);
+            setEnvironment(false);
         } finally {
             setIsChecking(false);
         }

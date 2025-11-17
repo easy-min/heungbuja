@@ -8,7 +8,7 @@ app.use(cors());
 app.use(express.json());
 
 // 기기번호 조회 API
-app.get('/api/device-serial', (req, res) => {
+app.get('/api/device-serial', (res) => {
     try {
         const cpuinfo = fs.readFileSync('/proc/cpuinfo', 'utf8');
         const serialLine = cpuinfo.split('\n').find(line => line.includes('Serial'));

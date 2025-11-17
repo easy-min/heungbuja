@@ -8,6 +8,14 @@ interface DeviceCheckResult {
 }
 
 export const checkIfRaspberryPi = async (): Promise<DeviceCheckResult> => {
+    // localhost가 아니면 바로 웹 환경으로 판단 (네트워크 에러 방지)
+    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        return {
+            isRaspberryPi: false,
+            deviceId: undefined
+        };
+    }
+
     try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 2000); // 2초 타임아웃
@@ -18,7 +26,7 @@ export const checkIfRaspberryPi = async (): Promise<DeviceCheckResult> => {
         });
 
         clearTimeout(timeoutId);
-        
+
         if (response.ok) {
             const data = await response.json();
             return {
@@ -30,7 +38,7 @@ export const checkIfRaspberryPi = async (): Promise<DeviceCheckResult> => {
         // 로컬 서버 접속 실패 = 웹 버전
         console.log('Local server not found - Web version');
     }
-    
+
     return {
         isRaspberryPi: false,
         deviceId: undefined
