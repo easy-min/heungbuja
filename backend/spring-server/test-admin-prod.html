@@ -306,6 +306,30 @@
         .trend-bar:hover .tooltip {
             opacity: 1;
         }
+        .period-tabs {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 15px;
+        }
+        .period-tab {
+            flex: 1;
+            padding: 8px;
+            background: #f8f9fa;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #7f8c8d;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .period-tab:hover {
+            background: #e9ecef;
+        }
+        .period-tab.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
 
         /* 활동 피드 */
         .activity-feed { background:white; border-radius:12px; padding:25px; box-shadow:0 2px 8px rgba(0,0,0,0.05); margin-top:30px; }
@@ -798,6 +822,11 @@
                         </div>
                         <div class="du-detail-section">
                             <h5>🎯 동작별 수행도</h5>
+                            <div class="period-tabs">
+                                <button class="period-tab active" onclick="switchActionPeriod(${user.id}, 1, event)">오늘</button>
+                                <button class="period-tab" onclick="switchActionPeriod(${user.id}, 7, event)">일주일</button>
+                                <button class="period-tab" onclick="switchActionPeriod(${user.id}, 30, event)">한달</button>
+                            </div>
                             <div id="action-performance-${user.id}">
                                 <div style="text-align:center; padding:20px; color:#999; font-size:13px;">
                                     수행도 데이터를 불러오는 중...
@@ -805,7 +834,12 @@
                             </div>
                         </div>
                         <div class="du-detail-section">
-                            <h5>📈 활동 추이 (최근 7일)</h5>
+                            <h5>📈 활동 추이</h5>
+                            <div class="period-tabs">
+                                <button class="period-tab active" onclick="switchPeriod(${user.id}, 1, event)">오늘</button>
+                                <button class="period-tab" onclick="switchPeriod(${user.id}, 7, event)">일주일</button>
+                                <button class="period-tab" onclick="switchPeriod(${user.id}, 30, event)">한달</button>
+                            </div>
                             <div id="activity-trend-${user.id}">
                                 <div style="text-align:center; padding:20px; color:#999; font-size:13px;">
                                     활동 추이를 불러오는 중...
@@ -872,8 +906,8 @@
             // 병렬로 모든 데이터 로드
             await Promise.all([
                 loadGameStats(user.id),
-                loadActionPerformance(user.id),
-                loadActivityTrend(user.id),
+                loadActionPerformance(user.id, 1),  // 기본값: 오늘
+                loadActivityTrend(user.id, 1),  // 기본값: 오늘
                 loadUserActivitiesForCard(deviceId)
             ]);
         } catch (error) {
@@ -943,9 +977,13 @@
     }
 
     // 동작별 수행도 로드
-    async function loadActionPerformance(userId) {
+    async function loadActionPerformance(userId, periodDays = 1) {
         try {
-            const response = await fetch(`${API_BASE}/admins/users/${userId}/action-performance`, {
+            const url = periodDays ?
+                `${API_BASE}/admins/users/${userId}/action-performance?periodDays=${periodDays}` :
+                `${API_BASE}/admins/users/${userId}/action-performance`;
+
+            const response = await fetch(url, {
                 headers: { 'Authorization': `Bearer ${accessToken}` }
             });
 
@@ -954,7 +992,7 @@
             }
 
             const data = await response.json();
-            renderActionPerformance(userId, data);
+            renderActionPerformance(userId, data, periodDays);
         } catch (error) {
             console.error('동작별 수행도 로드 실패:', error);
             document.getElementById(`action-performance-${userId}`).innerHTML =
@@ -962,46 +1000,63 @@
         }
     }
 
+    // 동작별 수행도 기간 전환 함수
+    function switchActionPeriod(userId, periodDays, event) {
+        // 탭 활성화 상태 변경
+        const tabs = event.target.parentElement.querySelectorAll('.period-tab');
+        tabs.forEach(tab => tab.classList.remove('active'));
+        event.target.classList.add('active');
+
+        // 데이터 다시 로드
+        loadActionPerformance(userId, periodDays);
+    }
+
     // 동작별 수행도 렌더링
-    function renderActionPerformance(userId, data) {
+    function renderActionPerformance(userId, data, periodDays = 1) {
         const container = document.getElementById(`action-performance-${userId}`);
 
         if (!data || !data.topActions || data.topActions.length === 0) {
-            container.innerHTML = '<div style="color:#999; padding:10px; text-align:center;">수행도 데이터가 없습니다</div>';
+            const periodLabel = periodDays === 1 ? '오늘' : periodDays === 7 ? '일주일' : '한달';
+            container.innerHTML = `<div style="color:#999; padding:10px; text-align:center;">${periodLabel} 수행도 데이터가 없습니다</div>`;
             return;
         }
 
-        let html = '<div style="margin-bottom:10px; font-size:12px; font-weight:600; color:#2ecc71;">✅ 잘하는 동작</div>';
-        data.topActions.slice(0, 3).forEach(action => {
-            const percentage = (action.averageScore / 3.0) * 100;
+        const periodLabel = periodDays === 1 ? '오늘' : periodDays === 7 ? '일주일' : '한달';
+        let html = `<div style="font-size:11px; color:#7f8c8d; margin-bottom:10px; text-align:center;">${periodLabel} 기준</div>`;
+
+        // 잘하는 동작 1개만 표시
+        if (data.topActions && data.topActions.length > 0) {
+            const topAction = data.topActions[0];
+            const percentage = (topAction.averageScore / 3.0) * 100;
+            html += '<div style="margin-bottom:10px; font-size:12px; font-weight:600; color:#2ecc71;">✅ 가장 잘하는 동작</div>';
             html += `
                 <div class="action-performance-bar">
                     <div class="fill" style="width:${percentage}%"></div>
-                    <div class="label">${action.actionName} (${action.averageScore.toFixed(2)}점)</div>
+                    <div class="label">${topAction.actionName} (${topAction.averageScore.toFixed(2)}점, ${topAction.attemptCount}회)</div>
                 </div>
             `;
-        });
+        }
 
+        // 못하는 동작 1개만 표시
         if (data.weakActions && data.weakActions.length > 0) {
+            const weakAction = data.weakActions[0];
+            const percentage = (weakAction.averageScore / 3.0) * 100;
             html += '<div style="margin:15px 0 10px 0; font-size:12px; font-weight:600; color:#f39c12;">⚠️ 개선이 필요한 동작</div>';
-            data.weakActions.slice(0, 3).forEach(action => {
-                const percentage = (action.averageScore / 3.0) * 100;
-                html += `
-                    <div class="action-performance-bar">
-                        <div class="fill" style="width:${percentage}%; background:linear-gradient(90deg, #f39c12 0%, #e74c3c 100%);"></div>
-                        <div class="label">${action.actionName} (${action.averageScore.toFixed(2)}점)</div>
-                    </div>
-                `;
-            });
+            html += `
+                <div class="action-performance-bar">
+                    <div class="fill" style="width:${percentage}%; background:linear-gradient(90deg, #f39c12 0%, #e74c3c 100%);"></div>
+                    <div class="label">${weakAction.actionName} (${weakAction.averageScore.toFixed(2)}점, ${weakAction.attemptCount}회)</div>
+                </div>
+            `;
         }
 
         container.innerHTML = html;
     }
 
     // 활동 추이 로드
-    async function loadActivityTrend(userId) {
+    async function loadActivityTrend(userId, periodDays = 1) {
         try {
-            const response = await fetch(`${API_BASE}/admins/users/${userId}/activity-trend?periodDays=7`, {
+            const response = await fetch(`${API_BASE}/admins/users/${userId}/activity-trend?periodDays=${periodDays}`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` }
             });
 
@@ -1010,7 +1065,7 @@
             }
 
             const data = await response.json();
-            renderActivityTrend(userId, data);
+            renderActivityTrend(userId, data, periodDays);
         } catch (error) {
             console.error('활동 추이 로드 실패:', error);
             document.getElementById(`activity-trend-${userId}`).innerHTML =
@@ -1018,8 +1073,19 @@
         }
     }
 
+    // 기간 전환 함수
+    function switchPeriod(userId, periodDays, event) {
+        // 탭 활성화 상태 변경
+        const tabs = event.target.parentElement.querySelectorAll('.period-tab');
+        tabs.forEach(tab => tab.classList.remove('active'));
+        event.target.classList.add('active');
+
+        // 데이터 다시 로드
+        loadActivityTrend(userId, periodDays);
+    }
+
     // 활동 추이 렌더링
-    function renderActivityTrend(userId, data) {
+    function renderActivityTrend(userId, data, periodDays = 1) {
         const container = document.getElementById(`activity-trend-${userId}`);
 
         if (!data || !data.dailyActivities || data.dailyActivities.length === 0) {
@@ -1033,15 +1099,19 @@
         const trendText = data.trend === 'INCREASING' ? '증가' : data.trend === 'DECREASING' ? '감소' : '안정';
         const trendColor = data.trend === 'INCREASING' ? '#2ecc71' : data.trend === 'DECREASING' ? '#e74c3c' : '#7f8c8d';
 
+        const periodLabel = periodDays === 1 ? '오늘' : periodDays === 7 ? '일주일' : '한달';
+
         let html = `
             <div style="display:flex; justify-content:space-between; margin-bottom:10px; font-size:12px;">
                 <div>
-                    <span style="color:#7f8c8d;">평균 일일 게임:</span>
-                    <span style="font-weight:600;">${data.averageDailyGames.toFixed(1)}회</span>
+                    <span style="color:#7f8c8d;">${periodLabel} 총 게임:</span>
+                    <span style="font-weight:600;">${data.totalGames}회</span>
                 </div>
-                <div style="color:${trendColor}; font-weight:600;">
-                    ${trendIcon} ${trendText}
-                </div>
+                ${periodDays > 1 ? `
+                    <div style="color:${trendColor}; font-weight:600;">
+                        ${trendIcon} ${trendText}
+                    </div>
+                ` : ''}
             </div>
             <div class="trend-chart">
         `;
@@ -1049,11 +1119,12 @@
         data.dailyActivities.forEach(day => {
             const height = (day.gameCount / maxGames) * 100;
             html += `
-                <div class="trend-bar" style="height:${height}%">
+                <div class="trend-bar" style="height:${height || 5}%">
                     <div class="tooltip">
                         ${day.date}<br>
                         ${day.dayOfWeek}<br>
                         ${day.gameCount}회
+                        ${day.averageScore > 0 ? '<br>평균: ' + day.averageScore.toFixed(2) + '점' : ''}
                     </div>
                 </div>
             `;
@@ -1061,10 +1132,16 @@
 
         html += `
             </div>
-            <div style="font-size:11px; color:#7f8c8d; text-align:center; margin-top:10px;">
-                가장 활발한 요일: <strong>${data.mostActiveDayOfWeek}</strong>
-            </div>
         `;
+
+        if (periodDays > 1) {
+            html += `
+                <div style="font-size:11px; color:#7f8c8d; text-align:center; margin-top:10px;">
+                    평균 일일: <strong>${data.averageDailyGames.toFixed(1)}회</strong> ·
+                    가장 활발한 요일: <strong>${data.mostActiveDayOfWeek}</strong>
+                </div>
+            `;
+        }
 
         container.innerHTML = html;
     }

@@ -266,15 +266,17 @@ public class AdminController {
 
     /**
      * 동작별 수행도 분석 조회
-     * GET /admins/users/{userId}/action-performance
+     * GET /admins/users/{userId}/action-performance?periodDays=7
      * 모든 관리자 접근 가능
+     * periodDays: 조회 기간 (null이면 전체 기간)
      */
     @GetMapping("/users/{userId}/action-performance")
     public ResponseEntity<ActionPerformanceResponse> getActionPerformance(
             @AuthenticationPrincipal AdminPrincipal principal,
-            @PathVariable Long userId) {
+            @PathVariable Long userId,
+            @RequestParam(required = false) Integer periodDays) {
 
-        ActionPerformanceResponse response = userHealthMonitoringService.getActionPerformance(userId);
+        ActionPerformanceResponse response = userHealthMonitoringService.getActionPerformance(userId, periodDays);
         return ResponseEntity.ok(response);
     }
 
