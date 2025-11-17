@@ -52,6 +52,7 @@ public class McpToolService {
     private final com.heungbuja.song.service.SongGameDataCache songGameDataCache;
     private final GameSessionAdapter gameSessionAdapter;
     private final com.heungbuja.activity.service.ActivityLogService activityLogService;
+    private final com.heungbuja.song.repository.mongo.SongChoreographyRepository songChoreographyRepository;
 //    private final com.heungbuja.game.service.GameService gameService;
 
     /**
@@ -420,7 +421,7 @@ public class McpToolService {
                 .lyricsInfo(songGameData.getLyricsInfo())
                 .verse1Timeline(gameSessionAdapter.toCommandActionTimelineEvents(songGameData.getVerse1Timeline()))
                 .verse2Timelines(gameSessionAdapter.toCommandActionTimelinesMap(songGameData.getVerse2Timelines()))
-                .sectionPatterns(songGameData.getSectionPatterns())
+                .sectionPatterns(extractOriginalPatternSequence(song.getId()))
                 .build();
 
         // 8. 프론트엔드에 전달할 데이터 구성
@@ -562,7 +563,7 @@ public class McpToolService {
                     .lyricsInfo(songGameData.getLyricsInfo())
                     .verse1Timeline(gameSessionAdapter.toCommandActionTimelineEvents(songGameData.getVerse1Timeline()))
                     .verse2Timelines(gameSessionAdapter.toCommandActionTimelinesMap(songGameData.getVerse2Timelines()))
-                    .sectionPatterns(songGameData.getSectionPatterns())
+                    .sectionPatterns(extractOriginalPatternSequence(song.getId()))
                     .build();
 
             // 8. 응답 데이터 구성
@@ -594,6 +595,42 @@ public class McpToolService {
     }
 
     // ========== 헬퍼 메서드 ==========
+
+    /**
+     * 원본 패턴 시퀀스를 추출하는 헬퍼 메서드 (eachRepeat 미적용)
+     * 프론트엔드가 필요로 하는 형식으로 변환
+     */
+    private com.heungbuja.game.dto.GameStartResponse.SectionPatterns extractOriginalPatternSequence(Long songId) {
+        com.heungbuja.song.domain.SongChoreography choreography =
+                songChoreographyRepository.findBySongId(songId)
+                        .orElseThrow(() -> new com.heungbuja.common.exception.CustomException(
+                                com.heungbuja.common.exception.ErrorCode.GAME_METADATA_NOT_FOUND,
+                                "안무 정보를 찾을 수 없습니다."));
+
+        com.heungbuja.song.domain.SongChoreography.Version version = choreography.getVersions().get(0);
+
+        // 1절 원본 패턴 시퀀스
+        List<String> verse1Patterns = version.getVerse1().getPatternSequence();
+
+        // 2절 레벨별 원본 패턴 시퀀스
+        Map<Integer, List<String>> verse2PatternsMap = new HashMap<>();
+        for (com.heungbuja.song.domain.SongChoreography.VerseLevelPatternInfo levelInfo : version.getVerse2()) {
+            verse2PatternsMap.put(levelInfo.getLevel(), levelInfo.getPatternSequence());
+        }
+
+        // Verse2Patterns 객체 생성
+        com.heungbuja.game.dto.GameStartResponse.Verse2Patterns verse2Patterns =
+                com.heungbuja.game.dto.GameStartResponse.Verse2Patterns.builder()
+                        .level1(verse2PatternsMap.get(1))
+                        .level2(verse2PatternsMap.get(2))
+                        .level3(verse2PatternsMap.get(3))
+                        .build();
+
+        return com.heungbuja.game.dto.GameStartResponse.SectionPatterns.builder()
+                .verse1(verse1Patterns)
+                .verse2(verse2Patterns)
+                .build();
+    }
 
     private Long getLongArg(Map<String, Object> args, String key) {
         Object value = args.get(key);
