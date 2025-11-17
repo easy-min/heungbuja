@@ -355,11 +355,26 @@ class MotionInferenceService:
             return 2
         return 1
 
+    # ========================================================================
+    # ⚠️ CRITICAL: Filter out invalid frames (zero vectors) to prevent
+    # meaningless predictions when person is not detected by Mediapipe
+    # ========================================================================
+    # Issue: When user doesn't move or is out of frame, Mediapipe returns
+    # zero vectors, but model still predicts with low confidence (~15-20%)
+    # This causes unfair scoring where "no movement" gets ~33-50 points!
+    #
+    # Solution: Only use frames where person is actually detected
+    # Require minimum 3 valid frames to ensure reliable prediction
+    # ========================================================================
     def _frames_to_keypoints(self, frames: Iterable[str]) -> Tuple[np.ndarray, float, float]:
         keypoints = []
+        valid_count = 0
+        total_count = 0
+
         decode_elapsed = 0.0
         pose_elapsed = 0.0
         for encoded in frames:
+            total_count += 1
             decode_start = perf_counter()
             image = self._decode_base64_image(encoded)
             decode_elapsed += perf_counter() - decode_start
@@ -367,7 +382,24 @@ class MotionInferenceService:
             pose_start = perf_counter()
             coords = self.pose_extractor.extract(image)
             pose_elapsed += perf_counter() - pose_start
-            keypoints.append(coords)
+
+            # Skip zero vectors (person not detected)
+            if np.any(coords):
+                keypoints.append(coords)
+                valid_count += 1
+
+        # Require at least 3 valid frames for reliable prediction
+        MIN_VALID_FRAMES = 3
+        if valid_count < MIN_VALID_FRAMES:
+            raise ValueError(
+                f"유효한 동작 프레임이 부족합니다 ({valid_count}/{total_count}개). "
+                f"카메라에 전신이 보이도록 해주세요."
+            )
+
+        LOGGER.debug(
+            "Valid frames: %d/%d (filtered out %d zero-vector frames)",
+            valid_count, total_count, total_count - valid_count
+        )
 
         keypoint_array = np.stack(keypoints, axis=0).astype(np.float32)
         return keypoint_array, decode_elapsed, pose_elapsed
