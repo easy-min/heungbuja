@@ -4,6 +4,7 @@ import GamePage from './pages/GamePage';
 import TutorialPage from './pages/TutorialPage';
 import ResultPage from './pages/ResultPage';
 import SongPage from './pages/SongPage';
+import ProtectedRoute from './components/ProtectedRoute';
 import './index.css';
 import './App.css';
 import { useEffect, useState } from 'react';
@@ -49,15 +50,17 @@ function App() {
       <div className="app">
         <Routes>
            {/* 로그인 페이지 - 환경에 따라 다른 컴포넌트 */}
-            <Route 
-                path="/" 
-                element={isRaspberryPi ? <RaspberryLoginPage deviceId={deviceId!} /> : <WebLoginPage />} 
+            <Route
+                path="/"
+                element={isRaspberryPi ? <RaspberryLoginPage deviceId={deviceId!} /> : <WebLoginPage />}
             />
-          <Route path="/home" element={<HomePage />} />
-          <Route path="/listening" element={<SongPage />} />
-          <Route path="/tutorial" element={<TutorialPage />} />
-          <Route path="/game/:songId" element={<GamePage />} />
-          <Route path="/result" element={<ResultPage />} />
+
+          {/* Protected Routes - 로그인 필수 */}
+          <Route path="/home" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
+          <Route path="/listening" element={<ProtectedRoute><SongPage /></ProtectedRoute>} />
+          <Route path="/tutorial" element={<ProtectedRoute><TutorialPage /></ProtectedRoute>} />
+          <Route path="/game/:songId" element={<ProtectedRoute><GamePage /></ProtectedRoute>} />
+          <Route path="/result" element={<ProtectedRoute><ResultPage /></ProtectedRoute>} />
         </Routes>
       </div>
     </BrowserRouter>

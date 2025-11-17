@@ -23,7 +23,7 @@ export const useDeviceAuth = () => {
         navigate('/voice');
       } else {
         const response = await deviceLoginApi(credentials);
-        
+
         // 토큰 저장
         localStorage.setItem('userAccessToken', response.accessToken);
         localStorage.setItem('userRefreshToken', response.refreshToken);
@@ -33,6 +33,12 @@ export const useDeviceAuth = () => {
         navigate('/home');
       }
     } catch (err) {
+      // 403 에러 처리
+      if (err instanceof Error && 'status' in err && (err as Error & { status?: number }).status === 403) {
+        setError('접근이 거부되었습니다. 기기가 등록되지 않았거나 권한이 없습니다.');
+        return;
+      }
+
       const errorMessage = err instanceof Error ? err.message : '로그인 중 오류가 발생했습니다.';
       setError(errorMessage);
     } finally {

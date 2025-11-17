@@ -41,7 +41,9 @@ async function request<T>(
         ? String((data as { message?: string }).message)
         : undefined) || `API 요청 실패 (${res.status})`;
 
-    throw new Error(message);
+    const error = new Error(message) as Error & { status?: number };
+    error.status = res.status;
+    throw error;
   }
 
   return data as T;
