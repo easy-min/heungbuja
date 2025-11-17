@@ -38,12 +38,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 String username = jwtUtil.getUsernameFromToken(token);
                 String role = jwtUtil.getRoleFromToken(token);
 
-                logger.info("🔐 JWT 인증 - userId: {}, username: {}, role from token: '{}'", userId, username, role);
+                log.info("🔐 JWT 인증 - userId: {}, username: {}, role from token: '{}'", userId, username, role);
 
                 // Spring Security는 ROLE_ prefix를 기대함
                 String authority = role.startsWith("ROLE_") ? role : "ROLE_" + role;
 
-                logger.info("🎭 최종 권한: '{}', 요청 URI: {}", authority, request.getRequestURI());
+                log.info("🎭 최종 권한: '{}', 요청 URI: {}", authority, request.getRequestURI());
 
                 // Admin인 경우 AdminPrincipal 사용 (타입 안전)
                 Object principal;
