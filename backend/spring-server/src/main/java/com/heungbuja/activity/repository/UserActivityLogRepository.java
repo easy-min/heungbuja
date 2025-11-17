@@ -78,7 +78,7 @@ public interface UserActivityLogRepository extends JpaRepository<UserActivityLog
      */
     @Query("SELECT l.activityType, COUNT(l) " +
             "FROM UserActivityLog l " +
-            "WHERE l.userId = :userId " +
+            "WHERE l.user.id = :userId " +
             "AND l.createdAt >= :startDate AND l.createdAt < :endDate " +
             "GROUP BY l.activityType")
     List<Object[]> countByUserAndActivityTypeAndDateRange(
