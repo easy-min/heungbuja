@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import base64
 import logging
+import os
 from dataclasses import dataclass
 from functools import lru_cache
 from io import BytesIO
-import os
 from pathlib import Path
-from typing import Iterable, List, Sequence
+from time import perf_counter
+from typing import Iterable, List, Sequence, Tuple
 
 import mediapipe as mp
 import numpy as np
@@ -26,6 +27,9 @@ class InferenceResult:
     predicted_label: str
     confidence: float
     judgment: int
+    decode_time_ms: float
+    pose_time_ms: float
+    inference_time_ms: float
     action_code: int | None
     target_probability: float | None = None
 
@@ -241,14 +245,21 @@ class MotionInferenceService:
             raise ValueError("프레임 데이터가 비어 있습니다.")
 
         sampled_frames = self._sample_frames(frames, self.frames_per_sample)
-        keypoint_sequence = self._frames_to_keypoints(sampled_frames)
+        keypoint_sequence, decode_time_s, pose_time_s = self._frames_to_keypoints(
+            sampled_frames
+        )
 
         input_tensor = torch.from_numpy(keypoint_sequence).unsqueeze(0)  # (1, T, N, 2)
         input_tensor = input_tensor.to(self.device)
 
         with torch.no_grad():
+            inference_start = perf_counter()
             logits = self.model(input_tensor)
+            inference_time_ms = (perf_counter() - inference_start) * 1000
             probabilities = torch.softmax(logits, dim=-1).cpu().numpy()[0]
+
+        decode_time_ms = decode_time_s * 1000
+        pose_time_ms = pose_time_s * 1000
 
         best_idx = int(np.argmax(probabilities))
         predicted_label = self.id_to_label.get(best_idx, "UNKNOWN")
@@ -281,14 +292,19 @@ class MotionInferenceService:
             confidence=confidence,
             judgment=judgment,
             action_code=resolved_action_code,
+            decode_time_ms=decode_time_ms,
+            pose_time_ms=pose_time_ms,
+            inference_time_ms=inference_time_ms,
             target_probability=target_probability,
         )
 
     def _resolve_target_index(
         self, action_name: str | None, action_code: int | None
     ) -> int | None:
-        if action_code is not None and action_code in self.id_to_label:
-            return action_code
+        if action_code is not None:
+            if action_code in self.id_to_label:
+                return action_code
+            raise ValueError(f"지원되지 않는 동작 코드입니다: {action_code}")
         if action_name:
             key = action_name.strip().upper()
             return self.class_mapping.get(key)
@@ -322,14 +338,22 @@ class MotionInferenceService:
             return 2
         return 1
 
-    def _frames_to_keypoints(self, frames: Iterable[str]) -> np.ndarray:
+    def _frames_to_keypoints(self, frames: Iterable[str]) -> Tuple[np.ndarray, float, float]:
         keypoints = []
+        decode_elapsed = 0.0
+        pose_elapsed = 0.0
         for encoded in frames:
+            decode_start = perf_counter()
             image = self._decode_base64_image(encoded)
+            decode_elapsed += perf_counter() - decode_start
+
+            pose_start = perf_counter()
             coords = self.pose_extractor.extract(image)
+            pose_elapsed += perf_counter() - pose_start
             keypoints.append(coords)
 
-        return np.stack(keypoints, axis=0).astype(np.float32)
+        keypoint_array = np.stack(keypoints, axis=0).astype(np.float32)
+        return keypoint_array, decode_elapsed, pose_elapsed
 
     def _sample_frames(self, frames: Sequence[str], target_count: int) -> List[str]:
         if len(frames) == target_count:
