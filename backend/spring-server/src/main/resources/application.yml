@@ -37,6 +37,9 @@ server:
   shutdown: graceful
   servlet:
     context-path: /api
+    multipart:
+      max-file-size: 100MB       # 개별 파일 최대 크기
+      max-request-size: 150MB    # 전체 요청 최대 크기
 
 logging:
   level:
