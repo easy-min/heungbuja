@@ -115,7 +115,7 @@ public class AdminSongController {
      * @param choreographyJson 안무 정보 JSON 파일
      * @return 생성된 곡 정보
      */
-    @PostMapping(consumes = "multipart/form-data")
+    @PostMapping
     public ResponseEntity<?> createSong(
             @AuthenticationPrincipal AdminPrincipal principal,
             @RequestParam("title") String title,
