@@ -342,11 +342,43 @@ class MotionInferenceService:
         return 1
 
     def _frames_to_keypoints(self, frames: Iterable[str]) -> np.ndarray:
+        # ========================================================================
+        # ⚠️ CRITICAL: Filter out invalid frames (zero vectors) to prevent
+        # meaningless predictions when person is not detected by Mediapipe
+        # ========================================================================
+        # Issue: When user doesn't move or is out of frame, Mediapipe returns
+        # zero vectors, but model still predicts with low confidence (~15-20%)
+        # This causes unfair scoring where "no movement" gets ~33-50 points!
+        #
+        # Solution: Only use frames where person is actually detected
+        # Require minimum 3 valid frames to ensure reliable prediction
+        # ========================================================================
         keypoints = []
+        valid_count = 0
+        total_count = 0
+
         for encoded in frames:
+            total_count += 1
             image = self._decode_base64_image(encoded)
             coords = self.pose_extractor.extract(image)
-            keypoints.append(coords)
+
+            # Skip zero vectors (person not detected)
+            if np.any(coords):
+                keypoints.append(coords)
+                valid_count += 1
+
+        # Require at least 3 valid frames for reliable prediction
+        MIN_VALID_FRAMES = 3
+        if valid_count < MIN_VALID_FRAMES:
+            raise ValueError(
+                f"유효한 동작 프레임이 부족합니다 ({valid_count}/{total_count}개). "
+                f"카메라에 전신이 보이도록 해주세요."
+            )
+
+        LOGGER.debug(
+            "Valid frames: %d/%d (filtered out %d zero-vector frames)",
+            valid_count, total_count, total_count - valid_count
+        )
 
         return np.stack(keypoints, axis=0).astype(np.float32)
 
