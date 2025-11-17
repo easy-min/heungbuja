@@ -39,6 +39,9 @@ public class SecurityConfig {
                         .requestMatchers("/media/test", "/media/test/**").permitAll()
                         .requestMatchers("/ws/**").permitAll()
 
+                        // Admin HTML 페이지 (정적 파일)
+                        .requestMatchers("/test-admin.html", "/test-admin-prod.html", "/test-admin-prod-backup.html").permitAll()
+
                         // Voice & Commands
                         .requestMatchers("/commands/tts/**").permitAll()  // TTS 다운로드는 인증 불필요
                         .requestMatchers("/commands/**").authenticated()  // 명령 처리는 JWT 필요
