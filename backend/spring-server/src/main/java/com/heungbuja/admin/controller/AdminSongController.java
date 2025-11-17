@@ -11,6 +11,7 @@ import com.heungbuja.s3.service.S3UploadService;
 import com.heungbuja.song.dto.SongGameData;
 import com.heungbuja.song.entity.Song;
 import com.heungbuja.song.repository.jpa.SongRepository;
+import com.heungbuja.song.service.MusicServerClient;
 import com.heungbuja.song.service.SongGameDataCache;
 import com.heungbuja.song.service.SongRegistrationService;
 import lombok.RequiredArgsConstructor;
