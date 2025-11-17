@@ -115,6 +115,7 @@ public class GptServiceImpl implements GptService {
     }
 
     @Override
+    @MeasurePerformance(component = "GPT")
     public String analyzeIntent(String userMessage, String contextInfo) {
         String systemPrompt = buildIntentAnalysisPrompt(contextInfo);
 
