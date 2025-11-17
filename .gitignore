@@ -6,6 +6,17 @@ nginx/certs/
 # Python venvs
 **/.venv/
 
+# === Motion Server Training Data ===
+# 학습 데이터 (원본 이미지)
+backend/motion-server/app/forTrain/data/
+# 전처리된 데이터 (.npz 파일)
+backend/motion-server/app/forTrain/pose_sequences/
+# 학습 실험 결과
+backend/motion-server/app/forTrain/*.pt
+backend/motion-server/app/forTrain/runs/
+backend/motion-server/app/forTrain/checkpoints/
+backend/motion-server/app/forTrain/logs/
+
 # Node / general
 node_modules/
 dist/

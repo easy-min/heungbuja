@@ -55,11 +55,11 @@ public class SecurityConfig {
                         .requestMatchers("/emergency/*/confirm").permitAll()
 
                         // ADMIN and SUPER_ADMIN (구체적인 경로를 먼저 매칭)
-                        .requestMatchers("/admins/songs/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPER_ADMIN")
-                        .requestMatchers("/admins/devices/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPER_ADMIN")
-                        .requestMatchers("/admins/users/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPER_ADMIN", "ROLE_USER")
-                        .requestMatchers("/admins/activity-logs/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPER_ADMIN")
-                        .requestMatchers("/emergency/admins/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPER_ADMIN")
+                        .requestMatchers("/admins/songs", "/admins/songs/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPER_ADMIN")
+                        .requestMatchers("/admins/devices", "/admins/devices/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPER_ADMIN")
+                        .requestMatchers("/admins/users", "/admins/users/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPER_ADMIN", "ROLE_USER")
+                        .requestMatchers("/admins/activity-logs", "/admins/activity-logs/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPER_ADMIN")
+                        .requestMatchers("/emergency/admins", "/emergency/admins/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPER_ADMIN")
 
                         // SUPER_ADMIN only (관리자 생성 및 전체 조회 - 마지막에)
                         .requestMatchers("/admins").hasAuthority("ROLE_SUPER_ADMIN")
