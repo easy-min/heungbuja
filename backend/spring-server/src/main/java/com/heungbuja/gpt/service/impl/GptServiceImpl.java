@@ -138,9 +138,9 @@ public class GptServiceImpl implements GptService {
 
     /**
      * Intent 분석용 GPT 호출 (최적화 버전) 🚀
-     * - 짧은 프롬프트 (8줄)
-     * - temperature=0.3 (빠른 응답)
+     * - 짧은 프롬프트 (8줄 vs 원본 55줄)
      * - 15초 타임아웃
+     * - HTTP/2 사용
      */
     @Override
     @MeasurePerformance(component = "GPT_OPTIMIZED")
@@ -159,7 +159,7 @@ public class GptServiceImpl implements GptService {
             GptRequest request = GptRequest.builder()
                     .model(model)
                     .messages(messages)
-                    .temperature(0.3)  // 낮을수록 빠름
+                    // .temperature(0.3)  // API가 지원하지 않을 수 있음
                     .build();
 
             String requestBody = objectMapper.writeValueAsString(request);
