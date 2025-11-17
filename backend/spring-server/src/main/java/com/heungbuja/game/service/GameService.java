@@ -605,6 +605,7 @@ public class GameService {
      * 1. 인터럽트 요청 확인 (수정됨)
      * 2. 프레임 수신 타임아웃 확인
      */
+    @Transactional
     @Scheduled(fixedRate = 1000)
     public void checkGameSessionTimeout() {
         Set<String> sessionKeys = gameSessionRedisTemplate.keys(GAME_SESSION_KEY_PREFIX + "*");
