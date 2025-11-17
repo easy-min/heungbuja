@@ -141,13 +141,21 @@ public class UserHealthMonitoringService {
     /**
      * 동작별 수행도 분석
      */
-    public ActionPerformanceResponse getActionPerformance(Long userId) {
+    public ActionPerformanceResponse getActionPerformance(Long userId, Integer periodDays) {
         // 사용자 조회
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND, "사용자를 찾을 수 없습니다."));
 
-        // 사용자의 모든 게임 결과와 ScoreByAction 조회
-        List<GameResult> gameResults = gameResultRepository.findByUser_IdWithScores(userId);
+        // 기간 설정 (기본값: 전체)
+        List<GameResult> gameResults;
+        if (periodDays != null && periodDays > 0) {
+            LocalDateTime endDate = LocalDateTime.now();
+            LocalDateTime startDate = endDate.minusDays(periodDays);
+            gameResults = gameResultRepository.findByUser_IdAndStartTimeBetween(userId, startDate, endDate);
+        } else {
+            // 전체 기간
+            gameResults = gameResultRepository.findByUser_IdWithScores(userId);
+        }
 
         // 동작별 점수 집계
         Map<Integer, List<Double>> actionScoreMap = new HashMap<>();
