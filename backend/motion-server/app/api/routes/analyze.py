@@ -18,6 +18,9 @@ class AnalyzeRequest(BaseModel):
 
 class AnalyzeResponse(BaseModel):
     judgment: int = Field(..., ge=0, le=3, description="동작 판정 결과 점수 (1~3 권장)")
+    actionCode: int | None = Field(
+        None, description="판정에 사용된 동작 코드 (없을 경우 예측 결과 코드)"
+    )
 
 
 @router.post("/analyze", response_model=AnalyzeResponse)
@@ -44,6 +47,10 @@ async def analyze_motion(
             detail="동작 분석 중 오류가 발생했습니다.",
         ) from exc
 
-    return AnalyzeResponse(judgment=result.judgment)
+    response_action_code = (
+        payload.actionCode if payload.actionCode is not None else result.action_code
+    )
+
+    return AnalyzeResponse(judgment=result.judgment, actionCode=response_action_code)
 
 
