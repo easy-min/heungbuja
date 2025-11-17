@@ -1,24 +1,30 @@
 /* 신고 리스트 그리드 */
 .emergency-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 15px;
-  margin-top: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
 }
 
 /* 빈 상태 */
 .empty-state {
   text-align: center;
-  padding: 60px 20px;
-  color: #999;
+  padding: 80px 24px;
+  color: #9CA3AF;
+  background: #FFFFFF;
+  border-radius: 16px;
+  border: 1px solid #E5E8EB;
 }
 
 .empty-state .empty-icon {
-  font-size: 60px;
-  margin-bottom: 15px;
-  opacity: 0.5;
+  font-size: 64px;
+  margin-bottom: 16px;
+  opacity: 0.4;
+  filter: grayscale(0.3);
 }
 
 .empty-state p {
-  font-size: 14px;
+  font-size: 15px;
+  color: #6B7280;
+  font-weight: 500;
 }

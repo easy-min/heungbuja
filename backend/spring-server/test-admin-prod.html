@@ -582,6 +582,13 @@
             accessToken = data.accessToken;
             adminId     = data.userId;
 
+            // 디버깅: 로그인 정보 출력
+            console.log('✅ 로그인 성공!');
+            console.log('👤 사용자 ID:', adminId);
+            console.log('🔑 토큰:', accessToken ? '있음 (길이: ' + accessToken.length + ')' : '없음');
+            console.log('🎭 권한:', data.role || '권한 정보 없음');
+            console.log('📦 전체 응답:', data);
+
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('dashboard-screen').classList.remove('hidden');
 
@@ -2110,14 +2117,7 @@
                 return;
             }
         } else if (currentUploadStep === 4) {
-            // 미리보기 정보 업데이트
-            document.getElementById('preview-title').textContent = document.getElementById('song-title').value;
-            document.getElementById('preview-artist').textContent = document.getElementById('song-artist').value;
-            document.getElementById('preview-audio').textContent = uploadedFiles.audio.name;
-            document.getElementById('preview-lyrics').textContent = uploadedFiles.lyrics.name;
-            document.getElementById('preview-choreography').textContent = uploadedFiles.choreography.name;
-
-            // 다음 단계로 가면 업로드 시작
+            // 업로드 시작
             currentUploadStep++;
             updateUploadStepUI();
             uploadSongToServer();
@@ -2155,6 +2155,15 @@
         });
         document.querySelector(`.step-content[data-step="${currentUploadStep}"]`).classList.add('active');
 
+        // 4단계(미리보기)에 도달하면 미리보기 정보 업데이트
+        if (currentUploadStep === 4) {
+            document.getElementById('preview-title').textContent = document.getElementById('song-title').value || '-';
+            document.getElementById('preview-artist').textContent = document.getElementById('song-artist').value || '-';
+            document.getElementById('preview-audio').textContent = uploadedFiles.audio ? uploadedFiles.audio.name : '-';
+            document.getElementById('preview-lyrics').textContent = uploadedFiles.lyrics ? uploadedFiles.lyrics.name : '-';
+            document.getElementById('preview-choreography').textContent = uploadedFiles.choreography ? uploadedFiles.choreography.name : '-';
+        }
+
         // 버튼 상태 업데이트
         const prevBtn = document.getElementById('btn-prev-step');
         const nextBtn = document.getElementById('btn-next-step');
@@ -2184,6 +2193,9 @@
 
     async function uploadSongToServer() {
         try {
+            console.log('🎵 곡 업로드 시작');
+            console.log('🔑 사용 중인 토큰:', accessToken ? '있음 (길이: ' + accessToken.length + ')' : '❌ 없음!');
+
             const formData = new FormData();
             formData.append('title', document.getElementById('song-title').value);
             formData.append('artist', document.getElementById('song-artist').value);
@@ -2200,6 +2212,7 @@
                 }
             }, 1000);
 
+            console.log('📤 API 요청 URL:', `${API_BASE}/admins/songs`);
             const res = await fetch(`${API_BASE}/admins/songs`, {
                 method: 'POST',
                 headers: {
@@ -2210,20 +2223,28 @@
 
             clearInterval(progressInterval);
 
+            console.log('📥 응답 상태:', res.status, res.statusText);
+
             if (res.ok) {
+                const result = await res.json();
+                console.log('✅ 업로드 성공:', result);
                 updateUploadProgress(100);
                 setTimeout(() => {
                     currentUploadStep = 6;
                     updateUploadStepUI();
                 }, 500);
             } else {
-                const error = await res.json();
-                alert(`업로드 실패: ${error.error || error.message || res.statusText}`);
+                const error = await res.json().catch(() => ({ message: res.statusText }));
+                console.error('❌ 업로드 실패:', error);
+                console.error('   상태 코드:', res.status);
+                console.error('   에러 내용:', error);
+                alert(`업로드 실패 (${res.status}): ${error.error || error.message || res.statusText}`);
                 currentUploadStep = 2;
                 updateUploadStepUI();
             }
 
         } catch (e) {
+            console.error('❌ 업로드 중 예외 발생:', e);
             alert(`업로드 중 오류 발생: ${e.message}`);
             currentUploadStep = 2;
             updateUploadStepUI();
