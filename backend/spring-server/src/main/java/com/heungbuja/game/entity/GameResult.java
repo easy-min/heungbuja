@@ -22,7 +22,6 @@ import java.util.List;
 @Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @EntityListeners(AuditingEntityListener.class)
-@Access(AccessType.FIELD)
 @Table(name = "game_result")
 public class GameResult {
 
@@ -68,6 +67,10 @@ public class GameResult {
 
     @Column(name = "final_level")
     private Integer finalLevel;
+
+    @CreatedDate  // 엔티티가 처음 저장될 때 시간이 자동으로 저장됨
+    @Column(updatable = false)  // 이 값은 업데이트되지 않도록 설정
+    private LocalDateTime playedAt; // ERD의 played_at. createdAt의 역할을 함.
 
     @LastModifiedDate // 엔티티가 수정될 때마다 시간이 자동으로 갱신됨
     private LocalDateTime updatedAt; // updatedAt 추가
