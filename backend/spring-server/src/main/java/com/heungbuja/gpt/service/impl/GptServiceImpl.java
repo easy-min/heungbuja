@@ -66,7 +66,7 @@ public class GptServiceImpl implements GptService {
             // HTTP 요청 생성
             HttpRequest httpRequest = HttpRequest.newBuilder()
                     .uri(URI.create(apiUrl))
-                    .timeout(Duration.ofSeconds(15))  // ⚠️ 요청 타임아웃 15초
+                    .timeout(Duration.ofSeconds(30))  // ⚠️ 요청 타임아웃 30초
                     .header("Content-Type", "application/json")
                     .header("Authorization", "Bearer " + apiKey)
                     .header("User-Agent", "HeungbujaApp/1.0")
@@ -166,10 +166,10 @@ public class GptServiceImpl implements GptService {
 
             log.info("🚀 GPT API 호출 시작 (최적화): model={}, messages={}", model, messages.size());
 
-            // HTTP 요청 (15초 타임아웃)
+            // HTTP 요청 (30초 타임아웃)
             HttpRequest httpRequest = HttpRequest.newBuilder()
                     .uri(URI.create(apiUrl))
-                    .timeout(Duration.ofSeconds(15))
+                    .timeout(Duration.ofSeconds(30))
                     .header("Content-Type", "application/json")
                     .header("Authorization", "Bearer " + apiKey)
                     .header("User-Agent", "HeungbujaApp/1.0")
