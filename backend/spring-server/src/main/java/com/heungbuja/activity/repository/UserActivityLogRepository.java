@@ -20,44 +20,51 @@ public interface UserActivityLogRepository extends JpaRepository<UserActivityLog
 
     /**
      * 전체 활동 로그 조회 (페이징)
+     * User를 함께 조회하여 LazyInitializationException 방지
      */
+    @Query("SELECT l FROM UserActivityLog l JOIN FETCH l.user ORDER BY l.createdAt DESC")
     Page<UserActivityLog> findAllByOrderByCreatedAtDesc(Pageable pageable);
 
     /**
      * 특정 사용자의 활동 로그 조회 (페이징)
      */
-    Page<UserActivityLog> findByUser_IdOrderByCreatedAtDesc(Long userId, Pageable pageable);
+    @Query("SELECT l FROM UserActivityLog l JOIN FETCH l.user WHERE l.user.id = :userId ORDER BY l.createdAt DESC")
+    Page<UserActivityLog> findByUser_IdOrderByCreatedAtDesc(@Param("userId") Long userId, Pageable pageable);
 
     /**
      * 활동 타입별 필터링 조회 (페이징)
      */
-    Page<UserActivityLog> findByActivityTypeOrderByCreatedAtDesc(ActivityType activityType, Pageable pageable);
+    @Query("SELECT l FROM UserActivityLog l JOIN FETCH l.user WHERE l.activityType = :activityType ORDER BY l.createdAt DESC")
+    Page<UserActivityLog> findByActivityTypeOrderByCreatedAtDesc(@Param("activityType") ActivityType activityType, Pageable pageable);
 
     /**
      * 특정 사용자 + 활동 타입 필터링 조회 (페이징)
      */
+    @Query("SELECT l FROM UserActivityLog l JOIN FETCH l.user WHERE l.user.id = :userId AND l.activityType = :activityType ORDER BY l.createdAt DESC")
     Page<UserActivityLog> findByUser_IdAndActivityTypeOrderByCreatedAtDesc(
-            Long userId,
-            ActivityType activityType,
+            @Param("userId") Long userId,
+            @Param("activityType") ActivityType activityType,
             Pageable pageable
     );
 
     /**
      * 기간별 필터링 조회 (페이징)
      */
+    @Query("SELECT l FROM UserActivityLog l JOIN FETCH l.user WHERE l.createdAt >= :startDate AND l.createdAt < :endDate ORDER BY l.createdAt DESC")
     Page<UserActivityLog> findByCreatedAtBetweenOrderByCreatedAtDesc(
-            LocalDateTime startDate,
-            LocalDateTime endDate,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate,
             Pageable pageable
     );
 
     /**
      * 특정 사용자 + 기간별 필터링 조회 (페이징)
      */
+    @Query("SELECT l FROM UserActivityLog l JOIN FETCH l.user WHERE l.user.id = :userId AND l.createdAt >= :startDate AND l.createdAt < :endDate ORDER BY l.createdAt DESC")
     Page<UserActivityLog> findByUser_IdAndCreatedAtBetweenOrderByCreatedAtDesc(
-            Long userId,
-            LocalDateTime startDate,
-            LocalDateTime endDate,
+            @Param("userId") Long userId,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate,
             Pageable pageable
     );
 

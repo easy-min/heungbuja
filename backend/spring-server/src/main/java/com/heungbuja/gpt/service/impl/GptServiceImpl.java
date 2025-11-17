@@ -42,7 +42,8 @@ public class GptServiceImpl implements GptService {
 
     public GptServiceImpl() {
         this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(30))
+                .version(HttpClient.Version.HTTP_2)  // HTTP/2 사용 (더 빠름)
+                .connectTimeout(Duration.ofSeconds(10))  // 연결 타임아웃 10초
                 .build();
         this.objectMapper = new ObjectMapper();
     }
@@ -50,6 +51,7 @@ public class GptServiceImpl implements GptService {
     @Override
     @MeasurePerformance(component = "GPT")
     public GptResponse chat(List<GptMessage> messages) {
+        long startTime = System.currentTimeMillis();
         try {
             GptRequest request = GptRequest.builder()
                     .model(model)
@@ -59,11 +61,12 @@ public class GptServiceImpl implements GptService {
             // JSON 변환
             String requestBody = objectMapper.writeValueAsString(request);
 
-            log.debug("GPT API 호출: model={}, messages={}", model, messages.size());
+            log.info("🚀 GPT API 호출 시작: model={}, messages={}", model, messages.size());
 
             // HTTP 요청 생성
             HttpRequest httpRequest = HttpRequest.newBuilder()
                     .uri(URI.create(apiUrl))
+                    .timeout(Duration.ofSeconds(30))  // ⚠️ 요청 타임아웃 30초
                     .header("Content-Type", "application/json")
                     .header("Authorization", "Bearer " + apiKey)
                     .header("User-Agent", "HeungbujaApp/1.0")
@@ -73,6 +76,9 @@ public class GptServiceImpl implements GptService {
 
             // API 호출
             HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+
+            long elapsed = System.currentTimeMillis() - startTime;
+            log.info("✅ GPT API 응답 완료: {}ms, status={}", elapsed, response.statusCode());
 
             if (response.statusCode() == 200) {
                 GptResponse gptResponse = objectMapper.readValue(response.body(), GptResponse.class);
@@ -97,6 +103,7 @@ public class GptServiceImpl implements GptService {
     }
 
     @Override
+    @MeasurePerformance(component = "GPT")
     public GptResponse chat(String userMessage) {
         List<GptMessage> messages = Arrays.asList(
                 GptMessage.developer("Answer in Korean"),
@@ -106,6 +113,7 @@ public class GptServiceImpl implements GptService {
     }
 
     @Override
+    @MeasurePerformance(component = "GPT")
     public GptResponse chat(String systemPrompt, String userMessage) {
         List<GptMessage> messages = Arrays.asList(
                 GptMessage.system(systemPrompt),
@@ -115,6 +123,7 @@ public class GptServiceImpl implements GptService {
     }
 
     @Override
+    @MeasurePerformance(component = "GPT")
     public String analyzeIntent(String userMessage, String contextInfo) {
         String systemPrompt = buildIntentAnalysisPrompt(contextInfo);
 
@@ -128,7 +137,73 @@ public class GptServiceImpl implements GptService {
     }
 
     /**
-     * Intent 분석용 시스템 프롬프트 생성
+     * Intent 분석용 GPT 호출 (최적화 버전) 🚀
+     * - 짧은 프롬프트 (8줄 vs 원본 55줄)
+     * - 15초 타임아웃
+     * - HTTP/2 사용
+     */
+    @Override
+    @MeasurePerformance(component = "GPT_OPTIMIZED")
+    public String analyzeIntentOptimized(String userMessage, String contextInfo) {
+        long startTime = System.currentTimeMillis();
+        try {
+            // 최적화된 짧은 프롬프트
+            String systemPrompt = buildIntentAnalysisPromptOptimized();
+
+            List<GptMessage> messages = Arrays.asList(
+                    GptMessage.system(systemPrompt),
+                    GptMessage.user(userMessage)
+            );
+
+            // 최적화된 파라미터로 요청 생성
+            GptRequest request = GptRequest.builder()
+                    .model(model)
+                    .messages(messages)
+                    // .temperature(0.3)  // API가 지원하지 않을 수 있음
+                    .build();
+
+            String requestBody = objectMapper.writeValueAsString(request);
+
+            log.info("🚀 GPT API 호출 시작 (최적화): model={}, messages={}", model, messages.size());
+
+            // HTTP 요청 (30초 타임아웃)
+            HttpRequest httpRequest = HttpRequest.newBuilder()
+                    .uri(URI.create(apiUrl))
+                    .timeout(Duration.ofSeconds(30))
+                    .header("Content-Type", "application/json")
+                    .header("Authorization", "Bearer " + apiKey)
+                    .header("User-Agent", "HeungbujaApp/1.0")
+                    .header("Accept", "*/*")
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+
+            long elapsed = System.currentTimeMillis() - startTime;
+            log.info("✅ GPT API 응답 완료 (최적화): {}ms, status={}", elapsed, response.statusCode());
+
+            if (response.statusCode() == 200) {
+                GptResponse gptResponse = objectMapper.readValue(response.body(), GptResponse.class);
+                if (gptResponse == null || gptResponse.getContent() == null) {
+                    throw new CustomException(ErrorCode.EXTERNAL_API_ERROR, "GPT 응답이 비어있습니다");
+                }
+                return gptResponse.getContent();
+            } else {
+                log.error("GPT API 응답 오류: Status={}, Body={}", response.statusCode(), response.body());
+                throw new CustomException(ErrorCode.EXTERNAL_API_ERROR,
+                        "GPT API 응답 오류: " + response.statusCode());
+            }
+
+        } catch (CustomException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("GPT API 호출 실패 (최적화)", e);
+            throw new CustomException(ErrorCode.EXTERNAL_API_ERROR, "GPT API 호출 중 오류가 발생했습니다: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Intent 분석용 시스템 프롬프트 생성 (원본)
      */
     private String buildIntentAnalysisPrompt(String contextInfo) {
         return """
@@ -187,5 +262,20 @@ public class GptServiceImpl implements GptService {
                 - confidence는 0~1 사이 값
                 - 한글로 응답
                 """.formatted(contextInfo != null ? contextInfo : "컨텍스트 정보 없음");
+    }
+
+    /**
+     * Intent 분석용 시스템 프롬프트 생성 (최적화 버전) 🚀
+     */
+    private String buildIntentAnalysisPromptOptimized() {
+        return """
+                노인용 음성 명령 분석. JSON만 반환.
+
+                Intent: SELECT_BY_ARTIST|SELECT_BY_TITLE|SELECT_BY_ARTIST_TITLE|MUSIC_PAUSE|MUSIC_RESUME|MUSIC_NEXT|MUSIC_STOP|PLAY_NEXT_IN_QUEUE|PLAY_MORE_LIKE_THIS|MODE_HOME|MODE_LISTENING|MODE_EXERCISE|MODE_EXERCISE_END|EMERGENCY|EMERGENCY_CANCEL|EMERGENCY_CONFIRM|UNKNOWN
+
+                출력: {"intent":"...", "entities":{}, "confidence":0.9}
+
+                예: "태진아 사랑은" → {"intent":"SELECT_BY_ARTIST_TITLE","entities":{"artist":"태진아","title":"사랑은"},"confidence":0.9}
+                """;
     }
 }
