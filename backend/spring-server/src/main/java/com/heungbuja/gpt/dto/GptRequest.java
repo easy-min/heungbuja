@@ -25,7 +25,7 @@ public class GptRequest {
 
     private List<GptMessage> messages;
 
-    // 성능 최적화 파라미터 (선택적)
-    @Builder.Default
-    private Double temperature = 0.3;  // 낮은 temperature로 빠른 응답
+    // 성능 최적화 파라미터 (필요시 주석 해제)
+    // @Builder.Default
+    // private Double temperature = 0.3;  // 낮은 temperature로 빠른 응답
 }
