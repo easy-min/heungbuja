@@ -6,6 +6,7 @@ import com.heungbuja.game.domain.GameDetail;
 import com.heungbuja.game.domain.SpringServerPerformance;
 import com.heungbuja.game.dto.*;
 import com.heungbuja.game.entity.GameResult;
+import com.heungbuja.game.entity.ScoreByAction;
 import com.heungbuja.game.enums.GameSessionStatus;
 import com.heungbuja.game.repository.mongo.GameDetailRepository;
 import com.heungbuja.game.repository.mongo.SpringServerPerformanceRepository;
@@ -28,6 +29,7 @@ import com.heungbuja.user.entity.User;
 import com.heungbuja.user.repository.UserRepository;
 import com.heungbuja.game.repository.jpa.ActionRepository;
 import com.heungbuja.game.state.GameSession;
+import com.heungbuja.game.repository.jpa.ScoreByActionRepository;
 import com.heungbuja.s3.service.MediaUrlService;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -68,7 +70,9 @@ public class GameService {
     private static final String GAME_STATE_KEY_PREFIX = "game_state:";
     private static final String GAME_SESSION_KEY_PREFIX = "game_session:";
 
+    private final ScoreByActionRepository scoreByActionRepository;
     // --- AI 서버 응답 시간 통계 ---
+
     private static class AiResponseStats {
         private final List<Long> responseTimes = new ArrayList<>();
         private long lastReportTime = System.currentTimeMillis();
@@ -660,27 +664,30 @@ public class GameService {
                 .build();
 
         aiWebClient.post()
-                .uri("/api/ai/analyze") // WebClient의 baseUrl 뒤에 붙는 경로
+                .uri("/api/ai/analyze")
                 .bodyValue(requestBody)
                 .retrieve()
-                .bodyToMono(AiJudgmentResponse.class) // {"judgment": 3} 응답을 DTO로 변환
+                .bodyToMono(AiJudgmentResponse.class)
                 .subscribe(
-                        aiResponse -> { // AI 서버 응답 성공 시
+                        aiResponse -> { // 성공 시
                             long responseTime = System.currentTimeMillis() - startTime;
                             aiResponseStats.record(responseTime);
 
+                            // --- ▼ (핵심 수정) actionCode와 judgment를 모두 가져옵니다. ---
+                            int actionCode = aiResponse.getActionCode();
                             int judgment = aiResponse.getJudgment();
-                            log.info("⏱️ AI 분석 결과 수신 (세션 {}): {}점 (응답시간: {}ms)", sessionId, judgment, responseTime);
+                            log.info("⏱️ AI 분석 결과 수신 (세션 {}): actionCode={}, judgment={} (응답시간: {}ms)", sessionId, actionCode, judgment, responseTime);
 
-                            // 판정 결과를 처리하는 후속 로직 실행
-                            handleJudgmentResult(sessionId, judgment, action.getTime());
+                            handleJudgmentResult(sessionId, actionCode, judgment, action.getTime());
+                            // --- ▲ ---------------------------------------------------- ▲ ---
                         },
-                        error -> { // AI 서버 응답 실패 시
+                        error -> { // 실패 시
                             long responseTime = System.currentTimeMillis() - startTime;
                             log.error("AI 서버 호출 실패 (세션 {}): {} (소요시간: {}ms)", sessionId, error.getMessage(), responseTime);
 
-                            // 실패 시 기본 점수(1점)로 처리
-                            handleJudgmentResult(sessionId, 1, action.getTime());
+                            // --- ▼ (핵심 수정) 실패 시에도 actionCode를 포함하여 처리합니다. ---
+                            handleJudgmentResult(sessionId, action.getActionCode(), 1, action.getTime());
+                            // --- ▲ ---------------------------------------------------- ▲ ---
                         }
                 );
     }
@@ -689,15 +696,15 @@ public class GameService {
      * AI 판정 결과를 받아 후속 처리를 하는 메소드
      * (주의: 이 메소드는 비동기 콜백에서 호출되므로, 여기서 가져오는 gameSession은 최신이 아닐 수 있음)
      */
-    private void handleJudgmentResult(String sessionId, int judgment, double actionTime) {
-        // WebSocket으로 프론트에 실시간 피드백 발송
+    private void handleJudgmentResult(String sessionId, int actionCode, int judgment, double actionTime) {
         sendFeedback(sessionId, judgment, actionTime);
 
-        // Redis에서 최신 GameSession을 다시 가져와서 점수 기록
         GameSession latestGameSession = getGameSession(sessionId);
         if (latestGameSession != null) {
-            recordJudgment(judgment, latestGameSession);
-            saveGameSession(sessionId, latestGameSession); // 점수 기록 후 저장
+            // --- ▼ (핵심 수정) actionCode도 함께 전달합니다. ---
+            recordJudgment(actionCode, judgment, latestGameSession);
+            // --- ▲ ------------------------------------------- ▲ ---
+            saveGameSession(sessionId, latestGameSession);
         } else {
             log.warn("AI 응답 처리 시점(세션 {})에 Redis에서 GameSession을 찾을 수 없습니다.", sessionId);
         }
@@ -707,15 +714,19 @@ public class GameService {
     /**
      * 판정 결과를 Redis('GameSession')에 기록하는 헬퍼 메소드
      */
-    private void recordJudgment(int judgment, GameSession currentSession) {
+    private void recordJudgment(int actionCode, int judgment, GameSession currentSession) {
         int verse = (currentSession.getNextLevel() == null) ? 1 : 2;
 
+        // JudgmentResult 객체 생성
+        GameSession.JudgmentResult result = new GameSession.JudgmentResult(actionCode, judgment);
+
         if (verse == 1) {
-            currentSession.getVerse1Judgments().add(judgment);
+            currentSession.getVerse1Judgments().add(result);
         } else {
-            currentSession.getVerse2Judgments().add(judgment);
+            currentSession.getVerse2Judgments().add(result);
         }
-        log.trace("판정 기록 준비: sessionId={}, judgment={}, verse={}", currentSession.getSessionId(), judgment, verse);
+        log.trace("판정 기록 준비: sessionId={}, actionCode={}, judgment={}, verse={}",
+                currentSession.getSessionId(), actionCode, judgment, verse);
     }
 
 
@@ -836,20 +847,15 @@ public class GameService {
             log.info("verse2Avg: {}", verse2Avg);
         }
 
-        log.info("endGame - MongoDB 상세 데이터 저장 시작");
         // MongoDB 상세 데이터 저장
         GameDetail.Statistics verse1Stats = calculateStatistics(finalSession.getVerse1Judgments());
-        log.info("endGame - verse1Stats 계산 완료");
         GameDetail.Statistics verse2Stats = calculateStatistics(finalSession.getVerse2Judgments());
-        log.info("endGame - verse2Stats 계산 완료");
         GameDetail gameDetail = GameDetail.builder()
                 .sessionId(sessionId)
                 .verse1Stats(verse1Stats)
                 .verse2Stats(verse2Stats)
                 .build();
-        log.info("endGame - GameDetail 객체 생성 완료, MongoDB 저장 시작");
         gameDetailRepository.save(gameDetail);
-        log.info("endGame - MongoDB 저장 완료");
 
         log.info("endGame - MySQL 게임 결과 조회 시작");
         // MySQL 게임 결과 업데이트
@@ -861,11 +867,13 @@ public class GameService {
         gameResult.setVerse2AvgScore(verse2Avg); // 1절만 했으면 null이 저장됨
         gameResult.setFinalLevel(finalSession.getNextLevel());
         gameResult.complete(); // 상태를 'COMPLETED'로 변경
-        log.info("endGame - MySQL 게임 결과 저장 시작");
-        gameResultRepository.save(gameResult);
+
+        // ---  동작별 점수 계산 및 GameResult에 추가 ---
+        calculateAndSaveScoresByAction(finalSession, gameResult);
+
+        gameResultRepository.save(gameResult);  // GameResult와 ScoreByAction이 함께 저장됨
         log.info("세션 {}의 게임 결과 저장 완료. 1절 점수: {}, 2절 점수: {}", sessionId, verse1Avg, verse2Avg);
 
-        log.info("endGame - Redis 데이터 정리 시작");
         // Redis 데이터 정리
         gameSessionRedisTemplate.delete(GAME_SESSION_KEY_PREFIX + sessionId);
         gameStateRedisTemplate.delete(GAME_STATE_KEY_PREFIX + sessionId);
@@ -873,9 +881,7 @@ public class GameService {
         if(finalSession.getUserId() != null) {
             sessionStateService.clearActivity(finalSession.getUserId());
         }
-        log.info("세션 {}의 Redis 데이터 삭제 완료.", sessionId);
 
-        log.info("endGame - 최종 점수 계산 시작");
         // 최종 점수와 메시지 계산하여 반환
         double finalScore = calculateFinalScore(verse1Avg, verse2Avg);
         String message = getResultMessage(finalScore);
@@ -894,30 +900,32 @@ public class GameService {
      */
     @Transactional
     public void interruptGame(String sessionId, String reason) {
+        // 중복 실행 방지를 위해 락을 시도합니다. (이 메소드는 외부에서 직접 호출될 수 있으므로 유지)
+        if (!sessionStateService.trySetInterrupt(sessionId, reason)) {
+            log.warn("세션 {}에 대한 인터럽트가 이미 처리 중이므로 건너뜁니다.", sessionId);
+            return;
+        }
 
         GameSession finalSession = getGameSession(sessionId);
         if (finalSession == null) {
             log.warn("존재하지 않거나 이미 처리된 세션 ID로 인터럽트 요청: {}", sessionId);
-            // 이미 Redis에서 삭제된 후 DB에만 남아있는 경우를 대비한 처리
             GameResult gameResult = gameResultRepository.findBySessionId(sessionId).orElse(null);
             if (gameResult != null && gameResult.getStatus() == GameSessionStatus.IN_PROGRESS) {
                 gameResult.interrupt(reason);
                 gameResultRepository.save(gameResult);
                 log.info("DB에만 남아있던 세션 {}의 게임을 중단 처리했습니다.", sessionId);
             }
-            // 락이 해제되지 않는 상황을 방지하기 위해 여기서도 락 해제를 시도합니다.
-            sessionStateService.releaseInterruptLock(sessionId);
+            sessionStateService.releaseInterruptLock(sessionId); // 락 해제
             return;
         }
 
-        // 1, 2절 판정 결과를 바탕으로 점수 계산
-        double verse1Avg = calculateScoreFromJudgments(finalSession.getVerse1Judgments());
-        double verse2Avg = calculateScoreFromJudgments(finalSession.getVerse2Judgments());
+        // --- 1. 절별 평균 점수 계산 (기존 로직) ---
+        Double verse1Avg = calculateScoreFromJudgments(finalSession.getVerse1Judgments());
+        Double verse2Avg = calculateScoreFromJudgments(finalSession.getVerse2Judgments());
 
-        // MongoDB: 상세 데이터 저장 (진행된 부분까지)
+        // --- 2. MongoDB 상세 데이터 저장 (기존 로직) ---
         GameDetail.Statistics verse1Stats = calculateStatistics(finalSession.getVerse1Judgments());
         GameDetail.Statistics verse2Stats = calculateStatistics(finalSession.getVerse2Judgments());
-
         GameDetail gameDetail = GameDetail.builder()
                 .sessionId(sessionId)
                 .verse1Stats(verse1Stats)
@@ -925,18 +933,24 @@ public class GameService {
                 .build();
         gameDetailRepository.save(gameDetail);
 
-        // MySQL: 게임 결과 업데이트 (중단 처리)
+        // --- 3. MySQL 게임 결과 엔티티 조회 (기존 로직) ---
         GameResult gameResult = gameResultRepository.findBySessionId(sessionId)
                 .orElseThrow(() -> new CustomException(ErrorCode.GAME_SESSION_NOT_FOUND));
 
+        // --- 4. 절별 평균 점수 및 상태 설정 (기존 로직) ---
         gameResult.setVerse1AvgScore(verse1Avg);
         gameResult.setVerse2AvgScore(verse2Avg);
-        gameResult.interrupt(reason); // <-- 상태 = INTERRUPTED, endTime, interruptReason 설정
+        gameResult.interrupt(reason); // <-- 상태를 'INTERRUPTED'로 설정
 
+        // --- 5. (핵심 추가) 동작별 점수 계산 및 GameResult에 추가 ---
+        calculateAndSaveScoresByAction(finalSession, gameResult);
+        // --- ▲ ---------------------------------------------- ▲ ---
+
+        // --- 6. MySQL에 최종 결과 저장 ---
         gameResultRepository.save(gameResult);
         log.info("세션 {}의 게임 중단 처리 완료. 사유: {}", sessionId, reason);
 
-        // Redis: 상태 정리
+        // --- 7. Redis 데이터 정리 (기존 로직) ---
         gameSessionRedisTemplate.delete(GAME_SESSION_KEY_PREFIX + sessionId);
         gameStateRedisTemplate.delete(GAME_STATE_KEY_PREFIX + sessionId);
         sessionStateService.clearSessionStatus(sessionId);
@@ -944,51 +958,92 @@ public class GameService {
             sessionStateService.clearActivity(finalSession.getUserId());
         }
 
-        // --- ▼ 모든 처리가 끝난 후 락을 해제합니다. ---
+        // --- 8. 모든 처리가 끝난 후 락 해제 (기존 로직) ---
         sessionStateService.releaseInterruptLock(sessionId);
 
-        // WebSocket: 프론트에 중단 알림 전송
+        // --- 9. WebSocket으로 프론트에 중단 알림 전송 (기존 로직) ---
         sendGameInterruptNotification(sessionId);
 
-        log.info("세션 {}의 게임 중단 처리 완료. 사유: {}", sessionId, reason);
+        log.info("세션 {}의 모든 인터럽트 처리 및 뒷정리 완료.", sessionId);
     }
 
     // ##########################################################
     //                      헬퍼 메서드
     // ##########################################################
-    
-    // (신규) 판정 리스트를 100점 만점 점수로 변환하는 메소드
-    private double calculateScoreFromJudgments(List<Integer> judgments) {
+
+    /**
+     * (신규) 동작별 평균 점수를 계산하고 GameResult 엔티티에 추가하는 헬퍼 메소드
+     */
+    private void calculateAndSaveScoresByAction(GameSession finalSession, GameResult gameResult) {
+        // 1. 1, 2절 모든 판정 결과 병합
+        List<GameSession.JudgmentResult> allJudgments = new ArrayList<>();
+        if (finalSession.getVerse1Judgments() != null) {
+            allJudgments.addAll(finalSession.getVerse1Judgments());
+        }
+        if (finalSession.getVerse2Judgments() != null) {
+            allJudgments.addAll(finalSession.getVerse2Judgments());
+        }
+
+        if (allJudgments.isEmpty()) {
+            return; // 판정 기록이 없으면 아무것도 하지 않음
+        }
+
+        // 2. actionCode 별로 그룹화하여 평균 점수 계산 (100점 만점)
+        Map<Integer, Double> avgScoresByAction = allJudgments.stream()
+                .collect(Collectors.groupingBy(
+                        GameSession.JudgmentResult::getActionCode,
+                        Collectors.averagingDouble(r -> (double) r.getJudgment() / 3.0 * 100.0)
+                ));
+
+        log.info("동작별 평균 점수 계산 완료: {}", avgScoresByAction);
+
+        // 3. 계산된 점수를 ScoreByAction 엔티티로 만들어 GameResult에 추가
+        // (기존에 있던 점수는 모두 삭제하고 새로 추가하여 멱등성 보장)
+        gameResult.getScoresByAction().clear();
+        avgScoresByAction.forEach((actionCode, avgScore) -> {
+            ScoreByAction score = ScoreByAction.builder()
+                    .gameResult(gameResult)
+                    .actionCode(actionCode)
+                    .averageScore(avgScore)
+                    .build();
+            gameResult.addScoreByAction(score);
+        });
+    }
+
+
+    /**
+     * (수정) JudgmentResult 리스트를 받아 100점 만점 점수로 변환하는 메소드
+     */
+    private double calculateScoreFromJudgments(List<GameSession.JudgmentResult> judgments) {
         if (judgments == null || judgments.isEmpty()) {
             return 0.0;
         }
-        // 각 판정 점수(1,2,3)를 100점 만점으로 환산 (3점=100, 2점=66.6, 1점=33.3)
-        double totalScore = judgments.stream()
-                .mapToDouble(judgment -> (double) judgment / 3.0 * 100.0)
-                .sum();
-        return totalScore / judgments.size();
+        // 각 판정 점수(1,2,3)를 100점 만점으로 환산
+        return judgments.stream()
+                .mapToDouble(j -> (double) j.getJudgment() / 3.0 * 100.0)
+                .average()
+                .orElse(0.0);
     }
 
-    // 판정 리스트에서 통계 계산
-    private GameDetail.Statistics calculateStatistics(List<Integer> judgments) {
+    /**
+     * (수정) JudgmentResult 리스트를 받아 통계를 계산하는 메소드
+     */
+    private GameDetail.Statistics calculateStatistics(List<GameSession.JudgmentResult> judgments) {
         if (judgments == null || judgments.isEmpty()) {
-            return GameDetail.Statistics.builder()
-                    .totalMovements(0)
-                    .correctMovements(0)
-                    .averageScore(0.0)
-                    .perfectCount(0)
-                    .goodCount(0)
-                    .badCount(0)
-                    .build();
+            return GameDetail.Statistics.builder().build(); // 기본값 반환
         }
 
-        int perfectCount = (int) judgments.stream().filter(j -> j == 3).count();
-        int goodCount = (int) judgments.stream().filter(j -> j == 2).count();
-        int badCount = (int) judgments.stream().filter(j -> j == 1).count();
+        List<Integer> judgmentScores = judgments.stream()
+                .map(GameSession.JudgmentResult::getJudgment)
+                .collect(Collectors.toList());
+
+        int perfectCount = (int) judgmentScores.stream().filter(j -> j == 3).count();
+        int goodCount = (int) judgmentScores.stream().filter(j -> j == 2).count();
+        int badCount = (int) judgmentScores.stream().filter(j -> j == 1).count();
 
         return GameDetail.Statistics.builder()
-                .totalMovements(judgments.size())
-                .correctMovements(perfectCount + goodCount) // PERFECT + GOOD
+                .totalMovements(judgmentScores.size())
+                .correctMovements(perfectCount + goodCount)
                 .averageScore(calculateScoreFromJudgments(judgments))
                 .perfectCount(perfectCount)
                 .goodCount(goodCount)

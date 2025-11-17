@@ -14,6 +14,8 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Getter
@@ -73,6 +75,11 @@ public class GameResult {
     @LastModifiedDate // 엔티티가 수정될 때마다 시간이 자동으로 갱신됨
     private LocalDateTime updatedAt; // updatedAt 추가
 
+
+    // --- 동작별 점수 리스트와의 관계 매핑 ---
+    @OneToMany(mappedBy = "gameResult", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ScoreByAction> scoresByAction = new ArrayList<>();
+
     @Builder
     public GameResult(User user, Song song, String sessionId, GameSessionStatus status,
                      LocalDateTime startTime, LocalDateTime endTime, String interruptReason,
@@ -104,5 +111,10 @@ public class GameResult {
     public void complete() {
         this.status = GameSessionStatus.COMPLETED;
         this.endTime = LocalDateTime.now();
+    }
+
+    // (선택) 연관관계 편의 메소드
+    public void addScoreByAction(ScoreByAction score) {
+        this.scoresByAction.add(score);
     }
 }
