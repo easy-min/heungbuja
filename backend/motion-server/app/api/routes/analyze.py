@@ -17,10 +17,13 @@ class AnalyzeRequest(BaseModel):
 
 
 class AnalyzeResponse(BaseModel):
-    judgment: int = Field(..., ge=0, le=3, description="동작 판정 결과 점수 (1~3 권장)")
     actionCode: int | None = Field(
         None, description="판정에 사용된 동작 코드 (없을 경우 예측 결과 코드)"
     )
+    judgment: int = Field(..., ge=0, le=3, description="동작 판정 결과 점수 (1~3 권장)")
+    decodeTimeMs: float = Field(..., ge=0, description="이미지 디코딩 총 소요 시간(ms)")
+    poseTimeMs: float = Field(..., ge=0, description="Mediapipe 포즈 추출 총 소요 시간(ms)")
+    inferenceTimeMs: float = Field(..., ge=0, description="동작 추론 소요 시간(ms)")
 
 
 @router.post("/analyze", response_model=AnalyzeResponse)
@@ -51,6 +54,12 @@ async def analyze_motion(
         payload.actionCode if payload.actionCode is not None else result.action_code
     )
 
-    return AnalyzeResponse(judgment=result.judgment, actionCode=response_action_code)
+    return AnalyzeResponse(
+        actionCode=response_action_code,
+        judgment=result.judgment,
+        decodeTimeMs=result.decode_time_ms,
+        poseTimeMs=result.pose_time_ms,
+        inferenceTimeMs=result.inference_time_ms,
+    )
 
 
