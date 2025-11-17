@@ -138,8 +138,8 @@ public class GptServiceImpl implements GptService {
 
     /**
      * Intent 분석용 GPT 호출 (최적화 버전) 🚀
-     * - 짧은 프롬프트
-     * - maxTokens=200, temperature=0.3
+     * - 짧은 프롬프트 (8줄)
+     * - temperature=0.3 (빠른 응답)
      * - 15초 타임아웃
      */
     @Override
@@ -159,7 +159,6 @@ public class GptServiceImpl implements GptService {
             GptRequest request = GptRequest.builder()
                     .model(model)
                     .messages(messages)
-                    .maxTokens(200)  // JSON 응답만 받으면 되니까
                     .temperature(0.3)  // 낮을수록 빠름
                     .build();
 
