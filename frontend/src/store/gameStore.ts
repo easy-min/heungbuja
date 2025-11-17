@@ -114,8 +114,8 @@ export const useGameStore = create<GameState>((set) => ({
   // API 응답 전체 주입
   setFromApi: (resp) => {
     const d = resp.gameInfo;
-    const limit4 = (arr: string[] | undefined | null): string[] =>
-    Array.isArray(arr) ? arr.slice(0, 4) : [];
+    // const = (arr: string[] | undefined | ull): string[] =>
+    // Array.isArray(arr) ? arr.slice(0, 4) : [];
     
     set({
       sessionId: d.sessionId,
@@ -139,11 +139,11 @@ export const useGameStore = create<GameState>((set) => ({
       verse2Timelines: d.verse2Timelines,
       
       sectionPatterns: {
-        verse1: limit4(d.sectionPatterns.verse1),
+        verse1: d.sectionPatterns.verse1,
         verse2: {
-          level1: limit4(d.sectionPatterns.verse2.level1),
-          level2: limit4(d.sectionPatterns.verse2.level2),
-          level3: limit4(d.sectionPatterns.verse2.level3),
+          level1: d.sectionPatterns.verse2.level1,
+          level2: d.sectionPatterns.verse2.level2,
+          level3: d.sectionPatterns.verse2.level3,
         },
       },
     });

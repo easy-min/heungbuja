@@ -6,7 +6,7 @@ import { useMusicMonitor } from '@/hooks/useMusicMonitor';
 import { useLyricsSync } from '@/hooks/useLyricsSync';
 import { useGameWs } from '@/hooks/useGameWs';
 import { useActionTimelineSync } from '@/hooks/useActionTimelineSync';
-import type  { LyricLine, FeedbackMessage, GameEndResponse } from '@/types/game';
+import type  { LyricLine, FeedbackMessage, GameEndResponse, GameWsMessage } from '@/types/game';
 import { useGameStore } from '@/store/gameStore';
 import { gameEndApi } from '@/api/game';
 import  VoiceButton from '@/components/VoiceButton'
@@ -52,7 +52,7 @@ function GamePage() {
       // 최초 연결 이후 끊김: 배너만 띄우고 기다리면 stomp가 자동 재연결
       setWsMessage('연결이 끊어졌습니다. 재시도 중…');
     },
-    onFeedback: (msg) => {
+    onFeedback: (msg: GameWsMessage) => {
       if (msg.type === 'LEVEL_DECISION') {
         const { nextLevel } = msg.data;
         console.log(msg.data);
@@ -124,7 +124,7 @@ function GamePage() {
   } as const;
 
   const PATTERN_META: Record<PatternKey, { src: string; bpm: number; loopBeats: number }> = {
-    P1: { src: pub('P1.mp4'), bpm: 98.7, loopBeats: 16 },
+    P1: { src: pub('P1.mp4'), bpm: 98.6, loopBeats: 16 },
     P2: { src: pub('P2.mp4'), bpm: 98.3, loopBeats: 16 },
     P3: { src: pub('P3.mp4'), bpm: 99, loopBeats: 16 },
     P4: { src: pub('P4.mp4'), bpm: 99, loopBeats: 16 },
