@@ -381,7 +381,7 @@ public class GameService {
         return songBeat.getSections().stream()
                 .collect(Collectors.toMap(
                         SongBeat.Section::getLabel,
-                        s -> barStartTimes.getOrDefault(s.getStartBar(), 0.0)
+                        s -> barStartTimes.getOrDefault(s.getStartBeat(), 0.0)
                 ));
     }
 

@@ -355,7 +355,7 @@ public class SongGameDataCache {
         Map<String, Double> sectionStartTimes = songBeat.getSections().stream()
                 .collect(Collectors.toMap(
                         SongBeat.Section::getLabel,
-                        s -> barStartTimes.getOrDefault(s.getStartBar(), 0.0)
+                        s -> barStartTimes.getOrDefault(s.getStartBeat(), 0.0)
                 ));
 
         SongBeat.Section verse1Section = findSectionByLabel(songBeat, "verse1");
