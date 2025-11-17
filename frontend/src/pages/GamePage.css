@@ -8,14 +8,23 @@
   overflow: hidden;
 }
 
+/* 상단: 제목 + 오디오바 */
+.top-container {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  padding: 8px 30px 0 30px;   
+  justify-content: space-between;
+}
+
 /* 노래 정보 (타이틀, 가수) */
 .song-info {
   flex: 0 0 auto;
   display: flex;
   flex-direction: row;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: baseline;
-  margin: 1% 0;
+  margin: 1%;
   gap: 0.8rem;
 }
 
@@ -34,23 +43,39 @@
   font-weight: 500;
 }
 
+/* 상단 오디오 재생바 – 상단 전체 폭 사용 */
+.audio-bar {
+  flex: 0 0 auto;
+  width: 75%;
+  background: var(--color-bg);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+.audio-player {
+  width: 100%;
+  display: block;
+}
+
 .game-main {
   flex: 1 1 auto;
   display: flex;
   flex-direction: row;
+  align-items: stretch;       /* 양쪽 컨테이너 높이 맞추기 */
   overflow: hidden;
-  margin: 0 30px;
+  margin: 0 30px 20px;
   gap: 10px;
 }
 
-/* 좌측: 비디오 컨테이너 */
-/* .left-container {
+/* 비디오 컨테이너 */
+/* .right-container {
   flex: 7;
   display: flex;
   flex-direction: column;
 } */
 
-.left__main {
+.right__main {
   flex: 7;
   display: flex;
   flex-direction: column;
@@ -71,7 +96,7 @@
 .motion-video-wrapper {
   width: 100%;
   /* max-width: 1000px; */
-  aspect-ratio: 7 / 4;    /* 원하면 4/3 등으로 변경 */
+  aspect-ratio: 9 / 5.4;    /* 원하면 4/3 등으로 변경 */
   overflow: hidden;
   border-radius: 30px;
   background: #000;        /* 비디오 로딩 전 배경 */
@@ -91,7 +116,7 @@
 /* 동작 이름 말풍선 */
 .action-label-overlay {
   position: absolute;
-  top: 24px;
+  top: 30px;
   left: 50%;
   transform: translateX(-50%);
   padding: 14px 32px;
@@ -155,14 +180,14 @@
 }
 
 
-/*오른쪽: 카메라 컨테이너 */
-.right-container {
+/*카메라 컨테이너 */
+.left-container {
   flex: 2;
   display: flex;
   flex-direction: column;
 }
 
-.right__main {
+.left__main {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -384,21 +409,4 @@
 /* 피드백이 없을 때 자리만 유지 */
 .feedback-placeholder {
   opacity: 0;
-}
-
-
-/* 하단: 오디오 재생바 */
-.audio-bar {
-  flex: 0 0 auto;
-  width: 100%;
-  margin: auto 30px;
-  height: min-content;
-  /* padding: 8px 24px; */
-  background: var(--color-bg);
-  box-sizing: border-box;
-}
-
-.audio-player {
-  width: 100%;
-  display: block;
 }

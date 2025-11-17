@@ -701,50 +701,25 @@ function GamePage() {
       )}
 
       <div className="game-page">
-        <div className='song-info'>
-          <div className="game-song-title">{songTitle}</div>
-          <div className="game-song-artist">{songArtist}</div>
+        <div className='top-container'>
+          <div className='song-info'>
+            <div className="game-song-title">{songTitle}</div>
+            <div className="game-song-artist">{songArtist}</div>
+          </div>
+          <div className="audio-bar">
+            <audio
+              controls
+              ref={audioRef}
+              className="audio-player"
+            />
+          </div>
         </div>
         {/* 메인 영역: 좌(캐릭터) / 우(카메라) */}
         <div className="game-main">
-          {/* <div className="left-container"> */}
+
+          {/* 왼쪽: 카메라 + 피드백 */}
+          <div className="left-container">
             <div className="left__main">
-              <div className="character-section">
-                <div className="motion-video-wrapper">
-                  <video
-                    ref={motionVideoRef}
-                    preload="auto"
-                    muted
-                    playsInline
-                    src={VIDEO_META.break.src}
-                    className="motion-video"
-                  />
-                </div>
-                {currentActionName && (
-                  <div className="action-label-overlay">
-                    {currentActionName}
-                  </div>
-                )}
-              </div>
-
-              {/* <div className="lyrics-container"> */}
-                {/* 가사 영역은 일단 비워 둠 */}
-                {/* 
-                <div className="lyrics-display">
-                  <div className="lyrics-current">
-                    {isInstrumental ? '(간주 중)' : currentLyric?.text ?? '\u00A0'}
-                  </div>
-                  <div className="lyrics-next">
-                    {!isInstrumental ? nextLyric?.text ?? '\u00A0' : '\u00A0'}
-                  </div>
-                </div>
-                */}
-              {/* </div> */}
-            {/* </div> */}
-          </div>
-
-          <div className="right-container">
-            <div className="right__main">
               <div className="camera-section">
                 <video
                   ref={videoRef}
@@ -783,16 +758,28 @@ function GamePage() {
             </div>
           </div>
 
-          <VoiceButton />
-        </div>
+          {/* 오른쪽: 캐릭터 */}
+          <div className="right__main">
+            <div className="character-section">
+              <div className="motion-video-wrapper">
+                <video
+                  ref={motionVideoRef}
+                  preload="auto"
+                  muted
+                  playsInline
+                  src={VIDEO_META.break.src}
+                  className="motion-video"
+                />
+              </div>
+              {currentActionName && (
+                <div className="action-label-overlay">
+                  {currentActionName}
+                </div>
+              )}
+            </div>
+          </div>
 
-        {/* 하단 전체 폭 오디오 컨트롤 바 */}
-        <div className="audio-bar">
-          <audio
-            controls
-            ref={audioRef}
-            className="audio-player"
-          />
+          <VoiceButton />
         </div>
       </div>
     </>
