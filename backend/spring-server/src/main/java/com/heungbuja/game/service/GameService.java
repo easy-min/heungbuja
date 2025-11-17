@@ -682,24 +682,30 @@ public class GameService {
                             long responseTime = System.currentTimeMillis() - startTime;
                             aiResponseStats.record(responseTime);
 
-                            // --- ▼ (핵심 수정) actionCode와 judgment를 모두 가져옵니다. ---
                             int actionCode = aiResponse.getActionCode();
                             int judgment = aiResponse.getJudgment();
                             log.info("⏱️ AI 분석 결과 수신 (세션 {}): actionCode={}, judgment={} (응답시간: {}ms)", sessionId, actionCode, judgment, responseTime);
 
                             handleJudgmentResult(sessionId, actionCode, judgment, action.getTime());
-                            // --- ▲ ---------------------------------------------------- ▲ ---
                         },
                         error -> { // 실패 시
                             long responseTime = System.currentTimeMillis() - startTime;
-                            log.error("AI 서버 호출 실패 (세션 {}): {} (소요시간: {}ms)", sessionId, error.getMessage(), responseTime);
+                            // AI 서버 통신 중 에러가 발생하면, 서버가 중단되지 않고
+                            // 판정 점수를 1점으로 처리하여 게임을 계속 진행합니다.
+                            log.error("AI 서버 호출 중 오류 발생 (세션 ID: {}). 기본 점수(1점)으로 처리합니다. (소요시간: {}ms)", sessionId, responseTime, error);
 
-                            // --- ▼ (핵심 수정) 실패 시에도 actionCode를 포함하여 처리합니다. ---
+                            // WebClientResponseException의 경우, 더 상세한 정보를 로그에 남깁니다.
+                            if (error instanceof org.springframework.web.reactive.function.client.WebClientResponseException) {
+                                org.springframework.web.reactive.function.client.WebClientResponseException ex = (org.springframework.web.reactive.function.client.WebClientResponseException) error;
+                                log.error(" > AI 서버 응답 코드: {}, 응답 본문: {}", ex.getStatusCode(), ex.getResponseBodyAsString());
+                            }
+
+                            // 에러 발생 시 판정 점수를 1점으로 하여 결과 처리
                             handleJudgmentResult(sessionId, action.getActionCode(), 1, action.getTime());
-                            // --- ▲ ---------------------------------------------------- ▲ ---
                         }
                 );
     }
+
 
     /**
      * AI 판정 결과를 받아 후속 처리를 하는 메소드
