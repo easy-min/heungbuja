@@ -46,7 +46,7 @@ function App() {
         );
     }
   return (
-    <BrowserRouter>
+    <BrowserRouter basename='/user'>
       <div className="app">
         <Routes>
            {/* 로그인 페이지 - 환경에 따라 다른 컴포넌트 */}
