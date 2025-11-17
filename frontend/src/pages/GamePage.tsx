@@ -27,6 +27,7 @@ function GamePage() {
   const currentSectionRef = useRef<'intro' | 'break' | 'verse1' | 'verse2'>('break');
   const announcedSectionRef = useRef<SectionKey | null>(null);
   const verse2LevelRef = useRef<'level1' | 'level2' | 'level3'>('level2');
+  const forceStopRef = useRef(false);
 
   const currentPatternSeqRef = useRef<PatternKey[] | null>(null);
   const currentPatternIndexRef = useRef<number>(0);
@@ -45,10 +46,12 @@ function GamePage() {
 
   const { connect, disconnect, sendFrame, isConnected } = useGameWs({
     onError: () => {
+      if (forceStopRef.current) return;
       setWsMessage('웹소켓 연결 실패');   // 문구 먼저 노출
       setRedirectReason('wsError');       // 이동은 별도 effect에서 지연 처리
     },
     onDisconnect: () => {
+      if (forceStopRef.current) return;
       // 최초 연결 이후 끊김: 배너만 띄우고 기다리면 stomp가 자동 재연결
       setWsMessage('연결이 끊어졌습니다. 재시도 중…');
     },
@@ -100,6 +103,8 @@ function GamePage() {
     lyricsInfo,
     verse1Timeline,
     verse2Timelines,
+    stopRequested,
+    clear,
     sectionPatterns,
   } = useGameStore();
 
@@ -218,26 +223,31 @@ function GamePage() {
 
   // 웹소켓 연결 확인
   useEffect(() => {
+    if (forceStopRef.current) return;
+    if (stopRequested) return;
     if (isConnected || redirectReason) {
       if (isConnected) setWsMessage(null);
       return;
     }
     setWsMessage('웹소켓 연결 중…');
     const timer = window.setTimeout(() => {
+      if (forceStopRef.current) return;
+      if (stopRequested) return;
       setWsMessage('연결이 지연되어 튜토리얼로 이동합니다.');
       setRedirectReason('timeout');
     }, 5000);
     return () => clearTimeout(timer);
-  }, [isConnected, redirectReason]);
+  }, [isConnected, redirectReason, stopRequested]);
 
   // 안내 문구를 화면에 보여준 다음 1.2초 뒤 라우팅
   useEffect(() => {
-    if (!redirectReason) return;
+    if (forceStopRef.current) return;
+    if (!redirectReason || stopRequested) return;
     const timer = window.setTimeout(() => {
       navigate('/tutorial', { replace: true });
     }, 1200);
     return () => clearTimeout(timer);
-  }, [redirectReason, navigate]);
+  }, [redirectReason, navigate, stopRequested]);
 
 
   // 자동 카운트다운
@@ -287,6 +297,11 @@ function GamePage() {
     video.addEventListener('loadedmetadata', onMeta);
     return () => video.removeEventListener('loadedmetadata', onMeta);
   }, []);
+
+  useEffect(() => {
+    if (!stopRequested) return;
+    void handleForceStop();
+  }, [stopRequested]);
 
   // === 섹션별 영상 전환 ===
   function switchSectionVideo(
@@ -542,7 +557,10 @@ function GamePage() {
     stopStream();
     clearCaptureTimeouts();
     disconnect();
-    if (audioRef.current) audioRef.current.pause();
+    if (audioRef.current) {
+      audioRef.current.onerror = null;
+      audioRef.current.pause();
+    }
 
     const res: GameEndResponse = await gameEndApi();
 
@@ -552,6 +570,31 @@ function GamePage() {
         message: res.message,
       },
     });
+  }
+
+  function cleanupGameResources() {
+    stopMonitoring();
+    stopCamera();
+    stopStream();
+    clearCaptureTimeouts();
+    disconnect();
+    if (audioRef.current) {
+      audioRef.current.onerror = null;
+      audioRef.current.pause();
+    }
+    const mv = motionVideoRef.current;
+    if (mv) {
+      mv.pause();
+      mv.currentTime = 0;   // 필요하면 처음 프레임으로
+    }
+  }
+
+  async function handleForceStop() {
+    forceStopRef.current = true;
+    cleanupGameResources();
+    setRedirectReason(null);
+    setWsMessage(null);
+    clear();
   }
 
   function mapJudgment(judgment: 1 | 2 | 3) {
@@ -593,10 +636,11 @@ function GamePage() {
           const localAudio = pub(audioUrl);
           audioRef.current.src = localAudio;
           audioRef.current.onerror = () => {
-            if (audioUrl) {
-              audioRef.current!.src = audioUrl;
-              audioRef.current!.load();
-            }
+            const el = audioRef.current;
+            if (!el || !audioUrl) return;
+
+            el.src = audioUrl;
+            el.load();
           };
           audioRef.current.load();
         }
@@ -614,6 +658,7 @@ function GamePage() {
         };
 
         connect(sessionId);
+        forceStopRef.current = false;
 
         await loadFromGameStart({ bpm, duration, timeline });
         switchSectionVideo('break');
@@ -628,7 +673,10 @@ function GamePage() {
       stopMonitoring();
       stopStream();
       clearCaptureTimeouts();
-      if (audioRef.current) audioRef.current.pause();
+      if (audioRef.current) {
+        audioRef.current.onerror = null;
+        audioRef.current.pause();
+      }
     };
   }, []);
 
