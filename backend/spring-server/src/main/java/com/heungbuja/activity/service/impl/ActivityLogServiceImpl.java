@@ -124,7 +124,7 @@ public class ActivityLogServiceImpl implements ActivityLogService {
 
     @Override
     public Page<UserActivityLog> findLogsByUserId(Long userId, Pageable pageable) {
-        return activityLogRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
+        return activityLogRepository.findByUser_IdOrderByCreatedAtDesc(userId, pageable);
     }
 
     @Override
@@ -137,7 +137,7 @@ public class ActivityLogServiceImpl implements ActivityLogService {
             Long userId,
             ActivityType activityType,
             Pageable pageable) {
-        return activityLogRepository.findByUserIdAndActivityTypeOrderByCreatedAtDesc(
+        return activityLogRepository.findByUser_IdAndActivityTypeOrderByCreatedAtDesc(
                 userId, activityType, pageable);
     }
 
@@ -156,7 +156,7 @@ public class ActivityLogServiceImpl implements ActivityLogService {
             LocalDateTime startDate,
             LocalDateTime endDate,
             Pageable pageable) {
-        return activityLogRepository.findByUserIdAndCreatedAtBetweenOrderByCreatedAtDesc(
+        return activityLogRepository.findByUser_IdAndCreatedAtBetweenOrderByCreatedAtDesc(
                 userId, startDate, endDate, pageable);
     }
 

@@ -26,7 +26,7 @@ public interface UserActivityLogRepository extends JpaRepository<UserActivityLog
     /**
      * 특정 사용자의 활동 로그 조회 (페이징)
      */
-    Page<UserActivityLog> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
+    Page<UserActivityLog> findByUser_IdOrderByCreatedAtDesc(Long userId, Pageable pageable);
 
     /**
      * 활동 타입별 필터링 조회 (페이징)
@@ -36,7 +36,7 @@ public interface UserActivityLogRepository extends JpaRepository<UserActivityLog
     /**
      * 특정 사용자 + 활동 타입 필터링 조회 (페이징)
      */
-    Page<UserActivityLog> findByUserIdAndActivityTypeOrderByCreatedAtDesc(
+    Page<UserActivityLog> findByUser_IdAndActivityTypeOrderByCreatedAtDesc(
             Long userId,
             ActivityType activityType,
             Pageable pageable
@@ -54,7 +54,7 @@ public interface UserActivityLogRepository extends JpaRepository<UserActivityLog
     /**
      * 특정 사용자 + 기간별 필터링 조회 (페이징)
      */
-    Page<UserActivityLog> findByUserIdAndCreatedAtBetweenOrderByCreatedAtDesc(
+    Page<UserActivityLog> findByUser_IdAndCreatedAtBetweenOrderByCreatedAtDesc(
             Long userId,
             LocalDateTime startDate,
             LocalDateTime endDate,
