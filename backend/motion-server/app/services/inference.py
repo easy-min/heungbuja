@@ -273,14 +273,20 @@ class MotionInferenceService:
         else:
             judgment = self._fallback_score(predicted_label, confidence, target_action_name)
 
-        LOGGER.debug(
-            "Prediction result - target(name=%s, code=%s) predicted=%s, conf=%.3f, target_prob=%s, judgment=%d",
+        total_time_ms = decode_time_ms + pose_time_ms + inference_time_ms
+        LOGGER.info(
+            "🎯 AI 판정 결과 - 목표동작=%s(code=%s), 예측동작=%s(신뢰도=%.1f%%), "
+            "목표확률=%.1f%%, 점수=%d점 | ⏱️ 총=%.0fms (디코딩=%.0fms, Pose추출=%.0fms, 추론=%.0fms)",
             target_action_name,
             target_action_code,
             predicted_label,
-            confidence,
-            target_probability,
+            confidence * 100,
+            (target_probability * 100) if target_probability else 0,
             judgment,
+            total_time_ms,
+            decode_time_ms,
+            pose_time_ms,
+            inference_time_ms,
         )
 
         # ========================================================================
@@ -396,8 +402,8 @@ class MotionInferenceService:
                 f"카메라에 전신이 보이도록 해주세요."
             )
 
-        LOGGER.debug(
-            "Valid frames: %d/%d (filtered out %d zero-vector frames)",
+        LOGGER.info(
+            "📹 프레임 분석: 유효=%d개, 전체=%d개, 필터링=%d개 (영벡터 제외)",
             valid_count, total_count, total_count - valid_count
         )
 
