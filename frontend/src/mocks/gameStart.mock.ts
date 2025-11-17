@@ -109,6 +109,15 @@ export async function mockGameStart(): Promise<GameStartResponse> {
         id: "1",
         lines: line,
       },
+
+      sectionPatterns: {
+        verse1: [],
+        verse2: {
+          level1: [],
+          level2: [],
+          level3: [],
+        }
+      },
     },
   };
 }
