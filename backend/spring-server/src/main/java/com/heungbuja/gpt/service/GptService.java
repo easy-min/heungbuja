@@ -33,4 +33,16 @@ public interface GptService {
      * @return JSON 형식의 Intent 분석 결과
      */
     String analyzeIntent(String userMessage, String contextInfo);
+
+    /**
+     * Intent 분석용 GPT 호출 (최적화 버전)
+     * - 짧은 프롬프트 사용
+     * - maxTokens, temperature 최적화
+     * - 15초 타임아웃 적용
+     *
+     * @param userMessage 사용자 음성 명령어
+     * @param contextInfo 대화 컨텍스트 정보 (사용 안 함)
+     * @return JSON 형식의 Intent 분석 결과
+     */
+    String analyzeIntentOptimized(String userMessage, String contextInfo);
 }
