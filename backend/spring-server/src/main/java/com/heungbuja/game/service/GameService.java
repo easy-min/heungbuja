@@ -338,10 +338,10 @@ public class GameService {
         int startBeat = section.getStartBeat();
         int endBeat = section.getEndBeat();
 
-        // ⭐ 1. 패턴 배열을 하나의 큰 패턴으로 병합
+        // ⭐ 1. 패턴 배열을 하나의 큰 패턴으로 병합 (패턴 전체를 eachRepeat번 반복)
         List<Integer> mergedPattern = new ArrayList<>();
-        for (List<Integer> pattern : patternSequenceList) {
-            for (int i = 0; i < eachRepeat; i++) {
+        for (int i = 0; i < eachRepeat; i++) {
+            for (List<Integer> pattern : patternSequenceList) {
                 mergedPattern.addAll(pattern);
             }
         }
@@ -426,10 +426,10 @@ public class GameService {
             int eachRepeat,
             String sectionLabel) {
 
-        // 1. 기본 패턴 시퀀스 생성 (eachRepeat 적용)
+        // 1. 기본 패턴 시퀀스 생성 (패턴 전체를 eachRepeat번 반복)
         List<String> mergedPattern = new ArrayList<>();
-        for (String patternId : patternSequence) {
-            for (int i = 0; i < eachRepeat; i++) {
+        for (int i = 0; i < eachRepeat; i++) {
+            for (String patternId : patternSequence) {
                 mergedPattern.add(patternId);
             }
         }
