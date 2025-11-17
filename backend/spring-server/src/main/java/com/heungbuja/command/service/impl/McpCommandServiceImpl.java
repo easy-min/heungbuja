@@ -477,11 +477,128 @@ public class McpCommandServiceImpl implements CommandService {
     }
 
     /**
-     * Tool 결과를 기반으로 GPT가 최종 응답 생성
+     * Tool 결과를 기반으로 최종 응답 생성
+     * 템플릿 기반으로 빠르게 응답하고, UNKNOWN일 때만 GPT 사용
      */
     private String generateFinalResponse(String originalMessage, String contextInfo,
                                           List<McpToolCall> toolCalls, List<McpToolResult> toolResults) {
 
+        // 템플릿 기반 응답 시도
+        String templateResponse = generateTemplateResponse(toolResults);
+
+        if (templateResponse != null) {
+            log.info("[MCP] 템플릿 기반 응답 사용: '{}'", templateResponse);
+            return templateResponse;
+        }
+
+        // 템플릿으로 처리 불가능한 경우에만 GPT 호출
+        log.info("[MCP] 템플릿 응답 없음 - GPT 호출");
+        return generateGptResponse(originalMessage, toolResults);
+    }
+
+    /**
+     * 템플릿 기반 응답 생성
+     * 각 Tool별로 정해진 응답 패턴 사용
+     */
+    private String generateTemplateResponse(List<McpToolResult> toolResults) {
+        if (toolResults.isEmpty()) {
+            return null;
+        }
+
+        // 마지막 Tool 결과 우선 처리
+        McpToolResult lastResult = toolResults.get(toolResults.size() - 1);
+        String toolName = lastResult.getToolName();
+
+        log.debug("[MCP] 템플릿 응답 생성 시도: toolName={}", toolName);
+
+        return switch (toolName) {
+            case "search_song" -> {
+                if (lastResult.getSongInfo() != null) {
+                    String artist = lastResult.getSongInfo().getArtist();
+                    String title = lastResult.getSongInfo().getTitle();
+
+                    if (artist != null && !artist.isEmpty()) {
+                        yield artist + "의 " + title + " 들려드릴게요";
+                    } else {
+                        yield title + " 들려드릴게요";
+                    }
+                }
+                yield "노래를 틀어드릴게요";
+            }
+
+            case "start_game" -> "게임을 시작할게요";
+
+            case "start_game_with_song" -> {
+                // Tool arguments에서 곡명 추출 시도
+                if (lastResult.getData() instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> data = (Map<String, Object>) lastResult.getData();
+                    Object songTitle = data.get("songTitle");
+                    if (songTitle != null) {
+                        yield songTitle + "로 게임을 시작할게요";
+                    }
+                }
+                yield "게임을 시작할게요";
+            }
+
+            case "control_playback" -> {
+                if (lastResult.getData() instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> data = (Map<String, Object>) lastResult.getData();
+                    String action = (String) data.get("action");
+
+                    if (action != null) {
+                        yield switch (action.toUpperCase()) {
+                            case "PAUSE" -> "일시정지했어요";
+                            case "RESUME" -> "재생할게요";
+                            case "NEXT" -> "다음 곡으로 넘길게요";
+                            case "STOP" -> "정지했어요";
+                            default -> "처리했어요";
+                        };
+                    }
+                }
+                yield "처리했어요";
+            }
+
+            case "add_to_queue" -> "대기열에 추가했어요";
+
+            case "handle_emergency" -> "응급 신고를 접수했어요. 괜찮으시면 '괜찮아'라고 말씀해주세요";
+
+            case "cancel_emergency" -> "응급 신고를 취소했어요";
+
+            case "confirm_emergency" -> "즉시 신고할게요";
+
+            case "change_mode" -> {
+                if (lastResult.getData() instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> data = (Map<String, Object>) lastResult.getData();
+                    String mode = (String) data.get("mode");
+
+                    if (mode != null) {
+                        yield switch (mode.toUpperCase()) {
+                            case "HOME" -> "홈 화면으로 이동할게요";
+                            case "LISTENING" -> "감상 모드로 전환할게요";
+                            case "EXERCISE" -> "체조 모드로 전환할게요";
+                            default -> "모드를 변경했어요";
+                        };
+                    }
+                }
+                yield "모드를 변경했어요";
+            }
+
+            case "get_current_context" -> "현재 상태를 조회했어요";
+
+            default -> {
+                log.debug("[MCP] 템플릿 없는 Tool: {}", toolName);
+                yield null; // 템플릿 없음 - GPT 호출 필요
+            }
+        };
+    }
+
+    /**
+     * GPT 기반 응답 생성 (템플릿으로 처리 불가능한 경우에만 사용)
+     */
+    private String generateGptResponse(String originalMessage, List<McpToolResult> toolResults) {
         // Tool 결과를 텍스트로 포맷팅
         StringBuilder toolResultsText = new StringBuilder();
         for (int i = 0; i < toolResults.size(); i++) {
