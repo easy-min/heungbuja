@@ -272,8 +272,14 @@ class MotionInferenceService:
             judgment,
         )
 
+        # ========================================================================
+        # ⚠️ CRITICAL: Convert model index back to DB actionCode when returning
+        # ========================================================================
+        # If target_action_code was provided, return it as-is (already DB format)
+        # If not provided, convert model's best_idx (0-based) to DB actionCode (1-based)
+        # ========================================================================
         resolved_action_code = (
-            target_action_code if target_action_code is not None else best_idx
+            target_action_code if target_action_code is not None else best_idx + 1
         )
 
         return InferenceResult(
@@ -287,8 +293,21 @@ class MotionInferenceService:
     def _resolve_target_index(
         self, action_name: str | None, action_code: int | None
     ) -> int | None:
-        if action_code is not None and action_code in self.id_to_label:
-            return action_code
+        # ========================================================================
+        # ⚠️ CRITICAL: DB actionCode vs Model class_index Mismatch Fix
+        # ========================================================================
+        # - DB actionCode is 1-based (손 박수=1, 팔 치기=2, ...)
+        # - AI model class_index is 0-based (손 박수=0, 팔 치기=1, ...)
+        # - This causes 1-position shift → incorrect predictions!
+        #
+        # TEMPORARY FIX: Convert DB actionCode to model index by subtracting 1
+        # TODO: Retrain model with 1-based labels OR update DB to use 0-based codes
+        # ========================================================================
+        if action_code is not None:
+            # Convert DB actionCode (1-based) to model class_index (0-based)
+            model_index = action_code - 1
+            if model_index in self.id_to_label:
+                return model_index
         if action_name:
             key = action_name.strip().upper()
             return self.class_mapping.get(key)
