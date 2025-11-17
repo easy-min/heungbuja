@@ -54,14 +54,16 @@ public class SecurityConfig {
                         .requestMatchers("/emergency/*/cancel").permitAll()
                         .requestMatchers("/emergency/*/confirm").permitAll()
 
-                        // SUPER_ADMIN only (관리자 생성 및 전체 조회)
-                        .requestMatchers("/admins").hasAuthority("ROLE_SUPER_ADMIN")
-
-                        // ADMIN and SUPER_ADMIN (기기 및 어르신 관리)
+                        // ADMIN and SUPER_ADMIN (구체적인 경로를 먼저 매칭)
+                        .requestMatchers("/admins/songs/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPER_ADMIN")
                         .requestMatchers("/admins/devices/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPER_ADMIN")
                         .requestMatchers("/admins/users/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPER_ADMIN", "ROLE_USER")
+                        .requestMatchers("/admins/activity-logs/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPER_ADMIN")
                         .requestMatchers("/emergency/admins/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPER_ADMIN")
-                        .requestMatchers("/admins/songs/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPER_ADMIN")
+
+                        // SUPER_ADMIN only (관리자 생성 및 전체 조회 - 마지막에)
+                        .requestMatchers("/admins").hasAuthority("ROLE_SUPER_ADMIN")
+                        .requestMatchers("/admins/**").hasAuthority("ROLE_SUPER_ADMIN")
 
                         .requestMatchers("/game/**").permitAll()  // ---- 우선 game 요청 허용
 
