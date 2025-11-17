@@ -276,17 +276,21 @@
                 </div>
                 <div class="step" data-step="2">
                     <div class="step-circle">2</div>
-                    <div class="step-label">파일 업로드</div>
+                    <div class="step-label">오디오+가사</div>
                 </div>
                 <div class="step" data-step="3">
                     <div class="step-circle">3</div>
-                    <div class="step-label">미리보기</div>
+                    <div class="step-label">안무</div>
                 </div>
                 <div class="step" data-step="4">
                     <div class="step-circle">4</div>
-                    <div class="step-label">업로드</div>
+                    <div class="step-label">미리보기</div>
                 </div>
                 <div class="step" data-step="5">
+                    <div class="step-circle">5</div>
+                    <div class="step-label">분석중</div>
+                </div>
+                <div class="step" data-step="6">
                     <div class="step-circle">✓</div>
                     <div class="step-label">완료</div>
                 </div>
@@ -299,33 +303,32 @@
                 <input id="song-artist" type="text" placeholder="아티스트 (예: 아이유)" style="margin-bottom:15px;" required>
             </div>
 
-            <!-- 2단계: 파일 업로드 -->
+            <!-- 2단계: 오디오 + 가사 업로드 -->
             <div class="step-content" data-step="2" style="text-align:left;">
-                <h3 style="margin-bottom:20px; color:#667eea;">📁 파일을 업로드하세요</h3>
+                <h3 style="margin-bottom:20px; color:#667eea;">📁 오디오와 가사를 업로드하세요</h3>
+                <p style="color:#666; margin-bottom:20px;">오디오를 자동 분석하여 박자와 가사 타이밍을 생성합니다.</p>
 
                 <div class="file-upload-area" onclick="document.getElementById('audio-file').click()">
                     <div class="file-icon">🎵</div>
-                    <div class="file-label">오디오 파일 (.mp3)</div>
+                    <div class="file-label">오디오 파일 (.mp3, .wav)</div>
                     <div class="file-hint">클릭하여 파일 선택</div>
                     <div class="file-selected" id="audio-file-name"></div>
                     <input type="file" id="audio-file" accept=".mp3,.wav" onchange="handleFileSelect(event, 'audio')">
                 </div>
 
-                <div class="file-upload-area" onclick="document.getElementById('beat-file').click()">
-                    <div class="file-icon">🎼</div>
-                    <div class="file-label">박자 정보 JSON</div>
-                    <div class="file-hint">클릭하여 파일 선택</div>
-                    <div class="file-selected" id="beat-file-name"></div>
-                    <input type="file" id="beat-file" accept=".json" onchange="handleFileSelect(event, 'beat')">
-                </div>
-
                 <div class="file-upload-area" onclick="document.getElementById('lyrics-file').click()">
                     <div class="file-icon">📝</div>
-                    <div class="file-label">가사 정보 JSON</div>
-                    <div class="file-hint">클릭하여 파일 선택</div>
+                    <div class="file-label">가사 텍스트 파일 (.txt)</div>
+                    <div class="file-hint">한 줄에 한 가사씩 입력된 텍스트 파일</div>
                     <div class="file-selected" id="lyrics-file-name"></div>
-                    <input type="file" id="lyrics-file" accept=".json" onchange="handleFileSelect(event, 'lyrics')">
+                    <input type="file" id="lyrics-file" accept=".txt" onchange="handleFileSelect(event, 'lyrics')">
                 </div>
+            </div>
+
+            <!-- 3단계: 안무 JSON 업로드 -->
+            <div class="step-content" data-step="3" style="text-align:left;">
+                <h3 style="margin-bottom:20px; color:#667eea;">💃 안무 정보를 업로드하세요</h3>
+                <p style="color:#666; margin-bottom:20px;">안무는 수동으로 작성한 JSON 파일을 업로드해주세요.</p>
 
                 <div class="file-upload-area" onclick="document.getElementById('choreography-file').click()">
                     <div class="file-icon">💃</div>
@@ -336,32 +339,31 @@
                 </div>
             </div>
 
-            <!-- 3단계: 미리보기 -->
-            <div class="step-content" data-step="3" style="text-align:left;">
+            <!-- 4단계: 미리보기 -->
+            <div class="step-content" data-step="4" style="text-align:left;">
                 <h3 style="margin-bottom:20px; color:#667eea;">👀 업로드할 정보를 확인하세요</h3>
                 <div id="preview-content" style="background:#f8f9fa; padding:20px; border-radius:10px;">
                     <p><strong>곡 제목:</strong> <span id="preview-title">-</span></p>
                     <p><strong>아티스트:</strong> <span id="preview-artist">-</span></p>
                     <p><strong>오디오:</strong> <span id="preview-audio">-</span></p>
-                    <p><strong>박자 JSON:</strong> <span id="preview-beat">-</span></p>
-                    <p><strong>가사 JSON:</strong> <span id="preview-lyrics">-</span></p>
+                    <p><strong>가사 텍스트:</strong> <span id="preview-lyrics">-</span></p>
                     <p><strong>안무 JSON:</strong> <span id="preview-choreography">-</span></p>
                 </div>
             </div>
 
-            <!-- 4단계: 업로드 중 -->
-            <div class="step-content" data-step="4" style="text-align:center;">
-                <h3 style="margin-bottom:20px; color:#667eea;">⏳ 업로드 중...</h3>
+            <!-- 5단계: 업로드 중 -->
+            <div class="step-content" data-step="5" style="text-align:center;">
+                <h3 style="margin-bottom:20px; color:#667eea;">⏳ 업로드 및 분석 중...</h3>
                 <div class="upload-progress show">
                     <div class="progress-bar-upload">
                         <div class="progress-fill" id="upload-progress-fill" style="width: 0%;">0%</div>
                     </div>
-                    <div class="progress-text" id="upload-progress-text">파일을 서버에 업로드하고 있습니다...</div>
+                    <div class="progress-text" id="upload-progress-text">오디오를 분석하고 있습니다...</div>
                 </div>
             </div>
 
-            <!-- 5단계: 완료 -->
-            <div class="step-content" data-step="5" style="text-align:center;">
+            <!-- 6단계: 완료 -->
+            <div class="step-content" data-step="6" style="text-align:center;">
                 <div style="font-size:80px; margin-bottom:20px;">✅</div>
                 <h2 style="color:#2ecc71; margin-bottom:10px;">곡 등록이 완료되었습니다!</h2>
                 <p style="color:#666; margin-bottom:30px;">등록한 곡을 시각화 화면에서 확인할 수 있습니다.</p>
@@ -1748,14 +1750,13 @@
     let currentUploadStep = 1;
     let uploadedFiles = {
         audio: null,
-        beat: null,
         lyrics: null,
         choreography: null
     };
 
     function openSongUploadModal() {
         currentUploadStep = 1;
-        uploadedFiles = { audio: null, beat: null, lyrics: null, choreography: null };
+        uploadedFiles = { audio: null, lyrics: null, choreography: null };
         document.getElementById('song-upload-modal').classList.add('show');
         updateUploadStepUI();
 
@@ -1763,7 +1764,6 @@
         document.getElementById('song-title').value = '';
         document.getElementById('song-artist').value = '';
         document.getElementById('audio-file-name').textContent = '';
-        document.getElementById('beat-file-name').textContent = '';
         document.getElementById('lyrics-file-name').textContent = '';
         document.getElementById('choreography-file-name').textContent = '';
     }
@@ -1782,16 +1782,20 @@
                 return;
             }
         } else if (currentUploadStep === 2) {
-            if (!uploadedFiles.audio || !uploadedFiles.beat || !uploadedFiles.lyrics || !uploadedFiles.choreography) {
-                alert('모든 파일을 업로드해주세요.');
+            if (!uploadedFiles.audio || !uploadedFiles.lyrics) {
+                alert('오디오 파일과 가사 파일을 모두 업로드해주세요.');
                 return;
             }
         } else if (currentUploadStep === 3) {
+            if (!uploadedFiles.choreography) {
+                alert('안무 JSON 파일을 업로드해주세요.');
+                return;
+            }
+        } else if (currentUploadStep === 4) {
             // 미리보기 정보 업데이트
             document.getElementById('preview-title').textContent = document.getElementById('song-title').value;
             document.getElementById('preview-artist').textContent = document.getElementById('song-artist').value;
             document.getElementById('preview-audio').textContent = uploadedFiles.audio.name;
-            document.getElementById('preview-beat').textContent = uploadedFiles.beat.name;
             document.getElementById('preview-lyrics').textContent = uploadedFiles.lyrics.name;
             document.getElementById('preview-choreography').textContent = uploadedFiles.choreography.name;
 
@@ -1802,14 +1806,14 @@
             return;
         }
 
-        if (currentUploadStep < 5) {
+        if (currentUploadStep < 6) {
             currentUploadStep++;
             updateUploadStepUI();
         }
     }
 
     function prevSongUploadStep() {
-        if (currentUploadStep > 1 && currentUploadStep !== 4 && currentUploadStep !== 5) {
+        if (currentUploadStep > 1 && currentUploadStep !== 5 && currentUploadStep !== 6) {
             currentUploadStep--;
             updateUploadStepUI();
         }
@@ -1842,11 +1846,11 @@
             prevBtn.style.display = 'none';
             nextBtn.textContent = '다음';
             actions.style.display = 'flex';
-        } else if (currentUploadStep === 4 || currentUploadStep === 5) {
+        } else if (currentUploadStep === 5 || currentUploadStep === 6) {
             actions.style.display = 'none';
         } else {
             prevBtn.style.display = 'block';
-            nextBtn.textContent = currentUploadStep === 3 ? '업로드 시작' : '다음';
+            nextBtn.textContent = currentUploadStep === 4 ? '업로드 시작' : '다음';
             actions.style.display = 'flex';
         }
     }
@@ -1866,18 +1870,17 @@
             formData.append('title', document.getElementById('song-title').value);
             formData.append('artist', document.getElementById('song-artist').value);
             formData.append('audioFile', uploadedFiles.audio);
-            formData.append('beatJson', uploadedFiles.beat);
-            formData.append('lyricsJson', uploadedFiles.lyrics);
+            formData.append('lyricsFile', uploadedFiles.lyrics);
             formData.append('choreographyJson', uploadedFiles.choreography);
 
             // 진행률 표시 시작
             let progress = 0;
             const progressInterval = setInterval(() => {
-                progress += 10;
+                progress += 5;
                 if (progress <= 90) {
                     updateUploadProgress(progress);
                 }
-            }, 300);
+            }, 1000);
 
             const res = await fetch(`${API_BASE}/admins/songs`, {
                 method: 'POST',
@@ -1892,7 +1895,7 @@
             if (res.ok) {
                 updateUploadProgress(100);
                 setTimeout(() => {
-                    currentUploadStep = 5;
+                    currentUploadStep = 6;
                     updateUploadStepUI();
                 }, 500);
             } else {
@@ -1915,10 +1918,12 @@
         fillEl.style.width = percent + '%';
         fillEl.textContent = percent + '%';
 
-        if (percent < 30) {
+        if (percent < 20) {
             textEl.textContent = '파일을 서버에 업로드하고 있습니다...';
-        } else if (percent < 60) {
-            textEl.textContent = 'JSON 데이터를 분석하고 있습니다...';
+        } else if (percent < 50) {
+            textEl.textContent = '오디오를 분석하고 있습니다... (비트 검출)';
+        } else if (percent < 70) {
+            textEl.textContent = '가사 타이밍을 분석하고 있습니다...';
         } else if (percent < 90) {
             textEl.textContent = '데이터베이스에 저장하고 있습니다...';
         } else {
