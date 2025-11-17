@@ -220,7 +220,7 @@ public class GameService {
         GameStartResponse.SectionPatterns sectionPatterns = createSectionPatterns(songBeat, choreography);
 
         // SectionInfo (Map)와 SegmentInfo 생성
-        Map<String, Double> sectionInfo = createSectionInfo(songBeat, barStartTimes);
+        Map<String, Double> sectionInfo = createSectionInfo(songBeat, beatNumToTimeMap);
         GameStartResponse.SegmentRange verse1cam = createSegmentRange(songBeat, "verse1", beatNumToTimeMap);
         GameStartResponse.SegmentRange verse2cam = createSegmentRange(songBeat, "verse2", beatNumToTimeMap);
         GameStartResponse.SegmentInfo segmentInfo = GameStartResponse.SegmentInfo.builder()
@@ -377,11 +377,11 @@ public class GameService {
     /**
      * SectionInfo 생성을 전담하는 헬퍼 메소드
      */
-    private Map<String, Double> createSectionInfo(SongBeat songBeat, Map<Integer, Double> barStartTimes) {
+    private Map<String, Double> createSectionInfo(SongBeat songBeat, Map<Integer, Double> beatNumToTimeMap) {
         return songBeat.getSections().stream()
                 .collect(Collectors.toMap(
                         SongBeat.Section::getLabel,
-                        s -> barStartTimes.getOrDefault(s.getStartBeat(), 0.0)
+                        s -> beatNumToTimeMap.getOrDefault(s.getStartBeat(), 0.0)
                 ));
     }
 
