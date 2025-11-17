@@ -314,23 +314,41 @@ class MotionInferenceService:
         self, action_name: str | None, action_code: int | None
     ) -> int | None:
         # ========================================================================
-        # ⚠️ CRITICAL: DB actionCode vs Model class_index Mismatch Fix
+        # ⚠️ CRITICAL: DB actionCode → Model class_index Mapping
         # ========================================================================
-        # - DB actionCode is 1-based (손 박수=1, 팔 치기=2, ...)
-        # - AI model class_index is 0-based (손 박수=0, 팔 치기=1, ...)
-        # - This causes 1-position shift → incorrect predictions!
+        # DB의 actionCode와 모델의 class_index는 1:1 매핑이 아닙니다!
+        # 일부 DB 동작은 모델에 학습되지 않았습니다.
         #
-        # TEMPORARY FIX: Convert DB actionCode to model index by subtracting 1
-        # TODO: Retrain model with 1-based labels OR update DB to use 0-based codes
+        # Model에 학습된 동작 (5개):
+        #   class 0: CLAP (손 박수)
+        #   class 1: EXIT (비상구)
+        #   class 2: STRETCH (팔 뻗기)
+        #   class 3: TILT (기우뚱)
+        #   class 4: UNDERARM (겨드랑이박수)
+        #
+        # DB actionCode → Model class_index 매핑:
+        ACTION_CODE_TO_CLASS_INDEX = {
+            1: 0,  # 손 박수 → CLAP
+            # 2: None,  # 팔 치기 (모델에 없음)
+            # 3: None,  # 엉덩이 박수 (모델에 없음)
+            4: 2,  # 팔 뻗기 → STRETCH
+            5: 3,  # 기우뚱 → TILT
+            6: 1,  # 비상구 → EXIT
+            7: 4,  # 겨드랑이박수 → UNDERARM
+            # 8: None,  # 팔 모으기 (모델에 없음)
+        }
         # ========================================================================
+
         if action_code is not None:
-            # Convert DB actionCode (1-based) to model class_index (0-based)
-            model_index = action_code - 1
-            if model_index in self.id_to_label:
+            # DB actionCode를 Model class_index로 변환
+            model_index = ACTION_CODE_TO_CLASS_INDEX.get(action_code)
+            if model_index is not None and model_index in self.id_to_label:
                 return model_index
+
         if action_name:
             key = action_name.strip().upper()
             return self.class_mapping.get(key)
+
         return None
 
     @staticmethod
