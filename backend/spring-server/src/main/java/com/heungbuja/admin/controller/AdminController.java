@@ -133,15 +133,13 @@ public class AdminController {
     /**
      * 전체 활동 로그 조회 (페이징)
      * GET /admins/activity-logs
+     * 모든 관리자 접근 가능 (@AuthenticationPrincipal로 자동 인증)
      */
     @GetMapping("/activity-logs")
     public ResponseEntity<Page<ActivityLogResponse>> getAllActivityLogs(
             @AuthenticationPrincipal AdminPrincipal principal,
             @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable) {
-
-        // Admin 권한 확인 (모든 Admin이 조회 가능)
-        adminAuthorizationService.requireAdmin(principal.getId());
 
         Page<ActivityLogResponse> response = activityLogService.findAllLogs(pageable)
                 .map(ActivityLogResponse::from);
@@ -152,6 +150,7 @@ public class AdminController {
     /**
      * 특정 사용자의 활동 로그 조회 (페이징)
      * GET /admins/activity-logs/users/{userId}
+     * 모든 관리자 접근 가능
      */
     @GetMapping("/activity-logs/users/{userId}")
     public ResponseEntity<Page<ActivityLogResponse>> getActivityLogsByUser(
@@ -159,8 +158,6 @@ public class AdminController {
             @PathVariable Long userId,
             @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable) {
-
-        adminAuthorizationService.requireAdmin(principal.getId());
 
         Page<ActivityLogResponse> response = activityLogService.findLogsByUserId(userId, pageable)
                 .map(ActivityLogResponse::from);
@@ -170,7 +167,8 @@ public class AdminController {
 
     /**
      * 활동 타입별 필터링 조회 (페이징)
-     * GET /admins/activity-logs?activityType=MUSIC_PLAY
+     * GET /admins/activity-logs/filter
+     * 모든 관리자 접근 가능
      */
     @GetMapping("/activity-logs/filter")
     public ResponseEntity<Page<ActivityLogResponse>> getActivityLogsByType(
@@ -179,8 +177,6 @@ public class AdminController {
             @RequestParam(required = false) Long userId,
             @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable) {
-
-        adminAuthorizationService.requireAdmin(principal.getId());
 
         Page<UserActivityLog> logs;
 
@@ -206,6 +202,7 @@ public class AdminController {
     /**
      * 기간별 활동 로그 조회 (페이징)
      * GET /admins/activity-logs/range?startDate=2024-01-01T00:00:00&endDate=2024-01-31T23:59:59
+     * 모든 관리자 접근 가능
      */
     @GetMapping("/activity-logs/range")
     public ResponseEntity<Page<ActivityLogResponse>> getActivityLogsByDateRange(
@@ -215,8 +212,6 @@ public class AdminController {
             @RequestParam(required = false) Long userId,
             @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable) {
-
-        adminAuthorizationService.requireAdmin(principal.getId());
 
         Page<UserActivityLog> logs;
 
@@ -234,6 +229,7 @@ public class AdminController {
     /**
      * 활동 타입별 통계 조회 (일별/주별)
      * GET /admins/activity-logs/stats?startDate=2024-01-01T00:00:00&endDate=2024-01-31T23:59:59
+     * 모든 관리자 접근 가능
      */
     @GetMapping("/activity-logs/stats")
     public ResponseEntity<ActivityStatsResponse> getActivityStats(
@@ -241,8 +237,6 @@ public class AdminController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
             @RequestParam(required = false) Long userId) {
-
-        adminAuthorizationService.requireAdmin(principal.getId());
 
         Map<ActivityType, Long> stats;
 
