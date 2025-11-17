@@ -700,7 +700,9 @@ public class GameService {
                         },
                         error -> { // 실패 시
                             long responseTime = System.currentTimeMillis() - startTime;
-                            log.error("AI 서버 호출 실패 (세션 {}): {} (소요시간: {}ms)", sessionId, error.getMessage(), responseTime);
+                            // AI 서버 통신 중 에러가 발생하면, 서버가 중단되지 않고
+                            // 판정 점수를 1점으로 처리하여 게임을 계속 진행합니다.
+                            log.error("AI 서버 호출 중 오류 발생 (세션 ID: {}). 기본 점수(1점)으로 처리합니다. (소요시간: {}ms)", sessionId, responseTime, error);
 
                             // ========================================================================
                             // AI 서버 에러 처리 (0점)
@@ -720,6 +722,7 @@ public class GameService {
                         }
                 );
     }
+
 
     /**
      * AI 판정 결과를 받아 후속 처리를 하는 메소드
