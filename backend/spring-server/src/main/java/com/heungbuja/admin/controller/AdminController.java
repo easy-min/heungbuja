@@ -5,14 +5,12 @@ import com.heungbuja.activity.dto.ActivityStatsResponse;
 import com.heungbuja.activity.entity.UserActivityLog;
 import com.heungbuja.activity.enums.ActivityType;
 import com.heungbuja.activity.service.ActivityLogService;
-import com.heungbuja.admin.dto.AdminCreateRequest;
-import com.heungbuja.admin.dto.AdminLoginRequest;
-import com.heungbuja.admin.dto.AdminRegisterRequest;
-import com.heungbuja.admin.dto.AdminResponse;
+import com.heungbuja.admin.dto.*;
 import com.heungbuja.admin.entity.Admin;
 import com.heungbuja.admin.service.AdminAuthService;
 import com.heungbuja.admin.service.AdminAuthorizationService;
 import com.heungbuja.admin.service.AdminService;
+import com.heungbuja.admin.service.UserHealthMonitoringService;
 import com.heungbuja.auth.dto.TokenResponse;
 import com.heungbuja.common.security.AdminPrincipal;
 import jakarta.validation.Valid;
@@ -45,6 +43,7 @@ public class AdminController {
     private final AdminAuthorizationService adminAuthorizationService;
     private final AdminService adminService;
     private final ActivityLogService activityLogService;
+    private final UserHealthMonitoringService userHealthMonitoringService;
 
     /**
      * 관리자 회원가입
@@ -247,5 +246,51 @@ public class AdminController {
         }
 
         return ResponseEntity.ok(ActivityStatsResponse.from(stats));
+    }
+
+    // ==================== 사용자 건강 모니터링 API ====================
+
+    /**
+     * 사용자별 게임 통계 조회
+     * GET /admins/users/{userId}/game-stats
+     * 모든 관리자 접근 가능
+     */
+    @GetMapping("/users/{userId}/game-stats")
+    public ResponseEntity<UserGameStatsResponse> getUserGameStats(
+            @AuthenticationPrincipal AdminPrincipal principal,
+            @PathVariable Long userId) {
+
+        UserGameStatsResponse response = userHealthMonitoringService.getUserGameStats(userId);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 동작별 수행도 분석 조회
+     * GET /admins/users/{userId}/action-performance
+     * 모든 관리자 접근 가능
+     */
+    @GetMapping("/users/{userId}/action-performance")
+    public ResponseEntity<ActionPerformanceResponse> getActionPerformance(
+            @AuthenticationPrincipal AdminPrincipal principal,
+            @PathVariable Long userId) {
+
+        ActionPerformanceResponse response = userHealthMonitoringService.getActionPerformance(userId);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 시간대별 활동 추이 조회
+     * GET /admins/users/{userId}/activity-trend?periodDays=7
+     * 모든 관리자 접근 가능
+     * periodDays: 조회 기간 (기본값: 7일, 최대 30일 권장)
+     */
+    @GetMapping("/users/{userId}/activity-trend")
+    public ResponseEntity<ActivityTrendResponse> getActivityTrend(
+            @AuthenticationPrincipal AdminPrincipal principal,
+            @PathVariable Long userId,
+            @RequestParam(required = false, defaultValue = "7") Integer periodDays) {
+
+        ActivityTrendResponse response = userHealthMonitoringService.getActivityTrend(userId, periodDays);
+        return ResponseEntity.ok(response);
     }
 }
