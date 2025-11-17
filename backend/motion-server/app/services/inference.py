@@ -26,6 +26,7 @@ class InferenceResult:
     predicted_label: str
     confidence: float
     judgment: int
+    action_code: int | None
     target_probability: float | None = None
 
 
@@ -271,10 +272,15 @@ class MotionInferenceService:
             judgment,
         )
 
+        resolved_action_code = (
+            target_action_code if target_action_code is not None else best_idx
+        )
+
         return InferenceResult(
             predicted_label=predicted_label,
             confidence=confidence,
             judgment=judgment,
+            action_code=resolved_action_code,
             target_probability=target_probability,
         )
 
