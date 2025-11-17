@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { useDeviceAuth } from '../hooks/useDeviceAuth';
-import './UserLogin.css';
+import './WebLoginPage.css';
 
-const UserLoginPage = () => {
+const WebLoginPage = () => {
   const [deviceNumber, setDeviceNumber] = useState('DEVICE001');
   const [userId] = useState('1');
   const { login, isLoading, error } = useDeviceAuth();
@@ -69,4 +69,4 @@ const UserLoginPage = () => {
   );
 };
 
-export default UserLoginPage;
+export default WebLoginPage;

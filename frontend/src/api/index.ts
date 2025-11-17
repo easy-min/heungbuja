@@ -1,7 +1,7 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
 function getAccessToken(): string | null {
-  return localStorage.getItem('accessToken');
+  return localStorage.getItem('userAccessToken');
 }
 
 function normalizeHeaders(h?: HeadersInit): Record<string, string> {
@@ -41,7 +41,9 @@ async function request<T>(
         ? String((data as { message?: string }).message)
         : undefined) || `API 요청 실패 (${res.status})`;
 
-    throw new Error(message);
+    const error = new Error(message) as Error & { status?: number };
+    error.status = res.status;
+    throw error;
   }
 
   return data as T;
