@@ -4,6 +4,9 @@ import com.heungbuja.game.entity.GameResult;
 import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import java.util.Optional;
 
 public interface GameResultRepository extends JpaRepository<GameResult, Long> {
 
@@ -12,5 +15,9 @@ public interface GameResultRepository extends JpaRepository<GameResult, Long> {
 
     // 세션 ID로 게임 결과 조회
     Optional<GameResult> findBySessionId(String sessionId);
+
+    // --- Fetch Join을 사용하여 GameResult와 ScoreByAction을 함께 조회 ---
+    @Query("SELECT gr FROM GameResult gr LEFT JOIN FETCH gr.scoresByAction WHERE gr.sessionId = :sessionId")
+    Optional<GameResult> findBySessionIdWithScores(@Param("sessionId") String sessionId);
 
 }
