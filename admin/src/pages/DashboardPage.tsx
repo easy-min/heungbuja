@@ -31,13 +31,16 @@ const useMockData = import.meta.env.VITE_USE_MOCK === 'true';
 
 const DashboardPage = () => {
   const navigate = useNavigate();
-  
+
   // 모달 상태
   const [isDeviceModalOpen, setIsDeviceModalOpen] = useState(false);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [isEmergencyAlertOpen, setIsEmergencyAlertOpen] = useState(false);
   const [currentEmergencyAlert, setCurrentEmergencyAlert] = useState<EmergencyReport | null>(null);
   const [isSongUploadModalOpen, setIsSongUploadModalOpen] = useState(false);
+
+  // 응급 신고 더보기 상태
+  const [showAllEmergencies, setShowAllEmergencies] = useState(false);
 
   // 스토어
   const reports = useEmergencyStore((state) => state.reports);
@@ -210,10 +213,20 @@ const DashboardPage = () => {
         <div className="section">
           <SectionTitle>📊 실시간 신고 리스트</SectionTitle>
           <EmergencyList
-            reports={reports}
+            reports={showAllEmergencies ? reports : reports.slice(0, 4)}
             onResolve={handleResolveEmergency}
             isLoading={isLoadingReports}
           />
+          {reports.length > 4 && (
+            <div style={{ textAlign: 'center', marginTop: '20px' }}>
+              <Button
+                variant="secondary"
+                onClick={() => setShowAllEmergencies(!showAllEmergencies)}
+              >
+                {showAllEmergencies ? '접기' : `더 보기 (${reports.length - 4}개)`}
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* 어르신 현황 */}
