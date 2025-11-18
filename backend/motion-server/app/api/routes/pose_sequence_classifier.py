@@ -16,37 +16,33 @@ from app.services.pose_sequence_classifier import (
     evaluate_query,
     load_npz_bytes,
     load_reference_sequences,
-    summarize_by_action,
 )
 
 router = APIRouter(prefix="/api/pose-sequences", tags=["pose-sequence"])
 LOGGER = logging.getLogger(__name__)
 BASE_REFERENCE_DIR = Path(__file__).resolve().parents[2] / "services" / "pose_sequences"
 
-
-class PoseSequenceReference(BaseModel):
-    action: str = Field(..., description="참조 동작 이름")
-    person: str = Field(..., description="참조 시퀀스 수집자")
-    sequenceId: int = Field(..., description="참조 시퀀스 ID")
-    distance: float = Field(..., ge=0, description="평균 유클리드 거리")
-    cosine: float = Field(..., description="평균 코사인 유사도")
-    path: str = Field(..., description="참조 시퀀스 파일 경로")
-
-
-class PoseSequenceSummary(BaseModel):
-    action: str = Field(..., description="동작 이름")
-    averageDistance: float = Field(..., ge=0, description="동작별 평균 유클리드 거리")
-    averageCosine: float = Field(..., description="동작별 평균 코사인 유사도")
+ACTION_CODE_TO_LABEL = {
+    1: "CLAP",
+    2: "ELBOW",
+    4: "STRETCH",
+    5: "TILT",
+    6: "EXIT",
+    7: "UNDERARM",
+}
+LABEL_TO_ACTION_CODE = {label: code for code, label in ACTION_CODE_TO_LABEL.items()}
 
 
 class PoseSequenceClassificationResponse(BaseModel):
-    referenceCount: int = Field(..., ge=0, description="비교에 사용된 참조 시퀀스 수")
-    topResults: List[PoseSequenceReference] = Field(..., description="Top-K 참조 시퀀스 결과")
-    actionSummary: List[PoseSequenceSummary] = Field(..., description="동작별 평균 요약")
-    passedThresholds: Optional[List[PoseSequenceReference]] = Field(
-        None, description="임계값을 통과한 참조 시퀀스 목록"
+    actionCode: Optional[int] = Field(
+        None, description="요청한 동작 코드 (매핑 후 숫자)"
     )
-    queryMetadata: Optional[dict[str, Any]] = Field(None, description="질의 시퀀스 메타데이터")
+    judgment: int = Field(
+        ...,
+        ge=0,
+        le=3,
+        description="유사도 기반 판정 점수 (3: 매우 유사, 2: 보통, 1: 낮음, 0: 데이터 없음)",
+    )
 
 
 class PoseSequenceClassificationRequest(BaseModel):
@@ -97,25 +93,6 @@ def _get_references_cached(
     path = Path(reference_dir)
     references = load_reference_sequences(path, actions=list(actions_key) if actions_key else None)
     return tuple(references)
-
-
-def _make_reference_payload(
-    ref: ReferenceSequence, distance: float, cosine: float, base_dir: Path
-) -> PoseSequenceReference:
-    try:
-        relative_path = ref.path.relative_to(base_dir)
-        path_str = str(relative_path)
-    except ValueError:
-        path_str = str(ref.path)
-
-    return PoseSequenceReference(
-        action=ref.action,
-        person=ref.person,
-        sequenceId=int(ref.sequence_id),
-        distance=float(distance),
-        cosine=float(cosine),
-        path=path_str,
-    )
 
 
 def _decode_base64_image(data: str) -> np.ndarray:
@@ -250,6 +227,35 @@ def _load_query_sequence(payload: PoseSequenceClassificationRequest) -> Tuple[np
     )
 
 
+def _resolve_target_action(
+    action_code: Optional[int], action_name: Optional[str]
+) -> Tuple[Optional[str], Optional[int]]:
+    if action_code in ACTION_CODE_TO_LABEL:
+        return ACTION_CODE_TO_LABEL[action_code], action_code
+
+    if action_name:
+        normalized = action_name.strip().upper()
+        if normalized in LABEL_TO_ACTION_CODE:
+            return normalized, LABEL_TO_ACTION_CODE[normalized]
+        return normalized, None
+
+    return None, None
+
+
+def _score_similarity(distance: float, cosine: float) -> int:
+    if cosine >= 0.90 and distance <= 5.5:
+        return 3
+    if cosine >= 0.80 and distance <= 7.5:
+        return 2
+    return 1
+
+
+def _judgment_from_score(score: Optional[int]) -> int:
+    if score is None:
+        return 0
+    return max(1, min(3, score))
+
+
 @router.post(
     "/classify",
     response_model=PoseSequenceClassificationResponse,
@@ -257,12 +263,12 @@ def _load_query_sequence(payload: PoseSequenceClassificationRequest) -> Tuple[np
 )
 async def classify_pose_sequence(
     payload: PoseSequenceClassificationRequest,
-    top_k: int = Query(5, alias="topK", ge=1, description="상위 K개의 결과를 반환"),
-    distance_threshold: Optional[float] = Query(
-        None, alias="distanceThreshold", description="유클리드 거리 임계값(이하만 통과)"
+    _top_k: int = Query(5, alias="topK", ge=1, description="(호환용) 미사용 매개변수"),
+    _distance_threshold: Optional[float] = Query(
+        None, alias="distanceThreshold", description="(호환용) 미사용 매개변수"
     ),
-    cosine_threshold: Optional[float] = Query(
-        None, alias="cosineThreshold", description="코사인 유사도 임계값(이상만 통과)"
+    _cosine_threshold: Optional[float] = Query(
+        None, alias="cosineThreshold", description="(호환용) 미사용 매개변수"
     ),
     actions: Optional[List[str]] = Query(
         None, description="특정 동작만 비교하고 싶을 때 지정 (대소문자 무시)"
@@ -318,39 +324,37 @@ async def classify_pose_sequence(
             detail="유사도 계산 결과가 비어 있습니다.",
         )
 
-    k = min(top_k, len(evaluations))
-    top_results_payload = [
-        _make_reference_payload(ref, euc, cos, base_reference_dir)
-        for ref, euc, cos in evaluations[:k]
-    ]
-
-    action_summary_payload = [
-        PoseSequenceSummary(
-            action=action,
-            averageDistance=float(avg_dist),
-            averageCosine=float(avg_cos),
-        )
-        for action, avg_dist, avg_cos in summarize_by_action(evaluations)
-    ]
-
-    passed_thresholds: List[PoseSequenceReference] = []
-    if distance_threshold is not None or cosine_threshold is not None:
-        for ref, euc, cos in evaluations:
-            if distance_threshold is not None and euc > distance_threshold:
-                continue
-            if cosine_threshold is not None and cos < cosine_threshold:
-                continue
-            passed_thresholds.append(_make_reference_payload(ref, euc, cos, base_reference_dir))
-
-    response_metadata: Optional[dict[str, Any]] = None
     if query_metadata:
-        response_metadata = dict(query_metadata)
+        query_metadata = dict(query_metadata)
+
+    target_action, target_action_code = _resolve_target_action(
+        payload.actionCode, payload.actionName
+    )
+
+    response_action_code: Optional[int] = (
+        payload.actionCode if payload.actionCode is not None else target_action_code
+    )
+
+    judgment = 0
+    if target_action:
+        best_match = next(
+            ((euc, cos) for ref, euc, cos in evaluations if ref.action.strip().upper() == target_action),
+            None,
+        )
+        if best_match:
+            best_dist, best_cos = best_match
+            score = _score_similarity(best_dist, best_cos)
+            judgment = _judgment_from_score(score)
+        else:
+            LOGGER.warning(
+                "요청한 동작(%s)에 해당하는 참조 시퀀스를 찾지 못했습니다.",
+                target_action,
+            )
+    else:
+        LOGGER.debug("요청에 actionCode/actionName이 없어 judgment를 0으로 반환합니다.")
 
     return PoseSequenceClassificationResponse(
-        referenceCount=len(references),
-        topResults=top_results_payload,
-        actionSummary=action_summary_payload,
-        passedThresholds=passed_thresholds or None,
-        queryMetadata=response_metadata,
+        actionCode=response_action_code,
+        judgment=judgment,
     )
 
