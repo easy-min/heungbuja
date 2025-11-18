@@ -30,13 +30,19 @@ export const sendVoiceCommand = async (audioBlob: Blob): Promise<VoiceCommandRes
     });
 
     if (!response.ok) {
+      let errorMessage = `서버 오류: ${response.status}`;
+
       if (response.status === 401) {
-        throw new Error('인증이 만료되었습니다. 다시 로그인해주세요.');
+        errorMessage = '인증이 만료되었습니다. 다시 로그인해주세요.';
+      } else if (response.status === 403) {
+        errorMessage = '접근 권한이 없습니다.';
+      } else if (response.status === 400) {
+        errorMessage = '음성 파일 형식이 올바르지 않습니다.';
       }
-      if (response.status === 400) {
-        throw new Error('음성 파일 형식이 올바르지 않습니다.');
-      }
-      throw new Error(`서버 오류: ${response.status}`);
+
+      const error = new Error(errorMessage) as Error & { status?: number };
+      error.status = response.status;
+      throw error;
     }
 
     const data: VoiceCommandResponse = await response.json();
