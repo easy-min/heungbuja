@@ -1,11 +1,12 @@
 import type { VoiceCommandResponse } from '../types/voiceCommand';
+import { refreshAccessToken } from './deviceAuth';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
 export const sendVoiceCommand = async (audioBlob: Blob): Promise<VoiceCommandResponse> => {
   // 토큰 가져오기 (localStorage에서)
-  const token = localStorage.getItem('userAccessToken');
-  
+  let token = localStorage.getItem('userAccessToken');
+
   if (!token) {
     throw new Error('인증 토큰이 없습니다. 다시 로그인해주세요.');
   }
@@ -20,7 +21,7 @@ export const sendVoiceCommand = async (audioBlob: Blob): Promise<VoiceCommandRes
   formData.append('audioFile', audioFile);
 
   try {
-    const response = await fetch(`${API_BASE}/commands/process`, {
+    let response = await fetch(`${API_BASE}/commands/process`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -28,6 +29,31 @@ export const sendVoiceCommand = async (audioBlob: Blob): Promise<VoiceCommandRes
       },
       body: formData,
     });
+
+    // 403 에러 시 토큰 갱신 후 재시도
+    if (response.status === 403) {
+      console.log('403 에러 발생, refreshToken으로 accessToken 갱신 시도...');
+      const newToken = await refreshAccessToken();
+
+      if (!newToken) {
+        throw new Error('토큰 갱신에 실패했습니다. 다시 로그인해주세요.');
+      }
+
+      // 갱신된 토큰으로 재시도
+      token = newToken;
+
+      // FormData를 다시 생성
+      const retryFormData = new FormData();
+      retryFormData.append('audioFile', audioFile);
+
+      response = await fetch(`${API_BASE}/commands/process`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: retryFormData,
+      });
+    }
 
     if (!response.ok) {
       let errorMessage = `서버 오류: ${response.status}`;
