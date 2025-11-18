@@ -9,6 +9,7 @@ import {
   DeviceRegisterModal,
   UserRegisterModal,
   EmergencyAlertModal,
+  SimpleSongUploadModal,
 } from '../components';
 import DashboardHeader from '../components/DashboardHeader';
 import SectionTitle from '../components/SectionTitle';
@@ -36,6 +37,7 @@ const DashboardPage = () => {
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [isEmergencyAlertOpen, setIsEmergencyAlertOpen] = useState(false);
   const [currentEmergencyAlert, setCurrentEmergencyAlert] = useState<EmergencyReport | null>(null);
+  const [isSongUploadModalOpen, setIsSongUploadModalOpen] = useState(false);
 
   // 스토어
   const reports = useEmergencyStore((state) => state.reports);
@@ -185,8 +187,22 @@ const DashboardPage = () => {
           <Button
             variant="success"
             onClick={() => setIsUserModalOpen(true)}
+            style={{ marginRight: '10px' }}
           >
             👴 어르신 등록
+          </Button>
+          <Button
+            variant="primary"
+            onClick={() => navigate('/visualization')}
+            style={{ marginRight: '10px' }}
+          >
+            🎵 곡 시각화
+          </Button>
+          <Button
+            variant="success"
+            onClick={() => setIsSongUploadModalOpen(true)}
+          >
+            🎵 곡 간편 등록
           </Button>
         </div>
 
@@ -243,6 +259,11 @@ const DashboardPage = () => {
         onAcknowledge={(reportId) => {
           console.log('Emergency acknowledged:', reportId);
         }}
+      />
+
+      <SimpleSongUploadModal
+        isOpen={isSongUploadModalOpen}
+        onClose={() => setIsSongUploadModalOpen(false)}
       />
     </div>
   );
