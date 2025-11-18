@@ -2,7 +2,7 @@
 # 라즈베리파이 배포 스크립트
 
 # 설정
-RASPBERRY_PI_HOST="a103@192.168.53.162"       # 라즈베리파이 주소
+RASPBERRY_PI_HOST="a103@raspberrypi.local"       # 라즈베리파이 주소
 RASPBERRY_PI_PATH="/home/a103/S13P31A103"   # 라즈베리파이 프로젝트 경로
 
 # 색상 출력
