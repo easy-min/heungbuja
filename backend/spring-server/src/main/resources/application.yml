@@ -77,6 +77,8 @@ gpt:
 
 app:
   base-url: ${APP_BASE_URL:http://localhost:8080/api}
+  music-server:
+    url: ${MUSIC_SERVER_URL:http://music-server:8001}
   s3:
     bucket: ${APP_S3_BUCKET:heungbuja-bucket}
     region: ${APP_S3_REGION:ap-northeast-2}
