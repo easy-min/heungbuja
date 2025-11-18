@@ -1,0 +1,6 @@
+.song-list-container {
+  display: flex;
+  flex-direction: column;
+
+  background-color: var(--color-bg);
+}
