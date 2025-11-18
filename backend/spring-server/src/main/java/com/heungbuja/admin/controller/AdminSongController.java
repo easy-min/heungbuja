@@ -102,24 +102,6 @@ public class AdminSongController {
     }
 
     /**
-     * 테스트용 엔드포인트 - JSON POST 테스트
-     */
-    @PostMapping("/test")
-    public ResponseEntity<?> testEndpoint(
-            @AuthenticationPrincipal AdminPrincipal principal,
-            @RequestBody Map<String, Object> testData) {
-
-        log.info("✅ TEST 엔드포인트 도달! principal: {}, data: {}", principal, testData);
-
-        return ResponseEntity.ok(Map.of(
-                "message", "테스트 성공!",
-                "adminId", principal.getId(),
-                "role", principal.getRole(),
-                "receivedData", testData
-        ));
-    }
-
-    /**
      * 곡 등록 (music-server 분석 사용)
      * - 오디오 파일, 가사 텍스트 파일, 안무 JSON 업로드
      * - music-server로 오디오 분석 후 자동으로 박자/가사 JSON 생성
@@ -142,16 +124,10 @@ public class AdminSongController {
             @RequestParam("lyricsFile") MultipartFile lyricsFile,
             @RequestParam("choreographyJson") MultipartFile choreographyJson) {
 
-        log.info("🎵 [곡 등록] Controller 진입 성공!");
-        log.info("🎵 [곡 등록] principal: id={}, role={}", principal.getId(), principal.getRole());
-        log.info("🎵 [곡 등록] title={}, artist={}", title, artist);
-        log.info("🎵 [곡 등록] audioFile: name={}, size={}", audioFile.getOriginalFilename(), audioFile.getSize());
-        log.info("🎵 [곡 등록] lyricsFile: name={}, size={}", lyricsFile.getOriginalFilename(), lyricsFile.getSize());
-        log.info("🎵 [곡 등록] choreographyJson: name={}, size={}", choreographyJson.getOriginalFilename(), choreographyJson.getSize());
+        log.info("관리자 {}가 곡 등록 요청: title={}, artist={}", principal.getId(), title, artist);
 
         // 파일 검증
         if (audioFile.isEmpty() || lyricsFile.isEmpty() || choreographyJson.isEmpty()) {
-            log.error("🎵 [곡 등록] 파일 검증 실패 - 빈 파일 존재");
             throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "모든 파일을 업로드해주세요.");
         }
 

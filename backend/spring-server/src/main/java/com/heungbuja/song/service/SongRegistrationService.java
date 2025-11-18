@@ -139,16 +139,8 @@ public class SongRegistrationService {
             JsonNode lyricsNode,
             MultipartFile choreographyJson) {
 
-        log.info("💾 [Service] registerSongWithAnalysis 시작 - title: {}, artist: {}, mediaId: {}",
-                title, artist, media.getId());
-        log.info("💾 [Service] beatsNode size: {}, lyricsNode size: {}, choreography size: {}",
-                beatsNode != null ? beatsNode.size() : 0,
-                lyricsNode != null ? lyricsNode.size() : 0,
-                choreographyJson.getSize());
-
         try {
             // 1. MySQL에 Song 엔티티 생성
-            log.info("💾 [Service] 1단계: Song 엔티티 생성 시작");
             Song song = Song.builder()
                     .title(title)
                     .artist(artist)
@@ -158,41 +150,33 @@ public class SongRegistrationService {
             Song savedSong = songRepository.save(song);
             Long songId = savedSong.getId();
 
-            log.info("💾 [Service] 1단계 완료: Song 생성 완료 - id={}, title={}, artist={}", songId, title, artist);
+            log.info("Song 생성 완료: id={}, title={}, artist={}", songId, title, artist);
 
             // 2. 박자 JSON 파싱 및 MongoDB 저장
-            log.info("💾 [Service] 2단계: SongBeat 파싱 및 저장 시작");
             SongBeat songBeat = objectMapper.treeToValue(beatsNode, SongBeat.class);
             songBeat.setSongId(songId);
             songBeatRepository.save(songBeat);
-            log.info("💾 [Service] 2단계 완료: SongBeat 저장 완료 - songId={}", songId);
+            log.info("SongBeat 저장 완료: songId={}", songId);
 
             // 3. 가사 JSON 파싱 및 MongoDB 저장
-            log.info("💾 [Service] 3단계: SongLyrics 파싱 및 저장 시작");
             SongLyrics songLyrics = objectMapper.treeToValue(lyricsNode, SongLyrics.class);
             songLyrics.setSongId(songId);
             songLyricsRepository.save(songLyrics);
-            log.info("💾 [Service] 3단계 완료: SongLyrics 저장 완료 - songId={}", songId);
+            log.info("SongLyrics 저장 완료: songId={}", songId);
 
             // 4. 안무 JSON 파싱 및 MongoDB 저장
-            log.info("💾 [Service] 4단계: SongChoreography 파싱 및 저장 시작");
             SongChoreography songChoreography = parseChoreographyJson(choreographyJson);
             songChoreography.setSongId(songId);
             songChoreographyRepository.save(songChoreography);
-            log.info("💾 [Service] 4단계 완료: SongChoreography 저장 완료 - songId={}", songId);
+            log.info("SongChoreography 저장 완료: songId={}", songId);
 
-            log.info("💾 [Service] ✅ registerSongWithAnalysis 전체 완료 - songId={}", songId);
             return savedSong;
 
         } catch (IOException e) {
-            log.error("💾 [Service] ❌ JSON 파싱 실패: {}", e.getMessage(), e);
+            log.error("JSON 파싱 실패: {}", e.getMessage(), e);
             throw new CustomException(ErrorCode.SONG_REGISTRATION_FAILED, "JSON 파일 파싱에 실패했습니다: " + e.getMessage());
-        } catch (CustomException e) {
-            log.error("💾 [Service] ❌ CustomException 발생: code={}, message={}",
-                    e.getErrorCode(), e.getMessage());
-            throw e;
         } catch (Exception e) {
-            log.error("💾 [Service] ❌ 곡 등록 실패: {}", e.getMessage(), e);
+            log.error("곡 등록 실패: {}", e.getMessage(), e);
             throw new CustomException(ErrorCode.SONG_REGISTRATION_FAILED, "곡 등록에 실패했습니다: " + e.getMessage());
         }
     }
