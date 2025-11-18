@@ -31,13 +31,33 @@ function GamePage() {
   const hasLevelDecisionRef = useRef(false);
   const sectionMessageTimerRef = useRef<number | null>(null);
 
+  // === 패턴 프리로드용 ===
+  const preloadedPatternVideosRef =
+    useRef<Partial<Record<PatternKey, HTMLVideoElement>>>({});
+  const patternReadyRef = useRef<Record<PatternKey, boolean>>({
+    P1: false,
+    P2: false,
+    P3: false,
+    P4: false,
+  });
 
   // === 영상 전환 디버깅용
   const driftSamplesRef = useRef<number[]>([]);
   const lastLoopBoundaryRef = useRef<number | null>(null);
   const switchLatenciesRef = useRef<number[]>([]);
+  const patternSwitchLatenciesRef = useRef<number[]>([]);
   const frameIntervalsRef = useRef<number[]>([]);
   const captureCostRef = useRef<number[]>([]);
+
+  const pendingSwitchRef = useRef<{
+    section: SectionKey;
+    requestedAt: number;
+  } | null>(null);
+
+  const pendingPatternSwitchRef = useRef<{
+    pattern: PatternKey;
+    requestedAt: number;
+  } | null>(null);
 
   const currentPatternSeqRef = useRef<PatternKey[] | null>(null);
   const currentPatternIndexRef = useRef<number>(0);
@@ -81,6 +101,11 @@ function GamePage() {
         }
 
         if (currentSectionRef.current === 'verse2') {
+          // 🔹 난이도 변경에 따른 verse2 재전환도 측정
+          pendingSwitchRef.current = {
+            section: 'verse2',
+            requestedAt: performance.now(),
+          };
           switchSectionVideo('verse2', levelKey);
         }
         return;
@@ -228,6 +253,11 @@ function GamePage() {
     onSectionEnter: (label) => {
       const map = { intro: 'intro', break: 'break', verse1: 'verse1', verse2: 'verse2' } as const;
       const nextSection = map[label] ?? 'break';
+      // 🔹 섹션 전환 요청 시각 기록
+      pendingSwitchRef.current = {
+        section: nextSection,
+        requestedAt: performance.now(),
+      };
       switchSectionVideo(nextSection);
 
       if (nextSection !== announcedSectionRef.current) {
@@ -255,6 +285,48 @@ function GamePage() {
     lastLoopBoundaryRef.current = performance.now();
   }
 
+  // === 패턴 비디오 프리로드 ===
+  useEffect(() => {
+    const videos: Partial<Record<PatternKey, HTMLVideoElement>> = {};
+
+    (Object.keys(PATTERN_META) as PatternKey[]).forEach((key) => {
+      const meta = PATTERN_META[key];
+      const v = document.createElement('video');
+
+      v.src = meta.src;
+      v.preload = 'auto';
+      v.muted = true;
+
+      const handleCanPlay = () => {
+        patternReadyRef.current[key] = true;
+        // 필요하면 로그 확인
+        console.log(`[preload] pattern ${key} canplaythrough`);
+      };
+
+      const handleError = (ev: Event) => {
+        console.error(`[preload] pattern ${key} error`, ev);
+      };
+
+      v.addEventListener('canplaythrough', handleCanPlay);
+      v.addEventListener('error', handleError);
+
+      v.load(); // 실제 로딩 시작
+      videos[key] = v;
+    });
+
+    preloadedPatternVideosRef.current = videos;
+
+    // 정리
+    return () => {
+      Object.values(videos).forEach((v) => {
+        if (!v) return;
+        v.pause();
+        v.removeAttribute('src');
+        v.load();
+      });
+    };
+  }, []);
+
   useEffect(() => {
     let last = performance.now();
     let raf = 0;
@@ -274,10 +346,24 @@ function GamePage() {
     if (!mv) return;
 
     const onPlaying = () => {
-      const boundary = lastLoopBoundaryRef.current;
-      if (boundary != null) {
-        const latency = performance.now() - boundary;
-        switchLatenciesRef.current.push(latency);
+      const now = performance.now();
+
+      // 🔹 섹션 전환 latency
+      const pendingSection = pendingSwitchRef.current;
+      if (pendingSection) {
+        const latency = now - pendingSection.requestedAt;
+        if (pendingSection.section === 'verse1' || pendingSection.section === 'verse2') {
+          switchLatenciesRef.current.push(latency);
+        }
+        pendingSwitchRef.current = null;
+      }
+
+      // 🔹 패턴 전환 latency
+      const pendingPattern = pendingPatternSwitchRef.current;
+      if (pendingPattern) {
+        const latency = now - pendingPattern.requestedAt;
+        patternSwitchLatenciesRef.current.push(latency);
+        pendingPatternSwitchRef.current = null;
       }
     };
 
@@ -301,9 +387,8 @@ function GamePage() {
     return () => cancelAnimationFrame(rafId);
   }, []);
 
-
-  // function printDriftStats() {
-  //   const arr = driftSamplesRef.current;
+  // function printSectionSwitchLatencyStats() {
+  //   const arr = switchLatenciesRef.current;
   //   if (!arr.length) return;
   //   const sum = arr.reduce((a, b) => a + b, 0);
   //   const mean = sum / arr.length;
@@ -312,8 +397,8 @@ function GamePage() {
   //   console.table({ count: arr.length, mean, max, min });
   // }
 
-  // function printSwitchLatencyStats() {
-  //   const arr = switchLatenciesRef.current;
+  // function printPatternSwitchLatencyStats() {
+  //   const arr = patternSwitchLatenciesRef.current;
   //   if (!arr.length) return;
   //   const sum = arr.reduce((a, b) => a + b, 0);
   //   const mean = sum / arr.length;
@@ -331,22 +416,24 @@ function GamePage() {
   //   console.table({ count: arr.length, mean, max });
   // }
 
-  // 디버그 헬퍼들을 window에 노출 (개발 모드에서만)
-  // useEffect(() => {
-  //   if (import.meta.env.PROD) return; // 배포에서는 생략
+  // function printCaptureCostStats() {
+  //   const arr = captureCostRef.current;
+  //   if (!arr.length) return;
+  //   const sum = arr.reduce((a, b) => a + b, 0);
+  //   const mean = sum / arr.length;
+  //   const max = Math.max(...arr);
+  //   const min = Math.min(...arr);
+  //   console.table({ count: arr.length, mean, max, min });
+  // }
 
-  //   (window as any).printDriftStats = printDriftStats;
+  // // 디버그 헬퍼들을 window에 노출 (개발 모드에서만)
+  // useEffect(() => {
+  //   if (import.meta.env.PROD) return;
+
+  //   (window as any).printSectionSwitchLatencyStats = printSectionSwitchLatencyStats;
+  //   (window as any).printPatternSwitchLatencyStats = printPatternSwitchLatencyStats;
   //   (window as any).printFrameStats = printFrameStats;
-  //   (window as any).printSwitchLatencyStats = printSwitchLatencyStats;
-  //   (window as any).printCaptureCostStats = () => {
-  //     const arr = captureCostRef.current;
-  //     if (!arr.length) return;
-  //     const sum = arr.reduce((a, b) => a + b, 0);
-  //     const mean = sum / arr.length;
-  //     const max = Math.max(...arr);
-  //     const min = Math.min(...arr);
-  //     console.table({ count: arr.length, mean, max, min });
-  //   };
+  //   (window as any).printCaptureCostStats = printCaptureCostStats;
   // }, []);
 
   // 웹소켓 연결 확인
@@ -490,6 +577,10 @@ function GamePage() {
     const shouldPlayNow = !!au && !au.paused;
 
     if (firstPattern) {
+      pendingPatternSwitchRef.current = {
+        pattern: firstPattern,
+        requestedAt: performance.now(),
+      };
       void playPatternVideo(firstPattern, shouldPlayNow);
     } else {
       // 패턴이 비어 있는 경우 안전하게 아무것도 하지 않음
@@ -504,6 +595,13 @@ function GamePage() {
     const mv = motionVideoRef.current;
     const au = audioRef.current;
     if (!mv) return;
+
+    // 프리로드 상태 확인 (디버그용)
+    if (!patternReadyRef.current[pattern]) {
+      console.warn(
+        `[pattern] ${pattern} is not fully preloaded yet (ready=false).`,
+      );
+    }
 
     const { src, bpm: videoBpm } = PATTERN_META[pattern];
     const songBpm = songBpmRef.current || 120;
@@ -559,6 +657,11 @@ function GamePage() {
       const au = audioRef.current;
       const shouldPlayNow = !!au && !au.paused;
 
+      pendingPatternSwitchRef.current = {
+        pattern: nextPattern,
+        requestedAt: performance.now(),
+      };
+
       void playPatternVideo(nextPattern, shouldPlayNow);
     };
 
@@ -576,7 +679,6 @@ function GamePage() {
         if (section === 'verse1' || section === 'verse2') {
           advancePatternIfNeeded();
         } else {
-          // intro / break: 기존처럼 동일 영상 루프
           mv.currentTime = LOOP_RESTART;
           if (mv.paused) { mv.play().catch(() => {}); }
         }
