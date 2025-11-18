@@ -28,6 +28,16 @@ function GamePage() {
   const announcedSectionRef = useRef<SectionKey | null>(null);
   const verse2LevelRef = useRef<'level1' | 'level2' | 'level3'>('level2');
   const forceStopRef = useRef(false);
+  const hasLevelDecisionRef = useRef(false);
+  const sectionMessageTimerRef = useRef<number | null>(null);
+
+
+  // === 영상 전환 디버깅용
+  const driftSamplesRef = useRef<number[]>([]);
+  const lastLoopBoundaryRef = useRef<number | null>(null);
+  const switchLatenciesRef = useRef<number[]>([]);
+  const frameIntervalsRef = useRef<number[]>([]);
+  const captureCostRef = useRef<number[]>([]);
 
   const currentPatternSeqRef = useRef<PatternKey[] | null>(null);
   const currentPatternIndexRef = useRef<number>(0);
@@ -63,6 +73,12 @@ function GamePage() {
         const levelKey = (`level${nextLevel}` as 'level1' | 'level2' | 'level3');
         verse2LevelRef.current = levelKey;
         setVerse2Level(levelKey);
+        hasLevelDecisionRef.current = true;
+
+        if (currentSectionRef.current === 'break') {
+          const msgText = getBreakMessageByLevel(levelKey);
+          showSectionMessage(msgText, 12000);
+        }
 
         if (currentSectionRef.current === 'verse2') {
           switchSectionVideo('verse2', levelKey);
@@ -74,7 +90,6 @@ function GamePage() {
         clearTimeout(feedbackHideTimerRef.current);
         feedbackHideTimerRef.current = null;
       }
-      // console.log('[피드백] ', msg.data.judgment);
 
       setLastFeedback(msg.data);
 
@@ -161,6 +176,32 @@ function GamePage() {
     return null;
   }
 
+  function showSectionMessage(message: string, durationMs: number) {
+    if (sectionMessageTimerRef.current) {
+      clearTimeout(sectionMessageTimerRef.current);
+      sectionMessageTimerRef.current = null;
+    }
+
+    setSectionMessage(message);
+    sectionMessageTimerRef.current = window.setTimeout(() => {
+      setSectionMessage(null);
+      sectionMessageTimerRef.current = null;
+    }, durationMs);
+  }
+
+  function getBreakMessageByLevel(
+    level: 'level1' | 'level2' | 'level3'
+  ): string {
+    switch (level) {
+      case 'level1':
+        return '잘 하고 계세요! 조금만 더 힘내세요!';
+      case 'level2':
+        return '잘 따라하셔서 2절은 한 단계 높은 동작으로 바꿔볼게요!';
+      case 'level3':
+        return '멋진 실력이에요! 2절은 최상 난이도로 함께해요!';
+    }
+  }
+
   const getLoopLenSec = (section: SectionKey): number => {
     // verse1 / verse2는 현재 패턴 기준으로 길이 계산
     if (section === 'verse1' || section === 'verse2') {
@@ -191,35 +232,122 @@ function GamePage() {
 
       if (nextSection !== announcedSectionRef.current) {
         announcedSectionRef.current = nextSection;
+
         if (nextSection === 'intro') {
-          setSectionMessage("노래에 맞춰 캐릭터의 동작을 따라해주세요!");
-          setTimeout(() => setSectionMessage(null), 8000);
+          showSectionMessage('노래에 맞춰 캐릭터의 동작을 따라해주세요!', 8000);
         }
+
         if (nextSection === 'break') {
-          let msg = '';
-
-          switch (verse2LevelRef.current) {
-            case 'level1':
-              msg = '잘 하고 계세요! 조금만 더 힘내세요!';
-              break;
-            case 'level2':
-              msg = '잘 따라하셔서 2절은 한 단계 높은 동작으로 바꿔볼게요!';
-              break;
-            case 'level3':
-              msg = '멋진 실력이에요! 2절은 최상 난이도로 함께해요!';
-              break;
-            default:
-              msg = '';
+          // 🔹 난이도 결정이 아직 안 났으면, 여기서는 문구를 띄우지 않음
+          if (!hasLevelDecisionRef.current) {
+            return;
           }
 
-          if (msg) {
-            setSectionMessage(msg);
-            window.setTimeout(() => setSectionMessage(null), 12000);
-          }
+          const msg = getBreakMessageByLevel(verse2LevelRef.current);
+          showSectionMessage(msg, 12000);
         }
       }
     },
   });
+
+  // 루프 경계 지점에 도달했을 때 기록 (tick 안에서)
+  function markLoopBoundary() {
+    lastLoopBoundaryRef.current = performance.now();
+  }
+
+  useEffect(() => {
+    let last = performance.now();
+    let raf = 0;
+    const tick = () => {
+      const now = performance.now();
+      frameIntervalsRef.current.push(now - last);
+      last = now;
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  // 비디오가 실제 재생을 시작할 때 (playing 이벤트 시점)
+  useEffect(() => {
+    const mv = motionVideoRef.current;
+    if (!mv) return;
+
+    const onPlaying = () => {
+      const boundary = lastLoopBoundaryRef.current;
+      if (boundary != null) {
+        const latency = performance.now() - boundary;
+        switchLatenciesRef.current.push(latency);
+      }
+    };
+
+    mv.addEventListener('playing', onPlaying);
+    return () => mv.removeEventListener('playing', onPlaying);
+  }, []);
+
+  useEffect(() => {
+    let rafId = 0;
+    const sample = () => {
+      const audio = audioRef.current;
+      const mv = motionVideoRef.current;
+      if (audio && mv && !audio.paused) {
+        const driftSec = mv.currentTime - audio.currentTime;
+        const driftMs = driftSec * 1000;
+        driftSamplesRef.current.push(driftMs);
+      }
+      rafId = requestAnimationFrame(sample);
+    };
+    rafId = requestAnimationFrame(sample);
+    return () => cancelAnimationFrame(rafId);
+  }, []);
+
+
+  // function printDriftStats() {
+  //   const arr = driftSamplesRef.current;
+  //   if (!arr.length) return;
+  //   const sum = arr.reduce((a, b) => a + b, 0);
+  //   const mean = sum / arr.length;
+  //   const max = Math.max(...arr);
+  //   const min = Math.min(...arr);
+  //   console.table({ count: arr.length, mean, max, min });
+  // }
+
+  // function printSwitchLatencyStats() {
+  //   const arr = switchLatenciesRef.current;
+  //   if (!arr.length) return;
+  //   const sum = arr.reduce((a, b) => a + b, 0);
+  //   const mean = sum / arr.length;
+  //   const max = Math.max(...arr);
+  //   const min = Math.min(...arr);
+  //   console.table({ count: arr.length, mean, max, min });
+  // }
+
+  // function printFrameStats() {
+  //   const arr = frameIntervalsRef.current;
+  //   if (!arr.length) return;
+  //   const sum = arr.reduce((a, b) => a + b, 0);
+  //   const mean = sum / arr.length;
+  //   const max = Math.max(...arr);
+  //   console.table({ count: arr.length, mean, max });
+  // }
+
+  // 디버그 헬퍼들을 window에 노출 (개발 모드에서만)
+  // useEffect(() => {
+  //   if (import.meta.env.PROD) return; // 배포에서는 생략
+
+  //   (window as any).printDriftStats = printDriftStats;
+  //   (window as any).printFrameStats = printFrameStats;
+  //   (window as any).printSwitchLatencyStats = printSwitchLatencyStats;
+  //   (window as any).printCaptureCostStats = () => {
+  //     const arr = captureCostRef.current;
+  //     if (!arr.length) return;
+  //     const sum = arr.reduce((a, b) => a + b, 0);
+  //     const mean = sum / arr.length;
+  //     const max = Math.max(...arr);
+  //     const min = Math.min(...arr);
+  //     console.table({ count: arr.length, mean, max, min });
+  //   };
+  // }, []);
 
   // 웹소켓 연결 확인
   useEffect(() => {
@@ -444,6 +572,7 @@ function GamePage() {
       const loopEnd = Math.min(nominal, dur);
 
       if (mv.currentTime >= loopEnd - LOOP_EPS) {
+        markLoopBoundary();
         if (section === 'verse1' || section === 'verse2') {
           advancePatternIfNeeded();
         } else {
@@ -455,6 +584,7 @@ function GamePage() {
     };
 
     const onEnded = () => {
+      markLoopBoundary();
       // 비정상적으로 ended 이벤트가 와도 현재 섹션/패턴에 맞게 처리
       const section = currentSectionRef.current;
       if (section === 'verse1' || section === 'verse2') {
@@ -511,9 +641,13 @@ function GamePage() {
         const cur = audio.currentTime;
         if (cur >= end) return;
 
-        const effectiveStart = Math.max(cur, start);
+      const effectiveStart = Math.max(cur, start);
       startStream(effectiveStart, end, (blob, { t /*, idx*/ }) => {
-        void sendFrame({ sessionId: sid, blob, currentPlayTime: t });
+        const start = performance.now();
+        void sendFrame({ sessionId: sid, blob, currentPlayTime: t }).finally(() => {
+          const end = performance.now();
+          captureCostRef.current.push(end - start);
+        });
       });
       }, delayMs);
 
@@ -676,7 +810,10 @@ function GamePage() {
       if (audioRef.current) {
         audioRef.current.onerror = null;
         audioRef.current.pause();
-      }
+      };
+      if (sectionMessageTimerRef.current) {
+        clearTimeout(sectionMessageTimerRef.current);
+      };
     };
   }, []);
 
