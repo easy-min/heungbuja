@@ -249,6 +249,12 @@ class MotionInferenceService:
             sampled_frames
         )
 
+        # 🔍 디버깅: 입력 데이터 확인
+        LOGGER.info("🔍 디버깅 - Keypoint sequence shape: %s", keypoint_sequence.shape)
+        LOGGER.info("🔍 디버깅 - Keypoint stats - mean: %.4f, std: %.4f, min: %.4f, max: %.4f",
+                   keypoint_sequence.mean(), keypoint_sequence.std(),
+                   keypoint_sequence.min(), keypoint_sequence.max())
+
         input_tensor = torch.from_numpy(keypoint_sequence).unsqueeze(0)  # (1, T, N, 2)
         input_tensor = input_tensor.to(self.device)
 
@@ -257,6 +263,11 @@ class MotionInferenceService:
             logits = self.model(input_tensor)
             inference_time_ms = (perf_counter() - inference_start) * 1000
             probabilities = torch.softmax(logits, dim=-1).cpu().numpy()[0]
+
+            # 🔍 디버깅: 모델 출력 확인
+            LOGGER.info("🔍 디버깅 - Logits: %s", logits.cpu().numpy()[0])
+            LOGGER.info("🔍 디버깅 - Probabilities: %s", probabilities)
+            LOGGER.info("🔍 디버깅 - Class mapping: %s", self.id_to_label)
 
         decode_time_ms = decode_time_s * 1000
         pose_time_ms = pose_time_s * 1000
