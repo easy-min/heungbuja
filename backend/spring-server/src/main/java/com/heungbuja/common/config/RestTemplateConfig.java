@@ -17,7 +17,7 @@ public class RestTemplateConfig {
     public RestTemplate restTemplate(RestTemplateBuilder builder) {
         return builder
                 .setConnectTimeout(Duration.ofSeconds(10))
-                .setReadTimeout(Duration.ofSeconds(30))
+                .setReadTimeout(Duration.ofSeconds(300))  // 5분 (오디오 분석은 시간이 오래 걸릴 수 있음)
                 .build();
     }
 }

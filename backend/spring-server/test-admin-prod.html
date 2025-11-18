@@ -653,6 +653,8 @@
                 <h3 style="margin-bottom:20px; color:#667eea;">📝 곡 정보를 입력하세요</h3>
                 <input id="song-title" type="text" placeholder="곡 제목 (예: 내 건강이 어때서)" style="margin-bottom:15px;" required>
                 <input id="song-artist" type="text" placeholder="아티스트 (예: 아이유)" style="margin-bottom:15px;" required>
+                <input id="song-s3-url" type="url" placeholder="S3 오디오 파일 URL (예: https://bucket.s3.region.amazonaws.com/...)" style="margin-bottom:15px;" required>
+                <p style="font-size:12px; color:#999; margin-top:-10px;">※ S3에 이미 업로드된 오디오 파일의 URL을 입력하세요</p>
             </div>
 
             <!-- 2단계: 오디오 + 가사 업로드 -->
@@ -2703,12 +2705,23 @@
             console.log('🎵 곡 업로드 시작');
             console.log('🔑 사용 중인 토큰:', accessToken ? '있음 (길이: ' + accessToken.length + ')' : '❌ 없음!');
 
+            const s3Url = document.getElementById('song-s3-url').value.trim();
+            if (!s3Url) {
+                alert('S3 URL을 입력해주세요.');
+                currentUploadStep = 1;
+                updateUploadStepUI();
+                return;
+            }
+
             const formData = new FormData();
             formData.append('title', document.getElementById('song-title').value);
             formData.append('artist', document.getElementById('song-artist').value);
+            formData.append('s3Url', s3Url);
             formData.append('audioFile', uploadedFiles.audio);
             formData.append('lyricsFile', uploadedFiles.lyrics);
             formData.append('choreographyJson', uploadedFiles.choreography);
+
+            console.log('📍 S3 URL:', s3Url);
 
             // 진행률 표시 시작
             let progress = 0;
