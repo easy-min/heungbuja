@@ -322,23 +322,23 @@ class MotionInferenceService:
         # Model에 학습된 동작 (7개):
         #   class 0: CLAP (손 박수)
         #   class 1: ELBOW (팔 치기)
-        #   class 2: STRETCH (팔 뻗기)
-        #   class 3: TILT (기우뚱)
-        #   class 4: EXIT (비상구)
-        #   class 5: UNDERARM (겨드랑이박수)
-        #   class 6: STAY (가만히 있음)
+        #   class 2: EXIT (비상구)
+        #   class 3: STAY (부동자세)
+        #   class 4: STRETCH (팔 뻗기)
+        #   class 5: TILT (기우뚱)
+        #   class 6: UNDERARM (겨드랑이 박수수)
         #
         # DB actionCode → Model class_index 매핑:
         ACTION_CODE_TO_CLASS_INDEX = {
             1: 0,  # 손 박수 → CLAP
             2: 1,  # 팔 치기 → ELBOW
             # 3: None,  # 엉덩이 박수 (데이터 없음)
-            4: 2,  # 팔 뻗기 → STRETCH
-            5: 3,  # 기우뚱 → TILT
-            6: 4,  # 비상구 → EXIT
-            7: 5,  # 겨드랑이박수 → UNDERARM
+            4: 4,  # 팔 뻗기 → STRETCH
+            5: 5,  # 기우뚱 → TILT
+            6: 2,  # 비상구 → EXIT
+            7: 6,  # 겨드랑이박수 → UNDERARM
             # 8: None,  # 팔 모으기 (학습 안 함)
-            9: 6,  # 가만히 있음 → STAY
+            9: 3,  # 가만히 있음 → STAY
         }
         # ========================================================================
 
