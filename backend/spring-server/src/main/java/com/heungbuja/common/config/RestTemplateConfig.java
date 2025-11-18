@@ -1,5 +1,6 @@
 package com.heungbuja.common.config;
 
+import org.springframework.boot.web.client.ClientHttpRequestFactorySettings;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,9 +16,12 @@ public class RestTemplateConfig {
 
     @Bean
     public RestTemplate restTemplate(RestTemplateBuilder builder) {
+        ClientHttpRequestFactorySettings settings = ClientHttpRequestFactorySettings.DEFAULTS
+                .withConnectTimeout(Duration.ofSeconds(10))
+                .withReadTimeout(Duration.ofSeconds(300));  // 5분 (오디오 분석은 시간이 오래 걸릴 수 있음)
+
         return builder
-                .setConnectTimeout(Duration.ofSeconds(10))
-                .setReadTimeout(Duration.ofSeconds(300))  // 5분 (오디오 분석은 시간이 오래 걸릴 수 있음)
+                .requestFactory(settings)
                 .build();
     }
 }
