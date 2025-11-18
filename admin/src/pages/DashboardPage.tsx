@@ -10,14 +10,15 @@ import {
   UserRegisterModal,
   EmergencyAlertModal,
   SimpleSongUploadModal,
+  DeviceUserGrid,
 } from '../components';
 import DashboardHeader from '../components/DashboardHeader';
 import SectionTitle from '../components/SectionTitle';
 import { useWebSocket } from '../hooks/useWebSocket';
-import { 
-  useEmergencyStore, 
-  useUserStore, 
-  useActivityStore, 
+import {
+  useEmergencyStore,
+  useUserStore,
+  useActivityStore,
   useNotificationStore,
   useDeviceStore,
 } from '../stores';
@@ -26,6 +27,7 @@ import { getUsers } from '../api/user';
 import { type EmergencyReport } from '../types/emergency';
 import { mockEmergencyReports, mockUsers, mockDevices } from '../mocks/mockData';
 import '../styles/dashboard.css';
+import '../styles/device-user.css';
 
 const useMockData = import.meta.env.VITE_USE_MOCK === 'true';
 
@@ -233,6 +235,12 @@ const DashboardPage = () => {
         <div className="section">
           <SectionTitle>🧑‍🦳 담당 어르신 현황</SectionTitle>
           <UserGrid users={users} isLoading={isLoadingUsers} />
+        </div>
+
+        {/* 기기-사용자 관리 */}
+        <div className="section">
+          <SectionTitle>📱 기기 및 사용자 관리</SectionTitle>
+          <DeviceUserGrid />
         </div>
 
         {/* 활동 피드 */}

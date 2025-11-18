@@ -34,3 +34,13 @@ export { default as Timeline } from './visualization/Timeline';
 export { default as TimelineItem } from './visualization/TimelineItem';
 export { default as LyricSection } from './visualization/LyricSection';
 export { default as ActionChip } from './visualization/ActionChip';
+
+// 기기-사용자 관리 컴포넌트들
+export { default as DeviceUserGrid } from './device-user/DeviceUserGrid';
+export { default as DeviceUserCard } from './device-user/DeviceUserCard';
+export { default as UserDetailsPanel } from './device-user/UserDetailsPanel';
+export { default as PeriodTabs } from './device-user/PeriodTabs';
+export { default as HealthMonitoring } from './device-user/HealthMonitoring';
+export { default as ActionPerformance } from './device-user/ActionPerformance';
+export { default as ActivityTrend } from './device-user/ActivityTrend';
+export { default as RecentActivities } from './device-user/RecentActivities';

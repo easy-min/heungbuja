@@ -1,0 +1,511 @@
+/* ============================================
+   기기-사용자 관리 스타일
+   ============================================ */
+
+/* 그리드 레이아웃 */
+.device-user-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 20px;
+  margin-top: 20px;
+}
+
+/* 기기-사용자 카드 */
+.device-user-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  transition: all 0.3s;
+}
+
+.device-user-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+}
+
+/* 카드 헤더 */
+.du-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.du-device-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.du-device-icon {
+  font-size: 32px;
+}
+
+.du-device-details h3 {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 4px 0;
+}
+
+.du-device-details p {
+  font-size: 13px;
+  margin: 0;
+  opacity: 0.9;
+}
+
+/* 응급 사이렌 */
+.du-emergency-siren {
+  font-size: 28px;
+  opacity: 0.3;
+  transition: all 0.3s;
+}
+
+.du-emergency-siren.active {
+  opacity: 1;
+  animation: sirenPulse 1s ease-in-out infinite;
+}
+
+@keyframes sirenPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0 rgba(239, 68, 68, 0));
+  }
+  50% {
+    transform: scale(1.2);
+    filter: drop-shadow(0 0 8px rgba(239, 68, 68, 0.8));
+  }
+}
+
+/* 카드 본문 */
+.du-card-body {
+  padding: 0;
+}
+
+/* 사용자 섹션 */
+.du-user-section {
+  padding: 20px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.du-user-section:hover {
+  background: #f9fafb;
+}
+
+.du-user-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.du-user-info-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.du-user-avatar {
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+}
+
+.du-user-details h4 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #191f28;
+  margin: 0 0 4px 0;
+}
+
+.du-user-details p {
+  font-size: 13px;
+  color: #8b95a1;
+  margin: 0;
+}
+
+/* 토글 아이콘 */
+.du-toggle-icon {
+  font-size: 16px;
+  color: #8b95a1;
+  transition: transform 0.3s;
+}
+
+.du-toggle-icon.open {
+  transform: rotate(180deg);
+}
+
+/* 상세 패널 */
+.du-details-panel {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease-out;
+  background: #f9fafb;
+  border-top: 1px solid #e5e7eb;
+}
+
+.du-details-panel.open {
+  max-height: 2000px;
+  transition: max-height 0.5s ease-in;
+}
+
+.du-detail-section {
+  padding: 20px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.du-detail-section:last-child {
+  border-bottom: none;
+}
+
+.du-detail-section h5 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #191f28;
+  margin: 0 0 16px 0;
+}
+
+/* 기간 탭 */
+.period-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.period-tab {
+  flex: 1;
+  padding: 8px 16px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  background: white;
+  font-size: 14px;
+  font-weight: 600;
+  color: #4e5968;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.period-tab:hover {
+  border-color: #3182f6;
+  color: #3182f6;
+}
+
+.period-tab.active {
+  background: #3182f6;
+  border-color: #3182f6;
+  color: white;
+}
+
+/* 건강 통계 그리드 */
+.health-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.health-stat-card {
+  background: white;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+}
+
+.health-stat-icon {
+  font-size: 32px;
+}
+
+.health-stat-info {
+  flex: 1;
+}
+
+.health-stat-label {
+  font-size: 12px;
+  color: #8b95a1;
+  margin-bottom: 4px;
+}
+
+.health-stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #191f28;
+}
+
+.health-stat-unit {
+  font-size: 13px;
+  font-weight: 500;
+  color: #8b95a1;
+}
+
+.health-stat-status {
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+/* 동작별 수행도 */
+.action-performance-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.action-performance-item {
+  background: white;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+}
+
+.action-performance-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.action-icon {
+  font-size: 24px;
+}
+
+.action-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #191f28;
+}
+
+.action-performance-stats {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.action-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.action-stat-label {
+  font-size: 12px;
+  color: #8b95a1;
+}
+
+.action-stat-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: #191f28;
+}
+
+.action-performance-bar {
+  width: 100%;
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.action-performance-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s;
+}
+
+/* 활동 추이 */
+.activity-trend-container {
+  background: white;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+}
+
+.activity-trend-chart {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 8px;
+  height: 180px;
+  margin-bottom: 16px;
+}
+
+.trend-chart-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  height: 100%;
+}
+
+.trend-bars {
+  display: flex;
+  gap: 4px;
+  align-items: flex-end;
+  height: 150px;
+  width: 100%;
+}
+
+.trend-bar-wrapper {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+}
+
+.trend-bar {
+  width: 100%;
+  border-radius: 4px 4px 0 0;
+  transition: height 0.3s;
+  min-height: 4px;
+}
+
+.trend-bar-exercise {
+  background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+}
+
+.trend-bar-accuracy {
+  background: linear-gradient(180deg, #10b981 0%, #059669 100%);
+}
+
+.trend-chart-label {
+  font-size: 11px;
+  color: #8b95a1;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.activity-trend-legend {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #4e5968;
+}
+
+.legend-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.legend-color-exercise {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.legend-color-accuracy {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+/* 최근 활동 */
+.recent-activities-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.activity-log-item {
+  background: white;
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+}
+
+.activity-log-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.activity-log-content {
+  flex: 1;
+}
+
+.activity-log-description {
+  font-size: 14px;
+  color: #191f28;
+  margin-bottom: 4px;
+}
+
+.activity-log-time {
+  font-size: 12px;
+  color: #8b95a1;
+}
+
+/* 빈 상태 */
+.du-empty,
+.du-empty-full,
+.du-loading,
+.du-loading-full,
+.du-error {
+  text-align: center;
+  padding: 40px 20px;
+  color: #8b95a1;
+}
+
+.du-empty-full,
+.du-loading-full,
+.du-error {
+  grid-column: 1 / -1;
+}
+
+.du-empty .icon,
+.du-empty-full .icon,
+.du-error .icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+  opacity: 0.5;
+}
+
+.du-empty p,
+.du-empty-full p,
+.du-loading p,
+.du-loading-full p,
+.du-error p {
+  font-size: 14px;
+  margin: 0;
+}
+
+/* 반응형 */
+@media (max-width: 768px) {
+  .device-user-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .health-stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .action-performance-stats {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .trend-bars {
+    gap: 2px;
+  }
+}
