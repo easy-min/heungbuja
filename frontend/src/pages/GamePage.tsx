@@ -824,13 +824,7 @@ function GamePage() {
           <div className="countdown-bubble">{count > 0 ? count : 'Go!'}</div>
         </div>
       )}
-      {sectionMessage && (
-        <div className="section-message-overlay">
-          <div className="section-message-bubble">
-            {sectionMessage}
-          </div>
-        </div>
-      )}
+
       {wsMessage && (
         <div className="ws-message-overlay">
           <div className="ws-message-bubble">{wsMessage}</div>
@@ -911,6 +905,13 @@ function GamePage() {
               {currentActionName && (
                 <div className="action-label-overlay">
                   {currentActionName}
+                </div>
+              )}
+              {sectionMessage && (
+                <div className="section-message-overlay">
+                  <div className="section-message-bubble">
+                    {sectionMessage}
+                  </div>
                 </div>
               )}
             </div>

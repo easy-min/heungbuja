@@ -313,11 +313,13 @@
 }
 
 .section-message-overlay {
-  position: fixed;
-  top: 20%;
+  position: absolute;
+  top: 50%;
   left: 50%;
-  transform: translateX(-50%);
-  z-index: 9999;
+  transform: translate(-50%, -50%);  /* 캐릭터 영역 중앙 */
+
+  z-index: 5;              /* 캐릭터 영상 위로만 올라오면 충분 */
+
   background: rgba(255, 209, 102, 0.7);
   padding: 24px 32px;
   border-radius: 12px;
@@ -325,14 +327,16 @@
   font-size: 1.4rem;
   font-weight: 700;
   text-align: center;
-  animation: fadeInOut 4s ease-in-out forwards;
+
+  animation: sectionMessageFade 4s ease-in-out forwards;
 }
 
-@keyframes fadeInOut {
-  0% { opacity: 0; transform: translate(-50%, -10%); }
-  10% { opacity: 1; transform: translate(-50%, 0); }
-  90% { opacity: 1; }
-  100% { opacity: 0; transform: translate(-50%, -10%); }
+/* 중앙 기준으로 자연스럽게 뜨고 사라지도록 키프레임도 조정 */
+@keyframes sectionMessageFade {
+  0%   { opacity: 0; transform: translate(-50%, -60%); }
+  10%  { opacity: 1; transform: translate(-50%, -50%); }
+  90%  { opacity: 1; transform: translate(-50%, -50%); }
+  100% { opacity: 0; transform: translate(-50%, -60%); }
 }
 
 .ws-message-overlay {
