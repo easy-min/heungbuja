@@ -32,6 +32,9 @@ ACTION_CODE_TO_LABEL = {
 }
 LABEL_TO_ACTION_CODE = {label: code for code, label in ACTION_CODE_TO_LABEL.items()}
 
+MIN_VALID_FRAMES = 5
+MIN_MOTION_THRESHOLD = 0.02
+
 
 class PoseSequenceClassificationResponse(BaseModel):
     actionCode: Optional[int] = Field(
@@ -150,6 +153,15 @@ def _extract_landmarks_from_frames(frames: List[str]) -> np.ndarray:
             detail="유효한 포즈가 감지된 프레임이 없습니다.",
         )
 
+    if len(extracted) < MIN_VALID_FRAMES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"유효한 프레임이 부족합니다 ({len(extracted)}/{len(frames)}개). "
+                f"최소 {MIN_VALID_FRAMES}개 이상 프레임을 제공해주세요."
+            ),
+        )
+
     return np.stack(extracted, axis=0)
 
 
@@ -256,6 +268,16 @@ def _judgment_from_score(score: Optional[int]) -> int:
     return max(1, min(3, score))
 
 
+def _estimate_motion(sequence: np.ndarray) -> float:
+    if sequence.ndim != 3 or sequence.shape[0] < 2:
+        return 0.0
+    deltas = np.diff(sequence, axis=0)
+    per_frame_motion = np.linalg.norm(deltas, axis=(1, 2))
+    if per_frame_motion.size == 0:
+        return 0.0
+    return float(np.mean(per_frame_motion))
+
+
 @router.post(
     "/classify",
     response_model=PoseSequenceClassificationResponse,
@@ -279,7 +301,30 @@ async def classify_pose_sequence(
         description="기본 디렉터리 대신 사용할 참조 시퀀스 디렉터리",
     ),
 ) -> PoseSequenceClassificationResponse:
+    resolved_action_code = payload.actionCode
+    if resolved_action_code is None and payload.actionName:
+        action_name_key = payload.actionName.strip().upper()
+        resolved_action_code = LABEL_TO_ACTION_CODE.get(action_name_key)
+
     query_landmarks, query_metadata = _load_query_sequence(payload)
+
+    frame_count = query_landmarks.shape[0]
+    if frame_count < MIN_VALID_FRAMES:
+        LOGGER.warning(
+            "Insufficient frame count for reliable comparison: %d (required >= %d)",
+            frame_count,
+            MIN_VALID_FRAMES,
+        )
+        return PoseSequenceClassificationResponse(actionCode=resolved_action_code, judgment=0)
+
+    motion_metric = _estimate_motion(query_landmarks)
+    if motion_metric < MIN_MOTION_THRESHOLD:
+        LOGGER.info(
+            "Detected insufficient motion (avg delta=%.4f < %.4f). Returning judgment 0.",
+            motion_metric,
+            MIN_MOTION_THRESHOLD,
+        )
+        return PoseSequenceClassificationResponse(actionCode=resolved_action_code, judgment=0)
 
     base_reference_dir = BASE_REFERENCE_DIR
     if reference_dir:
@@ -332,7 +377,11 @@ async def classify_pose_sequence(
     )
 
     response_action_code: Optional[int] = (
-        payload.actionCode if payload.actionCode is not None else target_action_code
+        payload.actionCode
+        if payload.actionCode is not None
+        else target_action_code
+        if target_action_code is not None
+        else resolved_action_code
     )
 
     judgment = 0
