@@ -13,6 +13,8 @@ import com.heungbuja.song.repository.jpa.SongRepository;
 import com.heungbuja.song.repository.mongo.SongBeatRepository;
 import com.heungbuja.song.repository.mongo.SongChoreographyRepository;
 import com.heungbuja.song.repository.mongo.SongLyricsRepository;
+import com.heungbuja.song.repository.mongo.ChoreographyPatternRepository;
+import com.heungbuja.song.domain.ChoreographyPattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -34,6 +36,8 @@ public class SongRegistrationService {
     private final SongBeatRepository songBeatRepository;
     private final SongLyricsRepository songLyricsRepository;
     private final SongChoreographyRepository songChoreographyRepository;
+    private final ChoreographyPatternRepository choreographyPatternRepository;
+    private final DefaultChoreographyGenerator defaultChoreographyGenerator;
     private final ObjectMapper objectMapper;
 
     /**
@@ -175,6 +179,67 @@ public class SongRegistrationService {
         } catch (IOException e) {
             log.error("JSON 파싱 실패: {}", e.getMessage(), e);
             throw new CustomException(ErrorCode.SONG_REGISTRATION_FAILED, "JSON 파일 파싱에 실패했습니다: " + e.getMessage());
+        } catch (Exception e) {
+            log.error("곡 등록 실패: {}", e.getMessage(), e);
+            throw new CustomException(ErrorCode.SONG_REGISTRATION_FAILED, "곡 등록에 실패했습니다: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 곡 등록 (music-server 분석 결과 사용 + 기본 안무 자동 생성)
+     *
+     * @param title 곡 제목
+     * @param artist 아티스트명
+     * @param media Media 엔티티 (오디오 파일)
+     * @param beatsNode music-server에서 분석한 박자 JSON
+     * @param lyricsNode music-server에서 분석한 가사 JSON
+     * @return 생성된 Song 엔티티
+     */
+    @Transactional
+    public Song registerSongWithAnalysisAndDefaultChoreography(
+            String title,
+            String artist,
+            Media media,
+            JsonNode beatsNode,
+            JsonNode lyricsNode) {
+
+        try {
+            // 1. MySQL에 Song 엔티티 생성
+            Song song = Song.builder()
+                    .title(title)
+                    .artist(artist)
+                    .media(media)
+                    .build();
+
+            Song savedSong = songRepository.save(song);
+            Long songId = savedSong.getId();
+
+            log.info("Song 생성 완료: id={}, title={}, artist={}", songId, title, artist);
+
+            // 2. 박자 JSON 파싱 및 MongoDB 저장
+            SongBeat songBeat = objectMapper.treeToValue(beatsNode, SongBeat.class);
+            songBeat.setSongId(songId);
+            songBeatRepository.save(songBeat);
+            log.info("SongBeat 저장 완료: songId={}", songId);
+
+            // 3. 가사 JSON 파싱 및 MongoDB 저장
+            SongLyrics songLyrics = objectMapper.treeToValue(lyricsNode, SongLyrics.class);
+            songLyrics.setSongId(songId);
+            songLyricsRepository.save(songLyrics);
+            log.info("SongLyrics 저장 완료: songId={}", songId);
+
+            // 4. 기본 안무 자동 생성 및 MongoDB 저장
+            SongChoreography songChoreography = defaultChoreographyGenerator.generateDefaultSongChoreography(songId);
+            songChoreographyRepository.save(songChoreography);
+            log.info("SongChoreography 기본값 저장 완료: songId={}", songId);
+
+            // 5. 기본 안무 패턴 자동 생성 및 MongoDB 저장
+            ChoreographyPattern choreographyPattern = defaultChoreographyGenerator.generateDefaultChoreographyPattern(songId);
+            choreographyPatternRepository.save(choreographyPattern);
+            log.info("ChoreographyPattern 기본값 저장 완료: songId={}", songId);
+
+            return savedSong;
+
         } catch (Exception e) {
             log.error("곡 등록 실패: {}", e.getMessage(), e);
             throw new CustomException(ErrorCode.SONG_REGISTRATION_FAILED, "곡 등록에 실패했습니다: " + e.getMessage());
