@@ -319,23 +319,26 @@ class MotionInferenceService:
         # DB의 actionCode와 모델의 class_index는 1:1 매핑이 아닙니다!
         # 일부 DB 동작은 모델에 학습되지 않았습니다.
         #
-        # Model에 학습된 동작 (5개):
+        # Model에 학습된 동작 (7개):
         #   class 0: CLAP (손 박수)
-        #   class 1: EXIT (비상구)
+        #   class 1: ELBOW (팔 치기)
         #   class 2: STRETCH (팔 뻗기)
         #   class 3: TILT (기우뚱)
-        #   class 4: UNDERARM (겨드랑이박수)
+        #   class 4: EXIT (비상구)
+        #   class 5: UNDERARM (겨드랑이박수)
+        #   class 6: STAY (가만히 있음)
         #
         # DB actionCode → Model class_index 매핑:
         ACTION_CODE_TO_CLASS_INDEX = {
             1: 0,  # 손 박수 → CLAP
-            # 2: None,  # 팔 치기 (모델에 없음)
-            # 3: None,  # 엉덩이 박수 (모델에 없음)
+            2: 1,  # 팔 치기 → ELBOW
+            # 3: None,  # 엉덩이 박수 (데이터 없음)
             4: 2,  # 팔 뻗기 → STRETCH
             5: 3,  # 기우뚱 → TILT
-            6: 1,  # 비상구 → EXIT
-            7: 4,  # 겨드랑이박수 → UNDERARM
-            # 8: None,  # 팔 모으기 (모델에 없음)
+            6: 4,  # 비상구 → EXIT
+            7: 5,  # 겨드랑이박수 → UNDERARM
+            # 8: None,  # 팔 모으기 (학습 안 함)
+            9: 6,  # 가만히 있음 → STAY
         }
         # ========================================================================
 
