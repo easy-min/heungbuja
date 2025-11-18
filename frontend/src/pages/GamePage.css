@@ -87,7 +87,7 @@
 .character-section {
   flex: 1;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
   position: relative;
 }
@@ -95,11 +95,10 @@
 /* 비디오를 감싸는 박스: 비율 유지 + 크롭 영역 */
 .motion-video-wrapper {
   width: 100%;
-  /* max-width: 1000px; */
-  aspect-ratio: 9 / 4.8;    /* 원하면 4/3 등으로 변경 */
+  height: 100%;
   overflow: hidden;
   border-radius: 30px;
-  background: #000;        /* 비디오 로딩 전 배경 */
+  background: var(--color-bg); /* 비디오 로딩 전 배경 */
 }
 
 /* 실제 비디오: 확대 + 가운데 정렬 */
@@ -197,17 +196,17 @@
 
 /* 위쪽: 카메라 */
 .camera-section {
-  flex: 4;
+  flex: 1;
   position: relative;
   display: flex;
-  align-items: flex-start; 
+  align-items: center; 
   justify-content: center;
   margin-top: 5%;
 }
 
 .camera-video {
   width: 90%;
-  height: auto;
+  height: 100%;
   object-fit: cover;
   transform: scaleX(-1); /* 거울 효과 */
   border-radius: 20px;
@@ -313,11 +312,13 @@
 }
 
 .section-message-overlay {
-  position: fixed;
-  top: 20%;
+  position: absolute;
+  top: 50%;
   left: 50%;
-  transform: translateX(-50%);
-  z-index: 9999;
+  transform: translate(-50%, -50%);  /* 캐릭터 영역 중앙 */
+
+  z-index: 5;              /* 캐릭터 영상 위로만 올라오면 충분 */
+
   background: rgba(255, 209, 102, 0.7);
   padding: 24px 32px;
   border-radius: 12px;
@@ -325,14 +326,16 @@
   font-size: 1.4rem;
   font-weight: 700;
   text-align: center;
-  animation: fadeInOut 4s ease-in-out forwards;
+
+  animation: sectionMessageFade 4s ease-in-out forwards;
 }
 
-@keyframes fadeInOut {
-  0% { opacity: 0; transform: translate(-50%, -10%); }
-  10% { opacity: 1; transform: translate(-50%, 0); }
-  90% { opacity: 1; }
-  100% { opacity: 0; transform: translate(-50%, -10%); }
+/* 중앙 기준으로 자연스럽게 뜨고 사라지도록 키프레임도 조정 */
+@keyframes sectionMessageFade {
+  0%   { opacity: 0; transform: translate(-50%, -60%); }
+  10%  { opacity: 1; transform: translate(-50%, -50%); }
+  90%  { opacity: 1; transform: translate(-50%, -50%); }
+  100% { opacity: 0; transform: translate(-50%, -60%); }
 }
 
 .ws-message-overlay {

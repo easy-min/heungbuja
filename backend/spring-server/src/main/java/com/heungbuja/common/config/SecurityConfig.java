@@ -32,12 +32,18 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // OPTIONS 요청은 모두 허용 (CORS preflight)
+                        .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
+
                         // Public endpoints
                         .requestMatchers("/admins/register", "/admins/login").permitAll()
                         .requestMatchers("/auth/device", "/auth/refresh").permitAll()
                         .requestMatchers("/health").permitAll()
                         .requestMatchers("/media/test", "/media/test/**").permitAll()
                         .requestMatchers("/ws/**").permitAll()
+
+                        // Admin HTML 페이지 (정적 파일)
+                        .requestMatchers("/test-admin.html", "/test-admin-prod.html", "/test-admin-prod-backup.html").permitAll()
 
                         // Voice & Commands
                         .requestMatchers("/commands/tts/**").permitAll()  // TTS 다운로드는 인증 불필요
@@ -48,14 +54,16 @@ public class SecurityConfig {
                         .requestMatchers("/emergency/*/cancel").permitAll()
                         .requestMatchers("/emergency/*/confirm").permitAll()
 
-                        // SUPER_ADMIN only (관리자 생성 및 전체 조회)
-                        .requestMatchers("/admins").hasAuthority("ROLE_SUPER_ADMIN")
+                        // ADMIN and SUPER_ADMIN (구체적인 경로를 먼저 매칭)
+                        .requestMatchers("/admins/songs", "/admins/songs/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPER_ADMIN")
+                        .requestMatchers("/admins/devices", "/admins/devices/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPER_ADMIN")
+                        .requestMatchers("/admins/users", "/admins/users/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPER_ADMIN", "ROLE_USER")
+                        .requestMatchers("/admins/activity-logs", "/admins/activity-logs/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPER_ADMIN")
+                        .requestMatchers("/emergency/admins", "/emergency/admins/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPER_ADMIN")
 
-                        // ADMIN and SUPER_ADMIN (기기 및 어르신 관리)
-                        .requestMatchers("/admins/devices/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPER_ADMIN")
-                        .requestMatchers("/admins/users/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPER_ADMIN", "ROLE_USER")
-                        .requestMatchers("/emergency/admins/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPER_ADMIN")
-                        .requestMatchers("/admins/songs/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPER_ADMIN")
+                        // SUPER_ADMIN only (관리자 생성 및 전체 조회 - 마지막에)
+                        .requestMatchers("/admins").hasAuthority("ROLE_SUPER_ADMIN")
+                        .requestMatchers("/admins/**").hasAuthority("ROLE_SUPER_ADMIN")
 
                         .requestMatchers("/game/**").permitAll()  // ---- 우선 game 요청 허용
 

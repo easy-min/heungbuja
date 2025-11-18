@@ -28,6 +28,36 @@ function GamePage() {
   const announcedSectionRef = useRef<SectionKey | null>(null);
   const verse2LevelRef = useRef<'level1' | 'level2' | 'level3'>('level2');
   const forceStopRef = useRef(false);
+  const hasLevelDecisionRef = useRef(false);
+  const sectionMessageTimerRef = useRef<number | null>(null);
+
+  // === 패턴 프리로드용 ===
+  const preloadedPatternVideosRef =
+    useRef<Partial<Record<PatternKey, HTMLVideoElement>>>({});
+  const patternReadyRef = useRef<Record<PatternKey, boolean>>({
+    P1: false,
+    P2: false,
+    P3: false,
+    P4: false,
+  });
+
+  // === 영상 전환 디버깅용
+  const driftSamplesRef = useRef<number[]>([]);
+  const lastLoopBoundaryRef = useRef<number | null>(null);
+  const switchLatenciesRef = useRef<number[]>([]);
+  const patternSwitchLatenciesRef = useRef<number[]>([]);
+  const frameIntervalsRef = useRef<number[]>([]);
+  const captureCostRef = useRef<number[]>([]);
+
+  const pendingSwitchRef = useRef<{
+    section: SectionKey;
+    requestedAt: number;
+  } | null>(null);
+
+  const pendingPatternSwitchRef = useRef<{
+    pattern: PatternKey;
+    requestedAt: number;
+  } | null>(null);
 
   const currentPatternSeqRef = useRef<PatternKey[] | null>(null);
   const currentPatternIndexRef = useRef<number>(0);
@@ -63,8 +93,19 @@ function GamePage() {
         const levelKey = (`level${nextLevel}` as 'level1' | 'level2' | 'level3');
         verse2LevelRef.current = levelKey;
         setVerse2Level(levelKey);
+        hasLevelDecisionRef.current = true;
+
+        if (currentSectionRef.current === 'break') {
+          const msgText = getBreakMessageByLevel(levelKey);
+          showSectionMessage(msgText, 12000);
+        }
 
         if (currentSectionRef.current === 'verse2') {
+          // 🔹 난이도 변경에 따른 verse2 재전환도 측정
+          pendingSwitchRef.current = {
+            section: 'verse2',
+            requestedAt: performance.now(),
+          };
           switchSectionVideo('verse2', levelKey);
         }
         return;
@@ -74,7 +115,6 @@ function GamePage() {
         clearTimeout(feedbackHideTimerRef.current);
         feedbackHideTimerRef.current = null;
       }
-      // console.log('[피드백] ', msg.data.judgment);
 
       setLastFeedback(msg.data);
 
@@ -161,6 +201,32 @@ function GamePage() {
     return null;
   }
 
+  function showSectionMessage(message: string, durationMs: number) {
+    if (sectionMessageTimerRef.current) {
+      clearTimeout(sectionMessageTimerRef.current);
+      sectionMessageTimerRef.current = null;
+    }
+
+    setSectionMessage(message);
+    sectionMessageTimerRef.current = window.setTimeout(() => {
+      setSectionMessage(null);
+      sectionMessageTimerRef.current = null;
+    }, durationMs);
+  }
+
+  function getBreakMessageByLevel(
+    level: 'level1' | 'level2' | 'level3'
+  ): string {
+    switch (level) {
+      case 'level1':
+        return '잘 하고 계세요! 조금만 더 힘내세요!';
+      case 'level2':
+        return '잘 따라하셔서 2절은 한 단계 높은 동작으로 바꿔볼게요!';
+      case 'level3':
+        return '멋진 실력이에요! 2절은 최상 난이도로 함께해요!';
+    }
+  }
+
   const getLoopLenSec = (section: SectionKey): number => {
     // verse1 / verse2는 현재 패턴 기준으로 길이 계산
     if (section === 'verse1' || section === 'verse2') {
@@ -187,39 +253,188 @@ function GamePage() {
     onSectionEnter: (label) => {
       const map = { intro: 'intro', break: 'break', verse1: 'verse1', verse2: 'verse2' } as const;
       const nextSection = map[label] ?? 'break';
+      // 🔹 섹션 전환 요청 시각 기록
+      pendingSwitchRef.current = {
+        section: nextSection,
+        requestedAt: performance.now(),
+      };
       switchSectionVideo(nextSection);
 
       if (nextSection !== announcedSectionRef.current) {
         announcedSectionRef.current = nextSection;
+
         if (nextSection === 'intro') {
-          setSectionMessage("노래에 맞춰 캐릭터의 동작을 따라해주세요!");
-          setTimeout(() => setSectionMessage(null), 8000);
+          showSectionMessage('노래에 맞춰 캐릭터의 동작을 따라해주세요!', 8000);
         }
+
         if (nextSection === 'break') {
-          let msg = '';
-
-          switch (verse2LevelRef.current) {
-            case 'level1':
-              msg = '잘 하고 계세요! 조금만 더 힘내세요!';
-              break;
-            case 'level2':
-              msg = '잘 따라하셔서 2절은 한 단계 높은 동작으로 바꿔볼게요!';
-              break;
-            case 'level3':
-              msg = '멋진 실력이에요! 2절은 최상 난이도로 함께해요!';
-              break;
-            default:
-              msg = '';
+          // 🔹 난이도 결정이 아직 안 났으면, 여기서는 문구를 띄우지 않음
+          if (!hasLevelDecisionRef.current) {
+            return;
           }
 
-          if (msg) {
-            setSectionMessage(msg);
-            window.setTimeout(() => setSectionMessage(null), 12000);
-          }
+          const msg = getBreakMessageByLevel(verse2LevelRef.current);
+          showSectionMessage(msg, 12000);
         }
       }
     },
   });
+
+  // 루프 경계 지점에 도달했을 때 기록 (tick 안에서)
+  function markLoopBoundary() {
+    lastLoopBoundaryRef.current = performance.now();
+  }
+
+  // === 패턴 비디오 프리로드 ===
+  useEffect(() => {
+    const videos: Partial<Record<PatternKey, HTMLVideoElement>> = {};
+
+    (Object.keys(PATTERN_META) as PatternKey[]).forEach((key) => {
+      const meta = PATTERN_META[key];
+      const v = document.createElement('video');
+
+      v.src = meta.src;
+      v.preload = 'auto';
+      v.muted = true;
+
+      const handleCanPlay = () => {
+        patternReadyRef.current[key] = true;
+        // 필요하면 로그 확인
+        console.log(`[preload] pattern ${key} canplaythrough`);
+      };
+
+      const handleError = (ev: Event) => {
+        console.error(`[preload] pattern ${key} error`, ev);
+      };
+
+      v.addEventListener('canplaythrough', handleCanPlay);
+      v.addEventListener('error', handleError);
+
+      v.load(); // 실제 로딩 시작
+      videos[key] = v;
+    });
+
+    preloadedPatternVideosRef.current = videos;
+
+    // 정리
+    return () => {
+      Object.values(videos).forEach((v) => {
+        if (!v) return;
+        v.pause();
+        v.removeAttribute('src');
+        v.load();
+      });
+    };
+  }, []);
+
+  useEffect(() => {
+    let last = performance.now();
+    let raf = 0;
+    const tick = () => {
+      const now = performance.now();
+      frameIntervalsRef.current.push(now - last);
+      last = now;
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  // 비디오가 실제 재생을 시작할 때 (playing 이벤트 시점)
+  useEffect(() => {
+    const mv = motionVideoRef.current;
+    if (!mv) return;
+
+    const onPlaying = () => {
+      const now = performance.now();
+
+      // 🔹 섹션 전환 latency
+      const pendingSection = pendingSwitchRef.current;
+      if (pendingSection) {
+        const latency = now - pendingSection.requestedAt;
+        if (pendingSection.section === 'verse1' || pendingSection.section === 'verse2') {
+          switchLatenciesRef.current.push(latency);
+        }
+        pendingSwitchRef.current = null;
+      }
+
+      // 🔹 패턴 전환 latency
+      const pendingPattern = pendingPatternSwitchRef.current;
+      if (pendingPattern) {
+        const latency = now - pendingPattern.requestedAt;
+        patternSwitchLatenciesRef.current.push(latency);
+        pendingPatternSwitchRef.current = null;
+      }
+    };
+
+    mv.addEventListener('playing', onPlaying);
+    return () => mv.removeEventListener('playing', onPlaying);
+  }, []);
+
+  useEffect(() => {
+    let rafId = 0;
+    const sample = () => {
+      const audio = audioRef.current;
+      const mv = motionVideoRef.current;
+      if (audio && mv && !audio.paused) {
+        const driftSec = mv.currentTime - audio.currentTime;
+        const driftMs = driftSec * 1000;
+        driftSamplesRef.current.push(driftMs);
+      }
+      rafId = requestAnimationFrame(sample);
+    };
+    rafId = requestAnimationFrame(sample);
+    return () => cancelAnimationFrame(rafId);
+  }, []);
+
+  // function printSectionSwitchLatencyStats() {
+  //   const arr = switchLatenciesRef.current;
+  //   if (!arr.length) return;
+  //   const sum = arr.reduce((a, b) => a + b, 0);
+  //   const mean = sum / arr.length;
+  //   const max = Math.max(...arr);
+  //   const min = Math.min(...arr);
+  //   console.table({ count: arr.length, mean, max, min });
+  // }
+
+  // function printPatternSwitchLatencyStats() {
+  //   const arr = patternSwitchLatenciesRef.current;
+  //   if (!arr.length) return;
+  //   const sum = arr.reduce((a, b) => a + b, 0);
+  //   const mean = sum / arr.length;
+  //   const max = Math.max(...arr);
+  //   const min = Math.min(...arr);
+  //   console.table({ count: arr.length, mean, max, min });
+  // }
+
+  // function printFrameStats() {
+  //   const arr = frameIntervalsRef.current;
+  //   if (!arr.length) return;
+  //   const sum = arr.reduce((a, b) => a + b, 0);
+  //   const mean = sum / arr.length;
+  //   const max = Math.max(...arr);
+  //   console.table({ count: arr.length, mean, max });
+  // }
+
+  // function printCaptureCostStats() {
+  //   const arr = captureCostRef.current;
+  //   if (!arr.length) return;
+  //   const sum = arr.reduce((a, b) => a + b, 0);
+  //   const mean = sum / arr.length;
+  //   const max = Math.max(...arr);
+  //   const min = Math.min(...arr);
+  //   console.table({ count: arr.length, mean, max, min });
+  // }
+
+  // // 디버그 헬퍼들을 window에 노출 (개발 모드에서만)
+  // useEffect(() => {
+  //   if (import.meta.env.PROD) return;
+
+  //   (window as any).printSectionSwitchLatencyStats = printSectionSwitchLatencyStats;
+  //   (window as any).printPatternSwitchLatencyStats = printPatternSwitchLatencyStats;
+  //   (window as any).printFrameStats = printFrameStats;
+  //   (window as any).printCaptureCostStats = printCaptureCostStats;
+  // }, []);
 
   // 웹소켓 연결 확인
   useEffect(() => {
@@ -362,6 +577,10 @@ function GamePage() {
     const shouldPlayNow = !!au && !au.paused;
 
     if (firstPattern) {
+      pendingPatternSwitchRef.current = {
+        pattern: firstPattern,
+        requestedAt: performance.now(),
+      };
       void playPatternVideo(firstPattern, shouldPlayNow);
     } else {
       // 패턴이 비어 있는 경우 안전하게 아무것도 하지 않음
@@ -376,6 +595,13 @@ function GamePage() {
     const mv = motionVideoRef.current;
     const au = audioRef.current;
     if (!mv) return;
+
+    // 프리로드 상태 확인 (디버그용)
+    if (!patternReadyRef.current[pattern]) {
+      console.warn(
+        `[pattern] ${pattern} is not fully preloaded yet (ready=false).`,
+      );
+    }
 
     const { src, bpm: videoBpm } = PATTERN_META[pattern];
     const songBpm = songBpmRef.current || 120;
@@ -431,6 +657,11 @@ function GamePage() {
       const au = audioRef.current;
       const shouldPlayNow = !!au && !au.paused;
 
+      pendingPatternSwitchRef.current = {
+        pattern: nextPattern,
+        requestedAt: performance.now(),
+      };
+
       void playPatternVideo(nextPattern, shouldPlayNow);
     };
 
@@ -444,10 +675,10 @@ function GamePage() {
       const loopEnd = Math.min(nominal, dur);
 
       if (mv.currentTime >= loopEnd - LOOP_EPS) {
+        markLoopBoundary();
         if (section === 'verse1' || section === 'verse2') {
           advancePatternIfNeeded();
         } else {
-          // intro / break: 기존처럼 동일 영상 루프
           mv.currentTime = LOOP_RESTART;
           if (mv.paused) { mv.play().catch(() => {}); }
         }
@@ -455,6 +686,7 @@ function GamePage() {
     };
 
     const onEnded = () => {
+      markLoopBoundary();
       // 비정상적으로 ended 이벤트가 와도 현재 섹션/패턴에 맞게 처리
       const section = currentSectionRef.current;
       if (section === 'verse1' || section === 'verse2') {
@@ -511,9 +743,13 @@ function GamePage() {
         const cur = audio.currentTime;
         if (cur >= end) return;
 
-        const effectiveStart = Math.max(cur, start);
+      const effectiveStart = Math.max(cur, start);
       startStream(effectiveStart, end, (blob, { t /*, idx*/ }) => {
-        void sendFrame({ sessionId: sid, blob, currentPlayTime: t });
+        const start = performance.now();
+        void sendFrame({ sessionId: sid, blob, currentPlayTime: t }).finally(() => {
+          const end = performance.now();
+          captureCostRef.current.push(end - start);
+        });
       });
       }, delayMs);
 
@@ -676,7 +912,10 @@ function GamePage() {
       if (audioRef.current) {
         audioRef.current.onerror = null;
         audioRef.current.pause();
-      }
+      };
+      if (sectionMessageTimerRef.current) {
+        clearTimeout(sectionMessageTimerRef.current);
+      };
     };
   }, []);
 
@@ -687,13 +926,7 @@ function GamePage() {
           <div className="countdown-bubble">{count > 0 ? count : 'Go!'}</div>
         </div>
       )}
-      {sectionMessage && (
-        <div className="section-message-overlay">
-          <div className="section-message-bubble">
-            {sectionMessage}
-          </div>
-        </div>
-      )}
+
       {wsMessage && (
         <div className="ws-message-overlay">
           <div className="ws-message-bubble">{wsMessage}</div>
@@ -774,6 +1007,13 @@ function GamePage() {
               {currentActionName && (
                 <div className="action-label-overlay">
                   {currentActionName}
+                </div>
+              )}
+              {sectionMessage && (
+                <div className="section-message-overlay">
+                  <div className="section-message-bubble">
+                    {sectionMessage}
+                  </div>
                 </div>
               )}
             </div>
