@@ -61,7 +61,7 @@ async def analyze_motion(
         payload.actionCode if payload.actionCode is not None else result.action_code
     )
 
-    return AnalyzeResponse(
+    response_payload = AnalyzeResponse(
         actionCode=response_action_code,
         judgment=result.judgment,
         predictedLabel=result.predicted_label,
@@ -71,5 +71,14 @@ async def analyze_motion(
         poseTimeMs=result.pose_time_ms,
         inferenceTimeMs=result.inference_time_ms,
     )
+
+    response_payload_dict = (
+        response_payload.model_dump()
+        if hasattr(response_payload, "model_dump")
+        else response_payload.dict()
+    )
+    LOGGER.info("Sending analyze response to Spring: %s", response_payload_dict)
+
+    return response_payload
 
 
