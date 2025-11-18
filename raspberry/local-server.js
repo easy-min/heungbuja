@@ -1,6 +1,7 @@
 // local-server.js
 const express = require('express');
 const fs = require('fs');
+const path = require('path');
 const cors = require('cors');
 const axios = require('axios');
 
@@ -10,7 +11,6 @@ app.use(express.json());
 
 // === 설정 ===
 const BACKEND_URL = 'https://heungbuja.site/api';
-const TOKEN_FILE_PATH = '/home/a103/main_service/token.txt';
 
 // === 토큰 저장 ===
 let currentAccessToken = null;
@@ -42,7 +42,7 @@ async function loginWithDeviceId() {
         console.log('🔐 기기 번호로 로그인 중...', deviceId);
 
         const response = await axios.post(`${BACKEND_URL}/auth/device`, {
-            deviceId: deviceId
+            serialNumber: deviceId
         });
 
         currentAccessToken = response.data.accessToken;
@@ -50,8 +50,6 @@ async function loginWithDeviceId() {
 
         const expiresIn = response.data.expiresIn || 3600;
         tokenExpiryTime = Date.now() + (expiresIn * 1000);
-
-        fs.writeFileSync(TOKEN_FILE_PATH, currentAccessToken);
 
         console.log('✅ 로그인 성공! 토큰 저장 완료');
         console.log('📅 토큰 만료 시간:', new Date(tokenExpiryTime).toLocaleString());
@@ -75,8 +73,6 @@ async function refreshAccessToken() {
         currentAccessToken = response.data.accessToken;
         const expiresIn = response.data.expiresIn || 3600;
         tokenExpiryTime = Date.now() + (expiresIn * 1000);
-
-        fs.writeFileSync(TOKEN_FILE_PATH, currentAccessToken);
 
         console.log('✅ 토큰 갱신 완료');
         console.log('📅 새 만료 시간:', new Date(tokenExpiryTime).toLocaleString());
@@ -184,6 +180,12 @@ app.get('/api/device-serial', (req, res) => {
     } else {
         res.status(404).json({ error: 'Serial number not found' });
     }
+});
+
+// === 프론트엔드 정적 파일 서빙 ===
+app.use(express.static(path.join(__dirname, '../frontend/dist')));
+app.get(/^(?!\/api).*/, (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
 });
 
 // === 서버 시작 ===
