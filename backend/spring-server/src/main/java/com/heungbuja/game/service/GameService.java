@@ -696,7 +696,7 @@ public class GameService {
         // --- ▲ -------------------------------------------------------- ▲ ---
 
         aiWebClient.post()
-                .uri("/api/ai/analyze")
+                .uri("/api/pose-sequences/classify")
                 .bodyValue(requestBody)
                 .retrieve()
                 .bodyToMono(AiJudgmentResponse.class)
