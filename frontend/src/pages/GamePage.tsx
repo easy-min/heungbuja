@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useCamera } from '@/hooks/useCamera';
 import { useFrameStreamer } from '@/hooks/useFrameStreamer';
 import { useMusicMonitor } from '@/hooks/useMusicMonitor';
-import { useLyricsSync } from '@/hooks/useLyricsSync';
+// import { useLyricsSync } from '@/hooks/useLyricsSync';
 import { useGameWs } from '@/hooks/useGameWs';
 import { useActionTimelineSync } from '@/hooks/useActionTimelineSync';
-import type  { LyricLine, FeedbackMessage, GameEndResponse, GameWsMessage } from '@/types/game';
+import type  { FeedbackMessage, GameEndResponse, GameWsMessage } from '@/types/game';
 import { useGameStore } from '@/store/gameStore';
 import { gameEndApi } from '@/api/game';
 import  VoiceButton from '@/components/VoiceButton'
@@ -36,7 +36,7 @@ function GamePage() {
   const [isCounting, setIsCounting] = useState(false);
   const [count, setCount] = useState(5);
   const [isGameStarted, setIsGameStarted] = useState(false);
-  const [lyrics, setLyrics] = useState<LyricLine[]>([]);
+  // const [lyrics, setLyrics] = useState<LyricLine[]>([]);
   const [sectionMessage, setSectionMessage] = useState<string | null>(null);
   const [wsMessage, setWsMessage] = useState<string | null>(null);
   const [redirectReason, setRedirectReason] = useState<null | 'wsError' | 'timeout'>(null);
@@ -100,7 +100,7 @@ function GamePage() {
     duration,
     sectionInfo,
     segmentInfo,
-    lyricsInfo,
+    // lyricsInfo,
     verse1Timeline,
     verse2Timelines,
     stopRequested,
@@ -108,8 +108,8 @@ function GamePage() {
     sectionPatterns,
   } = useGameStore();
 
-  const { current: currentLyric, next: nextLyric, isInstrumental } =
-    useLyricsSync(audioRef, lyrics, { prerollSec: 0.04 });
+  // const { current: currentLyric, next: nextLyric, isInstrumental } =
+  //   useLyricsSync(audioRef, lyrics, { prerollSec: 0.04 });
 
   const currentActionName = useActionTimelineSync({
     audioRef,
@@ -600,7 +600,7 @@ function GamePage() {
   function mapJudgment(judgment: 1 | 2 | 3) {
     switch (judgment) {
       case 3:
-        return { label: 'PERFECT', labelKo: '퍼펙트!', level: 'perfect' as const };
+        return { label: 'PERFECT', labelKo: '완벽해요!', level: 'perfect' as const };
       case 2:
         return { label: 'GOOD', labelKo: '좋아요!', level: 'good' as const };
       case 1:
@@ -609,12 +609,12 @@ function GamePage() {
     }
   }
 
-  function formatTime(sec: number) {
-    const s = Math.floor(sec);
-    const mm = String(Math.floor(s / 60)).padStart(2, '0');
-    const ss = String(s % 60).padStart(2, '0');
-    return `${mm}:${ss}`;
-  }
+  // function formatTime(sec: number) {
+  //   const s = Math.floor(sec);
+  //   const mm = String(Math.floor(s / 60)).padStart(2, '0');
+  //   const ss = String(s % 60).padStart(2, '0');
+  //   return `${mm}:${ss}`;
+  // }
 
 
   // === 초기화: store 기반으로만 세팅 ===
@@ -646,7 +646,7 @@ function GamePage() {
         }
 
         // 가사/메타
-        setLyrics(lyricsInfo.lines ?? []);
+        // setLyrics(lyricsInfo.lines ?? []);
         songBpmRef.current = bpm;
 
         // useMusicMonitor가 기대하는 timeline 형태로 매핑
@@ -701,11 +701,65 @@ function GamePage() {
       )}
 
       <div className="game-page">
-        <div className="left-container">
-          <div className="left__top">
-            <audio controls ref={audioRef} style={{ display: 'block', width: '40%', height: '20%' }} />
+        <div className='top-container'>
+          <div className='song-info'>
+            <div className="game-song-title">{songTitle}</div>
+            <div className="game-song-artist">{songArtist}</div>
           </div>
-          <div className="left__main">
+          <div className="audio-bar">
+            <audio
+              controls
+              ref={audioRef}
+              className="audio-player"
+            />
+          </div>
+        </div>
+        {/* 메인 영역: 좌(캐릭터) / 우(카메라) */}
+        <div className="game-main">
+
+          {/* 왼쪽: 카메라 + 피드백 */}
+          <div className="left-container">
+            <div className="left__main">
+              <div className="camera-section">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="camera-video"
+                />
+                <canvas ref={canvasRef} className="capture-canvas" />
+
+                <div className="segment-info">
+                  {isCapturing && <span className="capturing-badge">📹 동작 인식 중</span>}
+                </div>
+
+                {error && <div className="error-message">❌ {error}</div>}
+                {!isReady && !error && (
+                  <div className="loading-message">📹 카메라 준비 중...</div>
+                )}
+              </div>
+
+              <div className="feedback-section">
+                {lastFeedback ? (
+                  (() => {
+                    const { judgment } = lastFeedback;
+                    const mapped = mapJudgment(judgment);
+                    return (
+                      <div className={`feedback-badge feedback-${mapped.level}`}>
+                        <div className="feedback-main-text">{mapped.labelKo}</div>
+                      </div>
+                    );
+                  })()
+                ) : (
+                  <span className="feedback-placeholder" />
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* 오른쪽: 캐릭터 */}
+          <div className="right__main">
             <div className="character-section">
               <div className="motion-video-wrapper">
                 <video
@@ -723,53 +777,10 @@ function GamePage() {
                 </div>
               )}
             </div>
-            <div className="lyrics-container">
-              <div className="lyrics-display">
-                <div className="lyrics-current">{isInstrumental ? '(간주 중)' : currentLyric?.text ?? '\u00A0'}</div>
-                <div className="lyrics-next">{!isInstrumental ? nextLyric?.text ?? '\u00A0' : '\u00A0'}</div>
-              </div>
-            </div>
           </div>
+
+          <VoiceButton />
         </div>
-
-          <div className="right-container">
-            <div className="right__top">
-              <div className="song-title">{songTitle}</div>
-              <div className="song-artist">{songArtist}</div>
-            </div>
-            <div className="right__main">
-              <div className="camera-section">
-                <video ref={videoRef} autoPlay playsInline muted className="camera-video" />
-                <canvas ref={canvasRef} className="capture-canvas" />
-
-                <div className="segment-info">
-                  {isCapturing && <span className="capturing-badge">📹 캡처 중</span>}
-                </div>
-
-                {error && <div className="error-message">❌ {error}</div>}
-                {!isReady && !error && <div className="loading-message">📹 카메라 준비 중...</div>}
-              </div>
-              <div className="feedback-section">
-                {lastFeedback ? (
-                  (() => {
-                    const { judgment, timestamp } = lastFeedback;
-                    const mapped = mapJudgment(judgment);
-                    return (
-                      <div className={`feedback-badge feedback-${mapped.level}`}>
-                        <div className="feedback-main-text">{mapped.labelKo}</div>
-                        <div className="feedback-sub-text">
-                          {mapped.label} · {formatTime(timestamp)}
-                        </div>
-                      </div>
-                    );
-                  })()
-                ) : (
-                  <span className="feedback-placeholder"></span>
-                )}
-              </div>
-            </div>
-          </div>
-        <VoiceButton />
       </div>
     </>
   );
