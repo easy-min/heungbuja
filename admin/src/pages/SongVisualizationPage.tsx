@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useVisualizationStore } from '../stores';
 import { getSongs, getSongVisualization } from '../api/visualization';
+import { useVisualizationPlayer } from '../hooks';
 import { Button } from '../components';
 import SongSelector from '../components/visualization/SongSelector';
 import VisualizationHeader from '../components/visualization/VisualizationHeader';
@@ -10,6 +11,7 @@ import SectionDisplay from '../components/visualization/SectionDisplay';
 import ProgressBar from '../components/visualization/ProgressBar';
 import KaraokeLyrics from '../components/visualization/KaraokeLyrics';
 import ActionIndicator from '../components/visualization/ActionIndicator';
+import Timeline from '../components/visualization/Timeline';
 import '../styles/visualization.css';
 
 const SongVisualizationPage = () => {
@@ -25,12 +27,16 @@ const SongVisualizationPage = () => {
     setVisualizationData,
     setError,
     reset,
-    isPlaying,
     currentTime,
     currentSection,
     currentLyric,
     currentAction,
+    selectedLevel,
+    setSelectedLevel,
   } = useVisualizationStore();
+
+  // 재생 로직 훅
+  const { play, pause, stop, isPlaying } = useVisualizationPlayer();
 
   // 초기 데이터 로드
   useEffect(() => {
@@ -81,19 +87,6 @@ const SongVisualizationPage = () => {
     navigate('/dashboard');
   };
 
-  // 재생 컨트롤 핸들러 (임시 - Phase 5에서 실제 구현)
-  const handlePlay = () => {
-    console.log('재생 (Phase 5에서 구현 예정)');
-  };
-
-  const handlePause = () => {
-    console.log('일시정지 (Phase 5에서 구현 예정)');
-  };
-
-  const handleStop = () => {
-    console.log('정지 (Phase 5에서 구현 예정)');
-  };
-
   if (isLoading) {
     return (
       <div className="viz-page">
@@ -142,9 +135,11 @@ const SongVisualizationPage = () => {
             {/* 재생 컨트롤 */}
             <PlaybackControls
               isPlaying={isPlaying}
-              onPlay={handlePlay}
-              onPause={handlePause}
-              onStop={handleStop}
+              onPlay={play}
+              onPause={pause}
+              onStop={stop}
+              selectedLevel={selectedLevel}
+              onLevelChange={setSelectedLevel}
             />
 
             {/* 타임라인 섹션 */}
@@ -183,10 +178,16 @@ const SongVisualizationPage = () => {
                 isActive={currentAction !== null}
               />
 
-              {/* Phase 4 이후 컴포넌트들이 여기에 추가됩니다 */}
-              <div style={{ textAlign: 'center', padding: '40px', color: '#666', marginTop: '32px' }}>
-                <p>🎵 메트로놈, 타임라인 등은 Phase 4에서 추가됩니다.</p>
-              </div>
+              {/* 타임라인 */}
+              <Timeline
+                lyrics={visualizationData.lyricsInfo?.lines || []}
+                actions={[
+                  ...(visualizationData.verse1Timeline || []),
+                  ...(visualizationData.verse2Timelines?.[selectedLevel] || []),
+                ]}
+                currentTime={currentTime}
+                currentAction={currentAction}
+              />
             </div>
           </div>
         )}

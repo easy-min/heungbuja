@@ -27,6 +27,9 @@ interface VisualizationStore {
   currentSection: string;
   currentAction: Action | null;
 
+  // 난이도 선택
+  selectedLevel: 'level1' | 'level2' | 'level3';
+
   // 에러
   error: string | null;
 
@@ -38,6 +41,7 @@ interface VisualizationStore {
   setIsLoadingVisualization: (loading: boolean) => void;
   setIsPlaying: (playing: boolean) => void;
   setCurrentTime: (time: number) => void;
+  setSelectedLevel: (level: 'level1' | 'level2' | 'level3') => void;
   setError: (error: string | null) => void;
   updatePlaybackPosition: (time: number) => void;
   reset: () => void;
@@ -56,6 +60,7 @@ export const useVisualizationStore = create<VisualizationStore>((set, get) => ({
   currentLyric: null,
   currentSection: 'Intro',
   currentAction: null,
+  selectedLevel: 'level1',
   error: null,
 
   // Setter 액션
@@ -66,6 +71,7 @@ export const useVisualizationStore = create<VisualizationStore>((set, get) => ({
   setIsLoadingVisualization: (loading) => set({ isLoadingVisualization: loading }),
   setIsPlaying: (playing) => set({ isPlaying: playing }),
   setCurrentTime: (time) => set({ currentTime: time }),
+  setSelectedLevel: (level) => set({ selectedLevel: level }),
   setError: (error) => set({ error }),
 
   // 재생 위치 업데이트 (핵심 로직)

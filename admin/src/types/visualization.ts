@@ -50,6 +50,13 @@ export interface Action {
   actionName: string;   // 동작 이름
 }
 
+// 2절 난이도별 타임라인
+export interface Verse2Timelines {
+  level1?: Action[];
+  level2?: Action[];
+  level3?: Action[];
+}
+
 // 시각화 전체 데이터
 export interface VisualizationData {
   bpm: number;
@@ -57,7 +64,7 @@ export interface VisualizationData {
   songBeat: SongBeat;
   lyricsInfo: LyricsInfo;
   verse1Timeline: Action[];
-  verse2Timeline?: Action[];
+  verse2Timelines?: Verse2Timelines;
 }
 
 // 타임라인 아이템 상태

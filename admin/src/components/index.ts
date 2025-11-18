@@ -29,3 +29,8 @@ export { default as SectionDisplay } from './visualization/SectionDisplay';
 export { default as ProgressBar } from './visualization/ProgressBar';
 export { default as KaraokeLyrics } from './visualization/KaraokeLyrics';
 export { default as ActionIndicator } from './visualization/ActionIndicator';
+export { default as MetronomeVisualizer } from './visualization/MetronomeVisualizer';
+export { default as Timeline } from './visualization/Timeline';
+export { default as TimelineItem } from './visualization/TimelineItem';
+export { default as LyricSection } from './visualization/LyricSection';
+export { default as ActionChip } from './visualization/ActionChip';
