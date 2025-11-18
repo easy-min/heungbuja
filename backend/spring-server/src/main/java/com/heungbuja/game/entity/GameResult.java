@@ -14,12 +14,15 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Getter
 @Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @EntityListeners(AuditingEntityListener.class)
+@Access(AccessType.FIELD)
 @Table(name = "game_result")
 public class GameResult {
 
@@ -66,12 +69,13 @@ public class GameResult {
     @Column(name = "final_level")
     private Integer finalLevel;
 
-    @CreatedDate  // 엔티티가 처음 저장될 때 시간이 자동으로 저장됨
-    @Column(updatable = false)  // 이 값은 업데이트되지 않도록 설정
-    private LocalDateTime playedAt; // ERD의 played_at. createdAt의 역할을 함.
-
     @LastModifiedDate // 엔티티가 수정될 때마다 시간이 자동으로 갱신됨
     private LocalDateTime updatedAt; // updatedAt 추가
+
+
+    // --- 동작별 점수 리스트와의 관계 매핑 ---
+    @OneToMany(mappedBy = "gameResult", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ScoreByAction> scoresByAction = new ArrayList<>();
 
     @Builder
     public GameResult(User user, Song song, String sessionId, GameSessionStatus status,
@@ -104,5 +108,10 @@ public class GameResult {
     public void complete() {
         this.status = GameSessionStatus.COMPLETED;
         this.endTime = LocalDateTime.now();
+    }
+
+    // (선택) 연관관계 편의 메소드
+    public void addScoreByAction(ScoreByAction score) {
+        this.scoresByAction.add(score);
     }
 }

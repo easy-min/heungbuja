@@ -3,3 +3,9 @@ uvicorn[standard]==0.30.6
 pydantic-settings==2.5.2
 pytest==8.3.3
 
+# Audio analysis
+numpy==1.24.3
+librosa==0.10.1
+soundfile==0.12.1
+scipy==1.11.4
+python-multipart==0.0.9

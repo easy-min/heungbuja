@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useCamera } from '@/hooks/useCamera';
 import { useFrameStreamer } from '@/hooks/useFrameStreamer';
 import { useMusicMonitor } from '@/hooks/useMusicMonitor';
-import { useLyricsSync } from '@/hooks/useLyricsSync';
+// import { useLyricsSync } from '@/hooks/useLyricsSync';
 import { useGameWs } from '@/hooks/useGameWs';
 import { useActionTimelineSync } from '@/hooks/useActionTimelineSync';
-import type  { LyricLine, FeedbackMessage, GameEndResponse, GameWsMessage } from '@/types/game';
+import type  { FeedbackMessage, GameEndResponse, GameWsMessage } from '@/types/game';
 import { useGameStore } from '@/store/gameStore';
 import { gameEndApi } from '@/api/game';
 import  VoiceButton from '@/components/VoiceButton'
@@ -28,6 +28,36 @@ function GamePage() {
   const announcedSectionRef = useRef<SectionKey | null>(null);
   const verse2LevelRef = useRef<'level1' | 'level2' | 'level3'>('level2');
   const forceStopRef = useRef(false);
+  const hasLevelDecisionRef = useRef(false);
+  const sectionMessageTimerRef = useRef<number | null>(null);
+
+  // === 패턴 프리로드용 ===
+  const preloadedPatternVideosRef =
+    useRef<Partial<Record<PatternKey, HTMLVideoElement>>>({});
+  const patternReadyRef = useRef<Record<PatternKey, boolean>>({
+    P1: false,
+    P2: false,
+    P3: false,
+    P4: false,
+  });
+
+  // === 영상 전환 디버깅용
+  const driftSamplesRef = useRef<number[]>([]);
+  const lastLoopBoundaryRef = useRef<number | null>(null);
+  const switchLatenciesRef = useRef<number[]>([]);
+  const patternSwitchLatenciesRef = useRef<number[]>([]);
+  const frameIntervalsRef = useRef<number[]>([]);
+  const captureCostRef = useRef<number[]>([]);
+
+  const pendingSwitchRef = useRef<{
+    section: SectionKey;
+    requestedAt: number;
+  } | null>(null);
+
+  const pendingPatternSwitchRef = useRef<{
+    pattern: PatternKey;
+    requestedAt: number;
+  } | null>(null);
 
   const currentPatternSeqRef = useRef<PatternKey[] | null>(null);
   const currentPatternIndexRef = useRef<number>(0);
@@ -36,7 +66,7 @@ function GamePage() {
   const [isCounting, setIsCounting] = useState(false);
   const [count, setCount] = useState(5);
   const [isGameStarted, setIsGameStarted] = useState(false);
-  const [lyrics, setLyrics] = useState<LyricLine[]>([]);
+  // const [lyrics, setLyrics] = useState<LyricLine[]>([]);
   const [sectionMessage, setSectionMessage] = useState<string | null>(null);
   const [wsMessage, setWsMessage] = useState<string | null>(null);
   const [redirectReason, setRedirectReason] = useState<null | 'wsError' | 'timeout'>(null);
@@ -63,8 +93,19 @@ function GamePage() {
         const levelKey = (`level${nextLevel}` as 'level1' | 'level2' | 'level3');
         verse2LevelRef.current = levelKey;
         setVerse2Level(levelKey);
+        hasLevelDecisionRef.current = true;
+
+        if (currentSectionRef.current === 'break') {
+          const msgText = getBreakMessageByLevel(levelKey);
+          showSectionMessage(msgText, 12000);
+        }
 
         if (currentSectionRef.current === 'verse2') {
+          // 🔹 난이도 변경에 따른 verse2 재전환도 측정
+          pendingSwitchRef.current = {
+            section: 'verse2',
+            requestedAt: performance.now(),
+          };
           switchSectionVideo('verse2', levelKey);
         }
         return;
@@ -74,7 +115,6 @@ function GamePage() {
         clearTimeout(feedbackHideTimerRef.current);
         feedbackHideTimerRef.current = null;
       }
-      // console.log('[피드백] ', msg.data.judgment);
 
       setLastFeedback(msg.data);
 
@@ -100,7 +140,7 @@ function GamePage() {
     duration,
     sectionInfo,
     segmentInfo,
-    lyricsInfo,
+    // lyricsInfo,
     verse1Timeline,
     verse2Timelines,
     stopRequested,
@@ -108,8 +148,8 @@ function GamePage() {
     sectionPatterns,
   } = useGameStore();
 
-  const { current: currentLyric, next: nextLyric, isInstrumental } =
-    useLyricsSync(audioRef, lyrics, { prerollSec: 0.04 });
+  // const { current: currentLyric, next: nextLyric, isInstrumental } =
+  //   useLyricsSync(audioRef, lyrics, { prerollSec: 0.04 });
 
   const currentActionName = useActionTimelineSync({
     audioRef,
@@ -161,6 +201,32 @@ function GamePage() {
     return null;
   }
 
+  function showSectionMessage(message: string, durationMs: number) {
+    if (sectionMessageTimerRef.current) {
+      clearTimeout(sectionMessageTimerRef.current);
+      sectionMessageTimerRef.current = null;
+    }
+
+    setSectionMessage(message);
+    sectionMessageTimerRef.current = window.setTimeout(() => {
+      setSectionMessage(null);
+      sectionMessageTimerRef.current = null;
+    }, durationMs);
+  }
+
+  function getBreakMessageByLevel(
+    level: 'level1' | 'level2' | 'level3'
+  ): string {
+    switch (level) {
+      case 'level1':
+        return '잘 하고 계세요! 조금만 더 힘내세요!';
+      case 'level2':
+        return '잘 따라하셔서 2절은 한 단계 높은 동작으로 바꿔볼게요!';
+      case 'level3':
+        return '멋진 실력이에요! 2절은 최상 난이도로 함께해요!';
+    }
+  }
+
   const getLoopLenSec = (section: SectionKey): number => {
     // verse1 / verse2는 현재 패턴 기준으로 길이 계산
     if (section === 'verse1' || section === 'verse2') {
@@ -187,39 +253,188 @@ function GamePage() {
     onSectionEnter: (label) => {
       const map = { intro: 'intro', break: 'break', verse1: 'verse1', verse2: 'verse2' } as const;
       const nextSection = map[label] ?? 'break';
+      // 🔹 섹션 전환 요청 시각 기록
+      pendingSwitchRef.current = {
+        section: nextSection,
+        requestedAt: performance.now(),
+      };
       switchSectionVideo(nextSection);
 
       if (nextSection !== announcedSectionRef.current) {
         announcedSectionRef.current = nextSection;
+
         if (nextSection === 'intro') {
-          setSectionMessage("노래에 맞춰 캐릭터의 동작을 따라해주세요!");
-          setTimeout(() => setSectionMessage(null), 8000);
+          showSectionMessage('노래에 맞춰 캐릭터의 동작을 따라해주세요!', 8000);
         }
+
         if (nextSection === 'break') {
-          let msg = '';
-
-          switch (verse2LevelRef.current) {
-            case 'level1':
-              msg = '잘 하고 계세요! 조금만 더 힘내세요!';
-              break;
-            case 'level2':
-              msg = '잘 따라하셔서 2절은 한 단계 높은 동작으로 바꿔볼게요!';
-              break;
-            case 'level3':
-              msg = '멋진 실력이에요! 2절은 최상 난이도로 함께해요!';
-              break;
-            default:
-              msg = '';
+          // 🔹 난이도 결정이 아직 안 났으면, 여기서는 문구를 띄우지 않음
+          if (!hasLevelDecisionRef.current) {
+            return;
           }
 
-          if (msg) {
-            setSectionMessage(msg);
-            window.setTimeout(() => setSectionMessage(null), 12000);
-          }
+          const msg = getBreakMessageByLevel(verse2LevelRef.current);
+          showSectionMessage(msg, 12000);
         }
       }
     },
   });
+
+  // 루프 경계 지점에 도달했을 때 기록 (tick 안에서)
+  function markLoopBoundary() {
+    lastLoopBoundaryRef.current = performance.now();
+  }
+
+  // === 패턴 비디오 프리로드 ===
+  useEffect(() => {
+    const videos: Partial<Record<PatternKey, HTMLVideoElement>> = {};
+
+    (Object.keys(PATTERN_META) as PatternKey[]).forEach((key) => {
+      const meta = PATTERN_META[key];
+      const v = document.createElement('video');
+
+      v.src = meta.src;
+      v.preload = 'auto';
+      v.muted = true;
+
+      const handleCanPlay = () => {
+        patternReadyRef.current[key] = true;
+        // 필요하면 로그 확인
+        console.log(`[preload] pattern ${key} canplaythrough`);
+      };
+
+      const handleError = (ev: Event) => {
+        console.error(`[preload] pattern ${key} error`, ev);
+      };
+
+      v.addEventListener('canplaythrough', handleCanPlay);
+      v.addEventListener('error', handleError);
+
+      v.load(); // 실제 로딩 시작
+      videos[key] = v;
+    });
+
+    preloadedPatternVideosRef.current = videos;
+
+    // 정리
+    return () => {
+      Object.values(videos).forEach((v) => {
+        if (!v) return;
+        v.pause();
+        v.removeAttribute('src');
+        v.load();
+      });
+    };
+  }, []);
+
+  useEffect(() => {
+    let last = performance.now();
+    let raf = 0;
+    const tick = () => {
+      const now = performance.now();
+      frameIntervalsRef.current.push(now - last);
+      last = now;
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  // 비디오가 실제 재생을 시작할 때 (playing 이벤트 시점)
+  useEffect(() => {
+    const mv = motionVideoRef.current;
+    if (!mv) return;
+
+    const onPlaying = () => {
+      const now = performance.now();
+
+      // 🔹 섹션 전환 latency
+      const pendingSection = pendingSwitchRef.current;
+      if (pendingSection) {
+        const latency = now - pendingSection.requestedAt;
+        if (pendingSection.section === 'verse1' || pendingSection.section === 'verse2') {
+          switchLatenciesRef.current.push(latency);
+        }
+        pendingSwitchRef.current = null;
+      }
+
+      // 🔹 패턴 전환 latency
+      const pendingPattern = pendingPatternSwitchRef.current;
+      if (pendingPattern) {
+        const latency = now - pendingPattern.requestedAt;
+        patternSwitchLatenciesRef.current.push(latency);
+        pendingPatternSwitchRef.current = null;
+      }
+    };
+
+    mv.addEventListener('playing', onPlaying);
+    return () => mv.removeEventListener('playing', onPlaying);
+  }, []);
+
+  useEffect(() => {
+    let rafId = 0;
+    const sample = () => {
+      const audio = audioRef.current;
+      const mv = motionVideoRef.current;
+      if (audio && mv && !audio.paused) {
+        const driftSec = mv.currentTime - audio.currentTime;
+        const driftMs = driftSec * 1000;
+        driftSamplesRef.current.push(driftMs);
+      }
+      rafId = requestAnimationFrame(sample);
+    };
+    rafId = requestAnimationFrame(sample);
+    return () => cancelAnimationFrame(rafId);
+  }, []);
+
+  // function printSectionSwitchLatencyStats() {
+  //   const arr = switchLatenciesRef.current;
+  //   if (!arr.length) return;
+  //   const sum = arr.reduce((a, b) => a + b, 0);
+  //   const mean = sum / arr.length;
+  //   const max = Math.max(...arr);
+  //   const min = Math.min(...arr);
+  //   console.table({ count: arr.length, mean, max, min });
+  // }
+
+  // function printPatternSwitchLatencyStats() {
+  //   const arr = patternSwitchLatenciesRef.current;
+  //   if (!arr.length) return;
+  //   const sum = arr.reduce((a, b) => a + b, 0);
+  //   const mean = sum / arr.length;
+  //   const max = Math.max(...arr);
+  //   const min = Math.min(...arr);
+  //   console.table({ count: arr.length, mean, max, min });
+  // }
+
+  // function printFrameStats() {
+  //   const arr = frameIntervalsRef.current;
+  //   if (!arr.length) return;
+  //   const sum = arr.reduce((a, b) => a + b, 0);
+  //   const mean = sum / arr.length;
+  //   const max = Math.max(...arr);
+  //   console.table({ count: arr.length, mean, max });
+  // }
+
+  // function printCaptureCostStats() {
+  //   const arr = captureCostRef.current;
+  //   if (!arr.length) return;
+  //   const sum = arr.reduce((a, b) => a + b, 0);
+  //   const mean = sum / arr.length;
+  //   const max = Math.max(...arr);
+  //   const min = Math.min(...arr);
+  //   console.table({ count: arr.length, mean, max, min });
+  // }
+
+  // // 디버그 헬퍼들을 window에 노출 (개발 모드에서만)
+  // useEffect(() => {
+  //   if (import.meta.env.PROD) return;
+
+  //   (window as any).printSectionSwitchLatencyStats = printSectionSwitchLatencyStats;
+  //   (window as any).printPatternSwitchLatencyStats = printPatternSwitchLatencyStats;
+  //   (window as any).printFrameStats = printFrameStats;
+  //   (window as any).printCaptureCostStats = printCaptureCostStats;
+  // }, []);
 
   // 웹소켓 연결 확인
   useEffect(() => {
@@ -362,6 +577,10 @@ function GamePage() {
     const shouldPlayNow = !!au && !au.paused;
 
     if (firstPattern) {
+      pendingPatternSwitchRef.current = {
+        pattern: firstPattern,
+        requestedAt: performance.now(),
+      };
       void playPatternVideo(firstPattern, shouldPlayNow);
     } else {
       // 패턴이 비어 있는 경우 안전하게 아무것도 하지 않음
@@ -376,6 +595,13 @@ function GamePage() {
     const mv = motionVideoRef.current;
     const au = audioRef.current;
     if (!mv) return;
+
+    // 프리로드 상태 확인 (디버그용)
+    if (!patternReadyRef.current[pattern]) {
+      console.warn(
+        `[pattern] ${pattern} is not fully preloaded yet (ready=false).`,
+      );
+    }
 
     const { src, bpm: videoBpm } = PATTERN_META[pattern];
     const songBpm = songBpmRef.current || 120;
@@ -431,6 +657,11 @@ function GamePage() {
       const au = audioRef.current;
       const shouldPlayNow = !!au && !au.paused;
 
+      pendingPatternSwitchRef.current = {
+        pattern: nextPattern,
+        requestedAt: performance.now(),
+      };
+
       void playPatternVideo(nextPattern, shouldPlayNow);
     };
 
@@ -444,10 +675,10 @@ function GamePage() {
       const loopEnd = Math.min(nominal, dur);
 
       if (mv.currentTime >= loopEnd - LOOP_EPS) {
+        markLoopBoundary();
         if (section === 'verse1' || section === 'verse2') {
           advancePatternIfNeeded();
         } else {
-          // intro / break: 기존처럼 동일 영상 루프
           mv.currentTime = LOOP_RESTART;
           if (mv.paused) { mv.play().catch(() => {}); }
         }
@@ -455,6 +686,7 @@ function GamePage() {
     };
 
     const onEnded = () => {
+      markLoopBoundary();
       // 비정상적으로 ended 이벤트가 와도 현재 섹션/패턴에 맞게 처리
       const section = currentSectionRef.current;
       if (section === 'verse1' || section === 'verse2') {
@@ -511,9 +743,13 @@ function GamePage() {
         const cur = audio.currentTime;
         if (cur >= end) return;
 
-        const effectiveStart = Math.max(cur, start);
+      const effectiveStart = Math.max(cur, start);
       startStream(effectiveStart, end, (blob, { t /*, idx*/ }) => {
-        void sendFrame({ sessionId: sid, blob, currentPlayTime: t });
+        const start = performance.now();
+        void sendFrame({ sessionId: sid, blob, currentPlayTime: t }).finally(() => {
+          const end = performance.now();
+          captureCostRef.current.push(end - start);
+        });
       });
       }, delayMs);
 
@@ -600,7 +836,7 @@ function GamePage() {
   function mapJudgment(judgment: 1 | 2 | 3) {
     switch (judgment) {
       case 3:
-        return { label: 'PERFECT', labelKo: '퍼펙트!', level: 'perfect' as const };
+        return { label: 'PERFECT', labelKo: '완벽해요!', level: 'perfect' as const };
       case 2:
         return { label: 'GOOD', labelKo: '좋아요!', level: 'good' as const };
       case 1:
@@ -609,12 +845,12 @@ function GamePage() {
     }
   }
 
-  function formatTime(sec: number) {
-    const s = Math.floor(sec);
-    const mm = String(Math.floor(s / 60)).padStart(2, '0');
-    const ss = String(s % 60).padStart(2, '0');
-    return `${mm}:${ss}`;
-  }
+  // function formatTime(sec: number) {
+  //   const s = Math.floor(sec);
+  //   const mm = String(Math.floor(s / 60)).padStart(2, '0');
+  //   const ss = String(s % 60).padStart(2, '0');
+  //   return `${mm}:${ss}`;
+  // }
 
 
   // === 초기화: store 기반으로만 세팅 ===
@@ -646,7 +882,7 @@ function GamePage() {
         }
 
         // 가사/메타
-        setLyrics(lyricsInfo.lines ?? []);
+        // setLyrics(lyricsInfo.lines ?? []);
         songBpmRef.current = bpm;
 
         // useMusicMonitor가 기대하는 timeline 형태로 매핑
@@ -676,7 +912,10 @@ function GamePage() {
       if (audioRef.current) {
         audioRef.current.onerror = null;
         audioRef.current.pause();
-      }
+      };
+      if (sectionMessageTimerRef.current) {
+        clearTimeout(sectionMessageTimerRef.current);
+      };
     };
   }, []);
 
@@ -687,13 +926,7 @@ function GamePage() {
           <div className="countdown-bubble">{count > 0 ? count : 'Go!'}</div>
         </div>
       )}
-      {sectionMessage && (
-        <div className="section-message-overlay">
-          <div className="section-message-bubble">
-            {sectionMessage}
-          </div>
-        </div>
-      )}
+
       {wsMessage && (
         <div className="ws-message-overlay">
           <div className="ws-message-bubble">{wsMessage}</div>
@@ -701,11 +934,65 @@ function GamePage() {
       )}
 
       <div className="game-page">
-        <div className="left-container">
-          <div className="left__top">
-            <audio controls ref={audioRef} style={{ display: 'block', width: '40%', height: '20%' }} />
+        <div className='top-container'>
+          <div className='song-info'>
+            <div className="game-song-title">{songTitle}</div>
+            <div className="game-song-artist">{songArtist}</div>
           </div>
-          <div className="left__main">
+          <div className="audio-bar">
+            <audio
+              controls
+              ref={audioRef}
+              className="audio-player"
+            />
+          </div>
+        </div>
+        {/* 메인 영역: 좌(캐릭터) / 우(카메라) */}
+        <div className="game-main">
+
+          {/* 왼쪽: 카메라 + 피드백 */}
+          <div className="left-container">
+            <div className="left__main">
+              <div className="camera-section">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="camera-video"
+                />
+                <canvas ref={canvasRef} className="capture-canvas" />
+
+                <div className="segment-info">
+                  {isCapturing && <span className="capturing-badge">📹 동작 인식 중</span>}
+                </div>
+
+                {error && <div className="error-message">❌ {error}</div>}
+                {!isReady && !error && (
+                  <div className="loading-message">📹 카메라 준비 중...</div>
+                )}
+              </div>
+
+              <div className="feedback-section">
+                {lastFeedback ? (
+                  (() => {
+                    const { judgment } = lastFeedback;
+                    const mapped = mapJudgment(judgment);
+                    return (
+                      <div className={`feedback-badge feedback-${mapped.level}`}>
+                        <div className="feedback-main-text">{mapped.labelKo}</div>
+                      </div>
+                    );
+                  })()
+                ) : (
+                  <span className="feedback-placeholder" />
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* 오른쪽: 캐릭터 */}
+          <div className="right__main">
             <div className="character-section">
               <div className="motion-video-wrapper">
                 <video
@@ -722,54 +1009,18 @@ function GamePage() {
                   {currentActionName}
                 </div>
               )}
-            </div>
-            <div className="lyrics-container">
-              <div className="lyrics-display">
-                <div className="lyrics-current">{isInstrumental ? '(간주 중)' : currentLyric?.text ?? '\u00A0'}</div>
-                <div className="lyrics-next">{!isInstrumental ? nextLyric?.text ?? '\u00A0' : '\u00A0'}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-          <div className="right-container">
-            <div className="right__top">
-              <div className="song-title">{songTitle}</div>
-              <div className="song-artist">{songArtist}</div>
-            </div>
-            <div className="right__main">
-              <div className="camera-section">
-                <video ref={videoRef} autoPlay playsInline muted className="camera-video" />
-                <canvas ref={canvasRef} className="capture-canvas" />
-
-                <div className="segment-info">
-                  {isCapturing && <span className="capturing-badge">📹 캡처 중</span>}
+              {sectionMessage && (
+                <div className="section-message-overlay">
+                  <div className="section-message-bubble">
+                    {sectionMessage}
+                  </div>
                 </div>
-
-                {error && <div className="error-message">❌ {error}</div>}
-                {!isReady && !error && <div className="loading-message">📹 카메라 준비 중...</div>}
-              </div>
-              <div className="feedback-section">
-                {lastFeedback ? (
-                  (() => {
-                    const { judgment, timestamp } = lastFeedback;
-                    const mapped = mapJudgment(judgment);
-                    return (
-                      <div className={`feedback-badge feedback-${mapped.level}`}>
-                        <div className="feedback-main-text">{mapped.labelKo}</div>
-                        <div className="feedback-sub-text">
-                          {mapped.label} · {formatTime(timestamp)}
-                        </div>
-                      </div>
-                    );
-                  })()
-                ) : (
-                  <span className="feedback-placeholder"></span>
-                )}
-              </div>
+              )}
             </div>
           </div>
-        <VoiceButton />
+
+          <VoiceButton />
+        </div>
       </div>
     </>
   );
