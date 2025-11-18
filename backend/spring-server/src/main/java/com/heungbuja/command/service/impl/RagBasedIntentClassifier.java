@@ -37,16 +37,16 @@ public class RagBasedIntentClassifier implements IntentClassifier {
             // Redis에서 대화 컨텍스트 가져오기
             String contextInfo = buildContextInfo(userId);
 
-            // GPT API 호출하여 Intent 분석
-            String jsonResponse = gptService.analyzeIntent(text, contextInfo);
+            // 🚀 GPT API 호출하여 Intent 분석 (최적화 버전 사용!)
+            String jsonResponse = gptService.analyzeIntentOptimized(text, contextInfo);
 
-            log.debug("GPT Intent 분석 응답: {}", jsonResponse);
+            log.debug("GPT Intent 분석 응답 (최적화): {}", jsonResponse);
 
             // JSON 응답 파싱
             return parseGptResponse(jsonResponse, text);
 
         } catch (Exception e) {
-            log.error("Intent 분석 실패: text={}", text, e);
+            log.error("Intent 분석 실패 (최적화): text={}", text, e);
 
             // 실패 시 UNKNOWN Intent 반환
             return IntentResult.builder()
@@ -59,7 +59,7 @@ public class RagBasedIntentClassifier implements IntentClassifier {
 
     @Override
     public String getClassifierType() {
-        return "RAG_GPT";
+        return "RAG_GPT_OPTIMIZED";
     }
 
     /**

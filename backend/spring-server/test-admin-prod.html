@@ -25,41 +25,393 @@
         .btn-primary:hover { background:#5568d3; }
         .btn-success { background:#2ecc71; color:white; }
         .btn-success:hover { background:#27ae60; }
+        .btn-secondary { background:#f2f4f6; color:#4e5968; }
+        .btn-secondary:hover { background:#e5e8eb; }
+        .btn-secondary:disabled { background:#e5e8eb; color:#aaa; cursor:not-allowed; }
         .response-box { margin-top:15px; padding:15px; border-radius:6px; display:none; font-family:'Courier New',monospace; font-size:13px; }
         .response-box.show { display:block; }
         .response-box.success { background:#d4edda; border-left:4px solid #28a745; }
         .response-box.error { background:#f8d7da; border-left:4px solid #dc3545; }
 
         /* 신고 카드 리스트 */
-        .emergency-list { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:15px; margin-top:10px; }
-        .emergency-card { background:#fff; border-radius:10px; padding:15px; box-shadow:0 3px 8px rgba(0,0,0,0.08); transition:transform 0.2s ease, box-shadow 0.2s ease; }
-        .emergency-card:hover { transform:translateY(-3px); box-shadow:0 6px 16px rgba(0,0,0,0.12); }
-        .emergency-card .card-header { display:flex; justify-content:space-between; margin-bottom:10px; font-weight:bold; }
-        .emergency-card .report-id { color:#667eea; }
-        .emergency-card .status { padding:3px 8px; border-radius:5px; font-size:12px; color:white; }
-        .emergency-card.pending .status { background:#f39c12; }
-        .emergency-card.confirmed .status { background:#e74c3c; }
+        .emergency-section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .emergency-list { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:20px; margin-top:10px; }
+        .emergency-card {
+            background:#fff;
+            border-radius:12px;
+            padding:20px;
+            box-shadow:0 2px 10px rgba(0,0,0,0.06);
+            transition:all 0.3s ease;
+            border-left: 4px solid transparent;
+        }
+        .emergency-card:hover { transform:translateY(-2px); box-shadow:0 4px 20px rgba(0,0,0,0.1); }
+        .emergency-card.pending { border-left-color:#f39c12; background: linear-gradient(to right, #fff9f0 0%, #fff 30%); }
+        .emergency-card.confirmed { border-left-color:#e74c3c; background: linear-gradient(to right, #fff5f5 0%, #fff 30%); }
+        .emergency-card.resolved { border-left-color:#2ecc71; opacity: 0.7; }
+        .emergency-card.false_alarm { border-left-color:#95a5a6; opacity: 0.6; }
+        .emergency-card .card-header {
+            display:flex;
+            justify-content:space-between;
+            align-items: center;
+            margin-bottom:15px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .emergency-card .report-id {
+            color:#667eea;
+            font-size: 16px;
+            font-weight: 700;
+        }
+        .emergency-card .status {
+            padding:5px 12px;
+            border-radius:20px;
+            font-size:11px;
+            color:white;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .emergency-card.pending .status { background:#f39c12; box-shadow: 0 2px 8px rgba(243,156,18,0.3); }
+        .emergency-card.confirmed .status { background:#e74c3c; box-shadow: 0 2px 8px rgba(231,76,60,0.3); }
         .emergency-card.resolved .status { background:#2ecc71; }
         .emergency-card.false_alarm .status { background:#95a5a6; }
+        .emergency-card .card-body { font-size: 13px; line-height: 1.8; }
+        .emergency-card .card-body p { margin-bottom: 8px; color: #555; }
+        .emergency-card .card-body strong { color: #333; font-weight: 600; }
         .emergency-card .ok { color:#2ecc71; font-weight:bold; }
         .emergency-card .no { color:#e74c3c; font-weight:bold; }
-        .emergency-card .resolve-btn { width:100%; margin-top:10px; padding:8px; border:none; border-radius:6px; background:#2ecc71; color:white; font-weight:bold; cursor:pointer; }
-        .emergency-card .resolved-label { margin-top:10px; background:#2ecc71; color:white; text-align:center; border-radius:6px; padding:8px 0; font-weight:bold; }
+        .emergency-card .resolve-btn {
+            width:100%;
+            margin-top:15px;
+            padding:10px;
+            border:none;
+            border-radius:8px;
+            background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+            color:white;
+            font-weight:bold;
+            cursor:pointer;
+            transition: all 0.2s;
+            font-size: 14px;
+        }
+        .emergency-card .resolve-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(46,204,113,0.3);
+        }
+        .emergency-card .resolved-label {
+            margin-top:15px;
+            background:#e8f5e9;
+            color:#2ecc71;
+            text-align:center;
+            border-radius:8px;
+            padding:10px 0;
+            font-weight:bold;
+            font-size: 13px;
+        }
+        .toggle-emergency-btn {
+            padding: 8px 20px;
+            border: 2px solid #667eea;
+            background: white;
+            color: #667eea;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 13px;
+        }
+        .toggle-emergency-btn:hover {
+            background: #667eea;
+            color: white;
+        }
+        .emergency-hidden {
+            display: none;
+        }
 
-        /* 어르신 카드 */
-        .users-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:20px; margin-top:20px; }
-        .user-card { background:white; border-radius:12px; padding:20px; box-shadow:0 2px 8px rgba(0,0,0,0.05); transition:all 0.3s; border-left:4px solid #ddd; }
-        .user-card.status-active { border-left-color:#2ecc71; }
-        .user-card.status-warning { border-left-color:#ffa502; }
-        .user-card.status-emergency { border-left-color:#ff4757; animation:shake 0.4s infinite; }
-        @keyframes shake { 0%,100%{transform:translateX(0);}25%{transform:translateX(-5px);}75%{transform:translateX(5px);} }
-        .user-header { display:flex; align-items:center; gap:10px; margin-bottom:15px; }
-        .user-status-icon { font-size:24px; }
-        .user-name { font-size:18px; font-weight:bold; }
-        .user-room { color:#666; font-size:14px; }
-        .user-activity { margin:15px 0; padding:12px; background:#f8f9fa; border-radius:8px; font-size:14px; }
-        .user-activity .activity-type { font-weight:bold; margin-bottom:5px; }
-        .user-activity .activity-detail { color:#666; }
+        /* 기기-사용자 카드 그리드 */
+        .device-user-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        /* 기기-사용자 카드 */
+        .device-user-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            overflow: hidden;
+            transition: all 0.3s;
+        }
+        .device-user-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+        }
+
+        /* 카드 헤더 */
+        .du-card-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .du-device-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .du-device-icon {
+            font-size: 32px;
+        }
+        .du-device-details h3 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .du-device-details p {
+            font-size: 13px;
+            opacity: 0.9;
+        }
+
+        /* 응급 사이렌 */
+        .du-emergency-siren {
+            font-size: 32px;
+            opacity: 0.3;
+            transition: all 0.3s;
+        }
+        .du-emergency-siren.active {
+            animation: siren 0.6s infinite;
+            opacity: 1;
+            filter: drop-shadow(0 0 10px #ff4757);
+        }
+        @keyframes siren {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.3); opacity: 0.7; }
+        }
+
+        /* 카드 바디 */
+        .du-card-body {
+            padding: 20px;
+        }
+        .du-user-section {
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .du-user-main {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+        .du-user-main:hover {
+            background: #e9ecef;
+        }
+        .du-user-info-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .du-user-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: white;
+        }
+        .du-user-details h4 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 4px;
+            color: #2c3e50;
+        }
+        .du-user-details p {
+            font-size: 13px;
+            color: #7f8c8d;
+        }
+        .du-toggle-icon {
+            font-size: 20px;
+            color: #7f8c8d;
+            transition: transform 0.3s;
+        }
+        .du-toggle-icon.open {
+            transform: rotate(180deg);
+        }
+
+        /* 상세 정보 패널 */
+        .du-details-panel {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+        .du-details-panel.open {
+            max-height: 1200px;
+        }
+        .du-detail-section {
+            padding: 15px;
+            border-top: 1px solid #e9ecef;
+        }
+        .du-detail-section h5 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #7f8c8d;
+            margin-bottom: 10px;
+        }
+        .du-activity-item {
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            font-size: 13px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .du-activity-item .time {
+            color: #95a5a6;
+            font-size: 11px;
+        }
+        .du-activity-item .type {
+            font-weight: 600;
+            color: #667eea;
+            margin-right: 8px;
+        }
+
+        /* 빈 상태 */
+        .du-empty {
+            padding: 40px 20px;
+            text-align: center;
+            color: #95a5a6;
+        }
+        .du-empty .icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+            opacity: 0.5;
+        }
+
+        /* 건강 모니터링 스타일 */
+        .health-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .health-stat-card {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .health-stat-card .label {
+            font-size: 11px;
+            color: #7f8c8d;
+            margin-bottom: 5px;
+        }
+        .health-stat-card .value {
+            font-size: 18px;
+            font-weight: 700;
+            color: #2c3e50;
+        }
+        .health-stat-card .value.good {
+            color: #2ecc71;
+        }
+        .health-stat-card .value.warning {
+            color: #f39c12;
+        }
+        .health-stat-card .value.danger {
+            color: #e74c3c;
+        }
+        .action-performance-bar {
+            background: #e9ecef;
+            height: 20px;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 8px;
+            position: relative;
+        }
+        .action-performance-bar .fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s;
+        }
+        .action-performance-bar .label {
+            position: absolute;
+            top: 50%;
+            left: 10px;
+            transform: translateY(-50%);
+            font-size: 11px;
+            font-weight: 600;
+            color: white;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        }
+        .trend-chart {
+            display: flex;
+            align-items: flex-end;
+            gap: 4px;
+            height: 80px;
+            margin-top: 10px;
+        }
+        .trend-bar {
+            flex: 1;
+            background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+            border-radius: 4px 4px 0 0;
+            min-height: 5px;
+            position: relative;
+        }
+        .trend-bar .tooltip {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+        }
+        .trend-bar:hover .tooltip {
+            opacity: 1;
+        }
+        .period-tabs {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 15px;
+        }
+        .period-tab {
+            flex: 1;
+            padding: 8px;
+            background: #f8f9fa;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #7f8c8d;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .period-tab:hover {
+            background: #e9ecef;
+        }
+        .period-tab.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
 
         /* 활동 피드 */
         .activity-feed { background:white; border-radius:12px; padding:25px; box-shadow:0 2px 8px rgba(0,0,0,0.05); margin-top:30px; }
@@ -84,6 +436,44 @@
         @keyframes blink { 0%,100%{opacity:1;}50%{opacity:0.3;} }
         .hidden { display:none; }
         .server-badge { background:#28a745; color:white; padding:5px 10px; border-radius:5px; font-size:12px; font-weight:bold; margin-left:10px; }
+
+        /* 곡 등록 모달 */
+        .song-upload-modal { max-width: 900px; }
+
+        /* 스텝 인디케이터 */
+        .step-indicator { display: flex; justify-content: space-between; margin-bottom: 30px; padding: 0 20px; }
+        .step { flex: 1; display: flex; flex-direction: column; align-items: center; position: relative; }
+        .step:not(:last-child)::after { content: ''; position: absolute; top: 20px; left: 50%; width: 100%; height: 2px; background: #ddd; z-index: 0; }
+        .step.completed:not(:last-child)::after { background: #2ecc71; }
+        .step.active:not(:last-child)::after { background: linear-gradient(90deg, #667eea 0%, #ddd 100%); }
+        .step-circle { width: 40px; height: 40px; border-radius: 50%; background: #ddd; display: flex; align-items: center; justify-content: center; font-weight: bold; color: white; z-index: 1; margin-bottom: 8px; transition: all 0.3s; }
+        .step.completed .step-circle { background: #2ecc71; }
+        .step.active .step-circle { background: #667eea; animation: pulse-step 1.5s infinite; }
+        @keyframes pulse-step { 0%, 100% { box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.7); } 50% { box-shadow: 0 0 0 10px rgba(102, 126, 234, 0); } }
+        .step-label { font-size: 12px; color: #666; text-align: center; }
+        .step.active .step-label { color: #667eea; font-weight: bold; }
+        .step.completed .step-label { color: #2ecc71; }
+
+        /* 스텝 컨텐츠 */
+        .step-content { display: none; min-height: 300px; }
+        .step-content.active { display: block; }
+
+        /* 파일 업로드 영역 */
+        .file-upload-area { border: 2px dashed #ccc; border-radius: 10px; padding: 40px; text-align: center; cursor: pointer; transition: all 0.3s; margin-bottom: 15px; }
+        .file-upload-area:hover { border-color: #667eea; background: #f8f9fa; }
+        .file-upload-area.dragover { border-color: #667eea; background: #e7f3ff; }
+        .file-upload-area input[type="file"] { display: none; }
+        .file-icon { font-size: 48px; margin-bottom: 10px; }
+        .file-label { font-size: 16px; color: #666; margin-bottom: 5px; }
+        .file-hint { font-size: 13px; color: #999; }
+        .file-selected { color: #2ecc71; font-weight: bold; margin-top: 10px; }
+
+        /* 진행률 바 */
+        .upload-progress { display: none; margin-top: 20px; }
+        .upload-progress.show { display: block; }
+        .progress-bar-upload { height: 30px; background: #e9ecef; border-radius: 15px; overflow: hidden; margin-bottom: 10px; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, #667eea, #764ba2); transition: width 0.3s; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 14px; }
+        .progress-text { text-align: center; color: #666; font-size: 14px; }
     </style>
 </head>
 <body>
@@ -96,8 +486,8 @@
     <!-- 로그인 화면 -->
     <div id="login-screen" class="section">
         <div class="section-title">🔐 관리자 로그인</div>
-        <input id="username" type="text" placeholder="아이디" value="admin_ssafy">
-        <input id="password" type="password" placeholder="비밀번호" value="password123">
+        <input id="username" type="text" placeholder="아이디" value="superadmin">
+        <input id="password" type="password" placeholder="비밀번호" value="superadmin123!">
         <button class="btn btn-primary" onclick="login()">로그인</button>
         <div id="login-error" class="response-box error"></div>
     </div>
@@ -115,19 +505,52 @@
         <div class="section">
             <button class="btn btn-primary" onclick="openDeviceModal()" style="margin-right:10px;">📱 기기 등록</button>
             <button class="btn btn-success" onclick="openUserModal()" style="margin-right:10px;">👴 어르신 등록</button>
-            <button class="btn btn-primary" onclick="showVisualizationScreen()">🎵 곡 시각화</button>
+            <button class="btn btn-primary" onclick="showVisualizationScreen()" style="margin-right:10px;">🎵 곡 시각화</button>
+            <button class="btn btn-success" onclick="openSongUploadModal()">➕ 곡 등록</button>
         </div>
 
         <div class="dashboard">
-            <div class="section-title">📊 실시간 신고 리스트</div>
-            <div id="res-emg-list" class="response-box"></div>
+            <!-- 응급 신고 -->
+            <div class="emergency-section-header">
+                <div class="section-title" style="margin-bottom:0;">🚨 응급 신고 현황</div>
+                <button id="toggle-emergency-btn" class="toggle-emergency-btn" onclick="toggleEmergencyList()" style="display:none;">
+                    더 보기 (<span id="hidden-count">0</span>)
+                </button>
+            </div>
+            <div id="res-emg-list" class="emergency-list" style="margin-bottom:30px;">
+                <div style="color:#999;text-align:center;grid-column:1/-1;">응급 신고를 확인하는 중...</div>
+            </div>
 
-            <div class="section-title">🧑‍🦳 담당 어르신 현황</div>
-            <div id="users-grid" class="users-grid"></div>
+            <!-- 기기-사용자 카드 -->
+            <div class="section-title">📱 기기 및 사용자 관리</div>
+            <div id="device-user-grid" class="device-user-grid">
+                <div style="color:#999;text-align:center;grid-column:1/-1;">기기 및 사용자 데이터를 불러오는 중...</div>
+            </div>
 
-            <div class="section-title">📝 활동 피드</div>
+            <!-- 활동 피드 -->
+            <div class="section-title">
+                📝 활동 피드
+                <div style="float:right; display:flex; gap:10px; font-size:14px; font-weight:normal;">
+                    <select id="activity-type-filter" onchange="onActivityFilterChange()" style="padding:5px 10px; border-radius:6px; border:1px solid #ccc;">
+                        <option value="">전체 활동</option>
+                        <option value="MUSIC_PLAY">🎵 음악 재생</option>
+                        <option value="MUSIC_CONTROL">⏯️ 음악 제어</option>
+                        <option value="GAME_START">🎮 게임 시작</option>
+                        <option value="GAME_END">🏁 게임 종료</option>
+                        <option value="MODE_CHANGE">🔄 모드 변경</option>
+                        <option value="EMERGENCY">🚨 응급 상황</option>
+                        <option value="UNKNOWN">❓ 인식 불가</option>
+                    </select>
+                    <button class="btn btn-secondary" onclick="loadActivityLogs()" style="padding:5px 15px; font-size:14px;">🔄 새로고침</button>
+                </div>
+            </div>
             <div class="activity-feed">
-                <div id="activity-list"><div style="color:#999;text-align:center;">활동 내역이 없습니다</div></div>
+                <div id="activity-list"><div style="color:#999;text-align:center;">활동 내역을 불러오는 중...</div></div>
+                <div id="activity-pagination" style="margin-top:20px; text-align:center; display:none;">
+                    <button class="btn btn-secondary" onclick="loadActivityPage(currentPage - 1)" id="btn-prev-page" style="margin-right:10px;">◀ 이전</button>
+                    <span id="page-info" style="margin:0 15px; font-weight:bold;">페이지 1</span>
+                    <button class="btn btn-secondary" onclick="loadActivityPage(currentPage + 1)" id="btn-next-page">다음 ▶</button>
+                </div>
             </div>
         </div>
 
@@ -191,6 +614,126 @@
         </div>
     </div>
 
+    <!-- 곡 등록 모달 -->
+    <div id="song-upload-modal" class="emergency-modal">
+        <div class="modal-content song-upload-modal">
+            <div class="modal-icon">🎵</div>
+            <div class="modal-title" style="color:#667eea;">곡 등록하기</div>
+
+            <!-- 스텝 인디케이터 -->
+            <div class="step-indicator">
+                <div class="step active" data-step="1">
+                    <div class="step-circle">1</div>
+                    <div class="step-label">기본 정보</div>
+                </div>
+                <div class="step" data-step="2">
+                    <div class="step-circle">2</div>
+                    <div class="step-label">오디오+가사</div>
+                </div>
+                <div class="step" data-step="3">
+                    <div class="step-circle">3</div>
+                    <div class="step-label">안무</div>
+                </div>
+                <div class="step" data-step="4">
+                    <div class="step-circle">4</div>
+                    <div class="step-label">미리보기</div>
+                </div>
+                <div class="step" data-step="5">
+                    <div class="step-circle">5</div>
+                    <div class="step-label">분석중</div>
+                </div>
+                <div class="step" data-step="6">
+                    <div class="step-circle">✓</div>
+                    <div class="step-label">완료</div>
+                </div>
+            </div>
+
+            <!-- 1단계: 기본 정보 -->
+            <div class="step-content active" data-step="1" style="text-align:left;">
+                <h3 style="margin-bottom:20px; color:#667eea;">📝 곡 정보를 입력하세요</h3>
+                <input id="song-title" type="text" placeholder="곡 제목 (예: 내 건강이 어때서)" style="margin-bottom:15px;" required>
+                <input id="song-artist" type="text" placeholder="아티스트 (예: 아이유)" style="margin-bottom:15px;" required>
+                <input id="song-s3-key" type="text" placeholder="S3 Key (예: song/세대를_잇는_노래.mp3)" style="margin-bottom:15px;" required>
+                <p style="font-size:12px; color:#999; margin-top:-10px;">※ S3에 이미 업로드된 오디오 파일의 Key를 입력하세요</p>
+            </div>
+
+            <!-- 2단계: 오디오 + 가사 업로드 -->
+            <div class="step-content" data-step="2" style="text-align:left;">
+                <h3 style="margin-bottom:20px; color:#667eea;">📁 오디오와 가사를 업로드하세요</h3>
+                <p style="color:#666; margin-bottom:20px;">오디오를 자동 분석하여 박자와 가사 타이밍을 생성합니다.</p>
+
+                <div class="file-upload-area" onclick="document.getElementById('audio-file').click()">
+                    <div class="file-icon">🎵</div>
+                    <div class="file-label">오디오 파일 (.mp3, .wav)</div>
+                    <div class="file-hint">클릭하여 파일 선택</div>
+                    <div class="file-selected" id="audio-file-name"></div>
+                    <input type="file" id="audio-file" accept=".mp3,.wav" onchange="handleFileSelect(event, 'audio')">
+                </div>
+
+                <div class="file-upload-area" onclick="document.getElementById('lyrics-file').click()">
+                    <div class="file-icon">📝</div>
+                    <div class="file-label">가사 텍스트 파일 (.txt)</div>
+                    <div class="file-hint">한 줄에 한 가사씩 입력된 텍스트 파일</div>
+                    <div class="file-selected" id="lyrics-file-name"></div>
+                    <input type="file" id="lyrics-file" accept=".txt" onchange="handleFileSelect(event, 'lyrics')">
+                </div>
+            </div>
+
+            <!-- 3단계: 안무 JSON 업로드 -->
+            <div class="step-content" data-step="3" style="text-align:left;">
+                <h3 style="margin-bottom:20px; color:#667eea;">💃 안무 정보를 업로드하세요</h3>
+                <p style="color:#666; margin-bottom:20px;">안무는 수동으로 작성한 JSON 파일을 업로드해주세요.</p>
+
+                <div class="file-upload-area" onclick="document.getElementById('choreography-file').click()">
+                    <div class="file-icon">💃</div>
+                    <div class="file-label">안무 정보 JSON</div>
+                    <div class="file-hint">클릭하여 파일 선택</div>
+                    <div class="file-selected" id="choreography-file-name"></div>
+                    <input type="file" id="choreography-file" accept=".json" onchange="handleFileSelect(event, 'choreography')">
+                </div>
+            </div>
+
+            <!-- 4단계: 미리보기 -->
+            <div class="step-content" data-step="4" style="text-align:left;">
+                <h3 style="margin-bottom:20px; color:#667eea;">👀 업로드할 정보를 확인하세요</h3>
+                <div id="preview-content" style="background:#f8f9fa; padding:20px; border-radius:10px;">
+                    <p><strong>곡 제목:</strong> <span id="preview-title">-</span></p>
+                    <p><strong>아티스트:</strong> <span id="preview-artist">-</span></p>
+                    <p><strong>오디오:</strong> <span id="preview-audio">-</span></p>
+                    <p><strong>가사 텍스트:</strong> <span id="preview-lyrics">-</span></p>
+                    <p><strong>안무 JSON:</strong> <span id="preview-choreography">-</span></p>
+                </div>
+            </div>
+
+            <!-- 5단계: 업로드 중 -->
+            <div class="step-content" data-step="5" style="text-align:center;">
+                <h3 style="margin-bottom:20px; color:#667eea;">⏳ 업로드 및 분석 중...</h3>
+                <div class="upload-progress show">
+                    <div class="progress-bar-upload">
+                        <div class="progress-fill" id="upload-progress-fill" style="width: 0%;">0%</div>
+                    </div>
+                    <div class="progress-text" id="upload-progress-text">오디오를 분석하고 있습니다...</div>
+                </div>
+            </div>
+
+            <!-- 6단계: 완료 -->
+            <div class="step-content" data-step="6" style="text-align:center;">
+                <div style="font-size:80px; margin-bottom:20px;">✅</div>
+                <h2 style="color:#2ecc71; margin-bottom:10px;">곡 등록이 완료되었습니다!</h2>
+                <p style="color:#666; margin-bottom:30px;">등록한 곡을 시각화 화면에서 확인할 수 있습니다.</p>
+                <button class="btn btn-primary" onclick="goToVisualizationAfterUpload()" style="margin-right:10px;">🎵 곡 시각화 보기</button>
+                <button class="btn btn-secondary" onclick="closeSongUploadModal()">닫기</button>
+            </div>
+
+            <!-- 버튼들 -->
+            <div class="modal-actions" style="margin-top:30px;" id="song-upload-actions">
+                <button class="btn btn-secondary" onclick="prevSongUploadStep()" id="btn-prev-step">이전</button>
+                <button class="btn btn-success" onclick="nextSongUploadStep()" id="btn-next-step">다음</button>
+                <button class="btn btn-secondary" onclick="closeSongUploadModal()">닫기</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 곡 시각화 화면 -->
     <div id="visualization-screen" class="hidden">
         <div class="section">
@@ -221,6 +764,11 @@
     // 신고 카드 데이터 저장
     let emergencyList = [];
 
+    // 활동 로그 페이징 상태
+    let currentPage = 0;
+    let totalPages = 0;
+    let currentActivityType = '';
+
     // 로그인
     async function login(){
         const user = document.getElementById('username').value;
@@ -234,6 +782,13 @@
             const data = await res.json();
             accessToken = data.accessToken;
             adminId     = data.userId;
+
+            // 디버깅: 로그인 정보 출력
+            console.log('✅ 로그인 성공!');
+            console.log('👤 사용자 ID:', adminId);
+            console.log('🔑 토큰:', accessToken ? '있음 (길이: ' + accessToken.length + ')' : '없음');
+            console.log('🎭 권한:', data.role || '권한 정보 없음');
+            console.log('📦 전체 응답:', data);
 
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('dashboard-screen').classList.remove('hidden');
@@ -254,17 +809,9 @@
         }
     }
 
-    // 데이터 로드 – 담당 어르신 & 기존 신고
+    // 데이터 로드 – 신고 & 활동 로그
     async function loadDashboardData(){
         try {
-            // 어르신 목록
-            const resUsers = await fetch(`${API_BASE}/admins/users`, {
-                headers: {Authorization: `Bearer ${accessToken}`}
-            });
-            if(resUsers.ok) {
-                const users = await resUsers.json();
-                renderUsers(users);
-            }
             // 기존 신고 목록
             const resEmg = await fetch(`${API_BASE}/emergency/admins/reports`, {
                 headers: {Authorization: `Bearer ${accessToken}`}
@@ -277,64 +824,619 @@
                 const pendingCount = emergencyList.filter(i=>i.status==='PENDING' || i.status==='CONFIRMED').length;
                 updateBadge(pendingCount);
             }
+            // 기기-사용자 카드 로드
+            await loadDeviceUsers();
+            // 활동 로그 로드
+            await loadActivityLogs();
         } catch(e) {
             console.error('데이터 로드 실패:', e);
         }
     }
 
-    // 어르신 카드 렌더링
-    function renderUsers(users){
+    // 기기-사용자 카드 로드
+    async function loadDeviceUsers() {
+        try {
+            const grid = document.getElementById('device-user-grid');
+            grid.innerHTML = '<div style="color:#999;text-align:center;grid-column:1/-1;">기기 및 사용자 데이터를 불러오는 중...</div>';
+
+            // 기기, 사용자, 응급신고 데이터 병렬 로드
+            const [devicesRes, usersRes, emergenciesRes] = await Promise.all([
+                fetch(`${API_BASE}/admins/devices`, { headers: { Authorization: `Bearer ${accessToken}` }}),
+                fetch(`${API_BASE}/admins/users`, { headers: { Authorization: `Bearer ${accessToken}` }}),
+                fetch(`${API_BASE}/emergency/admins/reports`, { headers: { Authorization: `Bearer ${accessToken}` }})
+            ]);
+
+            const devices = await devicesRes.json();
+            const users = await usersRes.json();
+            const emergencies = await emergenciesRes.json();
+
+            if (devices.length === 0) {
+                grid.innerHTML = '<div class="du-empty"><div class="icon">📱</div><p>등록된 기기가 없습니다</p></div>';
+                return;
+            }
+
+            // 카드 렌더링
+            grid.innerHTML = '';
+            devices.forEach(device => {
+                const user = users.find(u => u.deviceId === device.id);
+                const hasEmergency = user && emergencies.some(e => e.userId === user.id && e.status === 'CONFIRMED');
+                const card = createDeviceUserCard(device, user, hasEmergency);
+                grid.appendChild(card);
+            });
+        } catch (e) {
+            console.error('기기-사용자 로드 실패:', e);
+            const grid = document.getElementById('device-user-grid');
+            grid.innerHTML = '<div class="du-empty"><div class="icon">❌</div><p>데이터를 불러올 수 없습니다</p></div>';
+        }
+    }
+
+    // 기기-사용자 카드 생성
+    function createDeviceUserCard(device, user, hasEmergency) {
+        const card = document.createElement('div');
+        card.className = 'device-user-card';
+
+        const cardHTML = `
+            <div class="du-card-header">
+                <div class="du-device-info">
+                    <div class="du-device-icon">📱</div>
+                    <div class="du-device-details">
+                        <h3>기기 #${device.id}</h3>
+                        <p>${device.serialNumber || '시리얼 번호 없음'}</p>
+                    </div>
+                </div>
+                <div class="du-emergency-siren ${hasEmergency ? 'active' : ''}">🚨</div>
+            </div>
+            <div class="du-card-body">
+                ${user ? `
+                    <div class="du-user-section" onclick="toggleDeviceUserDetails(${device.id})">
+                        <div class="du-user-main">
+                            <div class="du-user-info-left">
+                                <div class="du-user-avatar">👤</div>
+                                <div class="du-user-details">
+                                    <h4>${user.name}</h4>
+                                    <p>${user.birthDate || '생년월일 정보 없음'}</p>
+                                </div>
+                            </div>
+                            <div class="du-toggle-icon" id="toggle-${device.id}">▼</div>
+                        </div>
+                    </div>
+                    <div class="du-details-panel" id="details-${device.id}">
+                        <div class="du-detail-section">
+                            <h5>💪 건강 모니터링</h5>
+                            <div class="period-tabs" id="unified-tabs-${user.id}">
+                                <button class="period-tab active" onclick="switchUnifiedPeriod(${user.id}, 1, event)">오늘</button>
+                                <button class="period-tab" onclick="switchUnifiedPeriod(${user.id}, 7, event)">일주일</button>
+                                <button class="period-tab" onclick="switchUnifiedPeriod(${user.id}, 30, event)">한달</button>
+                            </div>
+                            <div id="health-stats-${user.id}">
+                                <div style="text-align:center; padding:20px; color:#999; font-size:13px;">
+                                    건강 데이터를 불러오는 중...
+                                </div>
+                            </div>
+                        </div>
+                        <div class="du-detail-section">
+                            <h5>🎯 동작별 수행도</h5>
+                            <div id="action-performance-${user.id}">
+                                <div style="text-align:center; padding:20px; color:#999; font-size:13px;">
+                                    수행도 데이터를 불러오는 중...
+                                </div>
+                            </div>
+                        </div>
+                        <div class="du-detail-section">
+                            <h5>📈 활동 추이</h5>
+                            <div id="activity-trend-${user.id}">
+                                <div style="text-align:center; padding:20px; color:#999; font-size:13px;">
+                                    활동 추이를 불러오는 중...
+                                </div>
+                            </div>
+                        </div>
+                        <div class="du-detail-section">
+                            <h5>📊 최근 활동</h5>
+                            <div id="activities-${user.id}">
+                                <div style="text-align:center; padding:20px; color:#999; font-size:13px;">
+                                    활동 로그를 불러오는 중...
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                ` : `
+                    <div class="du-empty">
+                        <div class="icon">👤</div>
+                        <p>연결된 사용자가 없습니다</p>
+                    </div>
+                `}
+            </div>
+        `;
+
+        card.innerHTML = cardHTML;
+        return card;
+    }
+
+    // 사용자 상세 정보 토글
+    async function toggleDeviceUserDetails(deviceId) {
+        const panel = document.getElementById(`details-${deviceId}`);
+        const icon = document.getElementById(`toggle-${deviceId}`);
+
+        if (panel.classList.contains('open')) {
+            panel.classList.remove('open');
+            icon.classList.remove('open');
+        } else {
+            panel.classList.add('open');
+            icon.classList.add('open');
+
+            // 데이터 로드 (한 번만)
+            if (!panel.dataset.loaded) {
+                await loadUserHealthData(deviceId);
+                panel.dataset.loaded = 'true';
+            }
+        }
+    }
+
+    // 사용자 건강 데이터 로드 (통합)
+    async function loadUserHealthData(deviceId) {
+        try {
+            // deviceId로 user 찾기
+            const usersRes = await fetch(`${API_BASE}/admins/users`, {
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+            });
+            const users = await usersRes.json();
+            const user = users.find(u => u.deviceId === deviceId);
+
+            if (!user) {
+                console.error('사용자를 찾을 수 없습니다');
+                return;
+            }
+
+            // 병렬로 모든 데이터 로드
+            await Promise.all([
+                loadGameStats(user.id),
+                loadActionPerformance(user.id, 1),  // 기본값: 오늘
+                loadActivityTrend(user.id, 1),  // 기본값: 오늘
+                loadUserActivitiesForCard(deviceId)
+            ]);
+        } catch (error) {
+            console.error('건강 데이터 로드 실패:', error);
+        }
+    }
+
+    // 게임 통계 로드
+    async function loadGameStats(userId) {
+        try {
+            const response = await fetch(`${API_BASE}/admins/users/${userId}/game-stats`, {
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+            });
+
+            if (!response.ok) {
+                throw new Error('게임 통계 로드 실패');
+            }
+
+            const data = await response.json();
+            renderGameStats(userId, data);
+        } catch (error) {
+            console.error('게임 통계 로드 실패:', error);
+            document.getElementById(`health-stats-${userId}`).innerHTML =
+                '<div style="color:#e74c3c; padding:10px; text-align:center;">데이터 로드 실패</div>';
+        }
+    }
+
+    // 게임 통계 렌더링
+    function renderGameStats(userId, data) {
+        const container = document.getElementById(`health-stats-${userId}`);
+
+        if (!data || data.totalGames === 0) {
+            container.innerHTML = '<div style="color:#999; padding:10px; text-align:center;">아직 게임 기록이 없습니다</div>';
+            return;
+        }
+
+        const avgScore = data.overallAverageScore || 0;
+        const scoreClass = avgScore >= 2.5 ? 'good' : avgScore >= 2.0 ? 'warning' : 'danger';
+
+        const html = `
+            <div class="health-stats">
+                <div class="health-stat-card">
+                    <div class="label">총 게임 수</div>
+                    <div class="value">${data.totalGames}회</div>
+                </div>
+                <div class="health-stat-card">
+                    <div class="label">평균 점수</div>
+                    <div class="value ${scoreClass}">${avgScore.toFixed(2)}</div>
+                </div>
+                <div class="health-stat-card">
+                    <div class="label">PERFECT 비율</div>
+                    <div class="value good">${data.perfectRate.toFixed(1)}%</div>
+                </div>
+                <div class="health-stat-card">
+                    <div class="label">완료율</div>
+                    <div class="value">${data.totalGames > 0 ? ((data.completedGames / data.totalGames) * 100).toFixed(1) : 0}%</div>
+                </div>
+            </div>
+            ${data.lastPlayedAt ? `
+                <div style="font-size:11px; color:#7f8c8d; text-align:center; margin-top:10px;">
+                    마지막 플레이: ${new Date(data.lastPlayedAt).toLocaleString('ko-KR')}
+                </div>
+            ` : ''}
+        `;
+
+        container.innerHTML = html;
+    }
+
+    // 동작별 수행도 로드
+    async function loadActionPerformance(userId, periodDays = 1) {
+        try {
+            const url = periodDays ?
+                `${API_BASE}/admins/users/${userId}/action-performance?periodDays=${periodDays}` :
+                `${API_BASE}/admins/users/${userId}/action-performance`;
+
+            const response = await fetch(url, {
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+            });
+
+            if (!response.ok) {
+                throw new Error('동작별 수행도 로드 실패');
+            }
+
+            const data = await response.json();
+            renderActionPerformance(userId, data, periodDays);
+        } catch (error) {
+            console.error('동작별 수행도 로드 실패:', error);
+            document.getElementById(`action-performance-${userId}`).innerHTML =
+                '<div style="color:#e74c3c; padding:10px; text-align:center;">데이터 로드 실패</div>';
+        }
+    }
+
+    // 통합 기간 전환 함수 (동작별 수행도 + 활동 추이 동시 업데이트)
+    function switchUnifiedPeriod(userId, periodDays, event) {
+        // 탭 활성화 상태 변경
+        const tabs = event.target.parentElement.querySelectorAll('.period-tab');
+        tabs.forEach(tab => tab.classList.remove('active'));
+        event.target.classList.add('active');
+
+        // 두 섹션 동시에 데이터 다시 로드
+        loadActionPerformance(userId, periodDays);
+        loadActivityTrend(userId, periodDays);
+    }
+
+    // 동작별 수행도 렌더링
+    function renderActionPerformance(userId, data, periodDays = 1) {
+        const container = document.getElementById(`action-performance-${userId}`);
+
+        if (!data || !data.topActions || data.topActions.length === 0) {
+            const periodLabel = periodDays === 1 ? '오늘' : periodDays === 7 ? '일주일' : '한달';
+            container.innerHTML = `<div style="color:#999; padding:10px; text-align:center;">${periodLabel} 수행도 데이터가 없습니다</div>`;
+            return;
+        }
+
+        const periodLabel = periodDays === 1 ? '오늘' : periodDays === 7 ? '일주일' : '한달';
+        let html = `<div style="font-size:11px; color:#7f8c8d; margin-bottom:10px; text-align:center;">${periodLabel} 기준</div>`;
+
+        // 잘하는 동작 1개만 표시
+        if (data.topActions && data.topActions.length > 0) {
+            const topAction = data.topActions[0];
+            const percentage = (topAction.averageScore / 3.0) * 100;
+            html += '<div style="margin-bottom:10px; font-size:12px; font-weight:600; color:#2ecc71;">✅ 가장 잘하는 동작</div>';
+            html += `
+                <div class="action-performance-bar">
+                    <div class="fill" style="width:${percentage}%"></div>
+                    <div class="label">${topAction.actionName} (${topAction.averageScore.toFixed(2)}점, ${topAction.attemptCount}회)</div>
+                </div>
+            `;
+        }
+
+        // 못하는 동작 1개만 표시
+        if (data.weakActions && data.weakActions.length > 0) {
+            const weakAction = data.weakActions[0];
+            const percentage = (weakAction.averageScore / 3.0) * 100;
+            html += '<div style="margin:15px 0 10px 0; font-size:12px; font-weight:600; color:#f39c12;">⚠️ 개선이 필요한 동작</div>';
+            html += `
+                <div class="action-performance-bar">
+                    <div class="fill" style="width:${percentage}%; background:linear-gradient(90deg, #f39c12 0%, #e74c3c 100%);"></div>
+                    <div class="label">${weakAction.actionName} (${weakAction.averageScore.toFixed(2)}점, ${weakAction.attemptCount}회)</div>
+                </div>
+            `;
+        }
+
+        container.innerHTML = html;
+    }
+
+    // 활동 추이 로드
+    async function loadActivityTrend(userId, periodDays = 1) {
+        try {
+            const response = await fetch(`${API_BASE}/admins/users/${userId}/activity-trend?periodDays=${periodDays}`, {
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+            });
+
+            if (!response.ok) {
+                throw new Error('활동 추이 로드 실패');
+            }
+
+            const data = await response.json();
+            renderActivityTrend(userId, data, periodDays);
+        } catch (error) {
+            console.error('활동 추이 로드 실패:', error);
+            document.getElementById(`activity-trend-${userId}`).innerHTML =
+                '<div style="color:#e74c3c; padding:10px; text-align:center;">데이터 로드 실패</div>';
+        }
+    }
+
+
+    // 활동 추이 렌더링
+    function renderActivityTrend(userId, data, periodDays = 1) {
+        const container = document.getElementById(`activity-trend-${userId}`);
+
+        if (!data || !data.dailyActivities || data.dailyActivities.length === 0) {
+            container.innerHTML = '<div style="color:#999; padding:10px; text-align:center;">활동 데이터가 없습니다</div>';
+            return;
+        }
+
+        const maxGames = Math.max(...data.dailyActivities.map(d => d.gameCount), 1);
+
+        const trendIcon = data.trend === 'INCREASING' ? '📈' : data.trend === 'DECREASING' ? '📉' : '➡️';
+        const trendText = data.trend === 'INCREASING' ? '증가' : data.trend === 'DECREASING' ? '감소' : '안정';
+        const trendColor = data.trend === 'INCREASING' ? '#2ecc71' : data.trend === 'DECREASING' ? '#e74c3c' : '#7f8c8d';
+
+        const periodLabel = periodDays === 1 ? '오늘' : periodDays === 7 ? '일주일' : '한달';
+
+        let html = `
+            <div style="display:flex; justify-content:space-between; margin-bottom:10px; font-size:12px;">
+                <div>
+                    <span style="color:#7f8c8d;">${periodLabel} 총 게임:</span>
+                    <span style="font-weight:600;">${data.totalGames}회</span>
+                </div>
+                ${periodDays > 1 ? `
+                    <div style="color:${trendColor}; font-weight:600;">
+                        ${trendIcon} ${trendText}
+                    </div>
+                ` : ''}
+            </div>
+            <div class="trend-chart">
+        `;
+
+        data.dailyActivities.forEach(day => {
+            const height = (day.gameCount / maxGames) * 100;
+            html += `
+                <div class="trend-bar" style="height:${height || 5}%">
+                    <div class="tooltip">
+                        ${day.date}<br>
+                        ${day.dayOfWeek}<br>
+                        ${day.gameCount}회
+                        ${day.averageScore > 0 ? '<br>평균: ' + day.averageScore.toFixed(2) + '점' : ''}
+                    </div>
+                </div>
+            `;
+        });
+
+        html += `
+            </div>
+        `;
+
+        if (periodDays > 1) {
+            html += `
+                <div style="font-size:11px; color:#7f8c8d; text-align:center; margin-top:10px;">
+                    평균 일일: <strong>${data.averageDailyGames.toFixed(1)}회</strong> ·
+                    가장 활발한 요일: <strong>${data.mostActiveDayOfWeek}</strong>
+                </div>
+            `;
+        }
+
+        container.innerHTML = html;
+    }
+
+    // 카드용 사용자 활동 로드
+    async function loadUserActivitiesForCard(deviceId) {
+        try {
+            // deviceId로 user 찾기
+            const usersRes = await fetch(`${API_BASE}/admins/users`, {
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+            });
+            const users = await usersRes.json();
+            const user = users.find(u => u.deviceId === deviceId);
+
+            if (!user) return;
+
+            const activitiesDiv = document.getElementById(`activities-${user.id}`);
+
+            // 최근 활동 로그 로드
+            const res = await fetch(
+                `${API_BASE}/admins/activity-logs/users/${user.id}?page=0&size=10`,
+                { headers: { 'Authorization': `Bearer ${accessToken}` }}
+            );
+            const data = await res.json();
+
+            if (data.content && data.content.length > 0) {
+                activitiesDiv.innerHTML = data.content.map(log => `
+                    <div class="du-activity-item">
+                        <div>
+                            <span class="type">${log.activityType}</span>
+                            <span>${log.activitySummary}</span>
+                        </div>
+                        <div class="time">${new Date(log.createdAt).toLocaleString('ko-KR')}</div>
+                    </div>
+                `).join('');
+            } else {
+                activitiesDiv.innerHTML = '<p style="text-align:center; color:#95a5a6; padding:20px; font-size:13px;">최근 활동이 없습니다</p>';
+            }
+        } catch (e) {
+            console.error('활동 로드 실패:', e);
+            const activitiesDiv = document.getElementById(`activities-${user.id}`);
+            if (activitiesDiv) {
+                activitiesDiv.innerHTML = '<p style="text-align:center; color:#e74c3c; padding:20px; font-size:13px;">활동을 불러올 수 없습니다</p>';
+            }
+        }
+    }
+
+    // 사용자별 활동 요약 로드 (익명화)
+    async function loadUserActivitySummary() {
+        try {
+            // 최근 1주일 활동 로그 조회
+            const now = new Date();
+            const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            const startDate = weekAgo.toISOString().slice(0, 19);
+            const endDate = now.toISOString().slice(0, 19);
+
+            const res = await fetch(
+                `${API_BASE}/admins/activity-logs/range?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&page=0&size=1000`,
+                { headers: { Authorization: `Bearer ${accessToken}` }}
+            );
+
+            if (res.ok) {
+                const data = await res.json();
+                const logs = data.content || [];
+
+                // 사용자별로 그룹화
+                const userActivityMap = {};
+                logs.forEach(log => {
+                    const userId = log.userId;
+                    if (!userActivityMap[userId]) {
+                        userActivityMap[userId] = {
+                            userId: userId,
+                            userName: log.userName,
+                            activities: [],
+                            stats: {
+                                MUSIC_PLAY: 0,
+                                GAME_START: 0,
+                                EMERGENCY: 0,
+                                total: 0
+                            }
+                        };
+                    }
+                    userActivityMap[userId].activities.push(log);
+                    userActivityMap[userId].stats[log.activityType] =
+                        (userActivityMap[userId].stats[log.activityType] || 0) + 1;
+                    userActivityMap[userId].stats.total++;
+                });
+
+                renderUserActivitySummary(Object.values(userActivityMap));
+            } else {
+                console.error('사용자 활동 요약 로드 실패:', res.status);
+                document.getElementById('users-grid').innerHTML =
+                    '<div style="color:#999;text-align:center;grid-column:1/-1;">활동 데이터를 불러올 수 없습니다</div>';
+            }
+        } catch (e) {
+            console.error('사용자 활동 요약 로드 에러:', e);
+            document.getElementById('users-grid').innerHTML =
+                '<div style="color:#999;text-align:center;grid-column:1/-1;">활동 데이터 로드 중 오류 발생</div>';
+        }
+    }
+
+    // 사용자별 활동 요약 렌더링 (익명화)
+    function renderUserActivitySummary(userActivities) {
         const grid = document.getElementById('users-grid');
+
+        if (userActivities.length === 0) {
+            grid.innerHTML = '<div style="color:#999;text-align:center;grid-column:1/-1;">최근 활동 내역이 없습니다</div>';
+            return;
+        }
+
+        // 활동량 기준으로 정렬 (많은 순)
+        userActivities.sort((a, b) => b.stats.total - a.stats.total);
+
         grid.innerHTML = '';
-        users.forEach(u => {
+        userActivities.forEach(user => {
+            // 익명화: 이름의 첫 글자만 보이고 나머지는 *
+            const anonymizedName = user.userName ?
+                user.userName[0] + '*'.repeat(Math.min(user.userName.length - 1, 2)) :
+                '익명';
+
+            // 상태 결정
             let cls = 'status-active';
             let icon = '🟢';
-            if (u.healthStatus === 'EMERGENCY') { cls = 'status-emergency'; icon = '🚨'; }
-            else if (!u.isActive)         { cls = 'status-warning';  icon = '🟡'; }
+            let statusText = '정상';
 
-            // 최근 활동 렌더링
-            let activitiesHtml = '';
-            if (u.recentActivities && u.recentActivities.length > 0) {
-                activitiesHtml = '<div style="margin-top:12px; padding-top:12px; border-top:1px solid #eee;">' +
-                    '<div style="font-size:12px; color:#999; margin-bottom:8px;">최근 활동</div>';
-                u.recentActivities.forEach(a => {
-                    activitiesHtml += `<div style="font-size:13px; color:#666; margin-bottom:4px;">${a.icon} ${a.description} <span style="color:#999; font-size:11px;">(${a.timeAgo})</span></div>`;
-                });
-                activitiesHtml += '</div>';
-            } else {
-                activitiesHtml = '<div style="margin-top:12px; padding-top:12px; border-top:1px solid #eee; font-size:12px; color:#999;">최근 활동 없음</div>';
+            if (user.stats.EMERGENCY > 0) {
+                cls = 'status-emergency';
+                icon = '🚨';
+                statusText = '응급';
+            } else if (user.stats.total === 0) {
+                cls = 'status-warning';
+                icon = '🟡';
+                statusText = '비활성';
             }
+
+            // 최근 활동 (최대 5개)
+            const recentActivities = user.activities
+                .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+                .slice(0, 5);
+
+            const activityIcons = {
+                'MUSIC_PLAY': '🎵',
+                'MUSIC_CONTROL': '⏯️',
+                'GAME_START': '🎮',
+                'GAME_END': '🏁',
+                'MODE_CHANGE': '🔄',
+                'EMERGENCY': '🚨',
+                'UNKNOWN': '❓'
+            };
+
+            let activitiesHtml = '<div style="margin-top:12px; padding-top:12px; border-top:1px solid #eee;">';
+            activitiesHtml += '<div style="font-size:12px; color:#999; margin-bottom:8px;">최근 활동 (1주일)</div>';
+
+            if (recentActivities.length > 0) {
+                recentActivities.forEach(a => {
+                    const timeAgo = getTimeAgo(new Date(a.createdAt));
+                    const actIcon = activityIcons[a.activityType] || '📝';
+                    activitiesHtml += `<div style="font-size:13px; color:#666; margin-bottom:4px;">${actIcon} ${a.activitySummary} <span style="color:#999; font-size:11px;">(${timeAgo})</span></div>`;
+                });
+            } else {
+                activitiesHtml += '<div style="font-size:12px; color:#999;">활동 없음</div>';
+            }
+            activitiesHtml += '</div>';
 
             const div = document.createElement('div');
             div.className = `user-card ${cls}`;
-            div.setAttribute('data-user-id', u.id);  // userId 추적용
+            div.setAttribute('data-user-id', user.userId);
             div.innerHTML = `
-            <div class="user-header"><span class="user-status-icon">${icon}</span>
-                <div>
-                  <div class="user-name">${u.name}</div>
-                  <div class="user-room">${u.emergencyContact||''}</div>
+                <div class="user-header">
+                    <span class="user-status-icon">${icon}</span>
+                    <div>
+                        <div class="user-name">${anonymizedName} (ID: ${user.userId})</div>
+                        <div class="user-room">총 활동: ${user.stats.total}회</div>
+                    </div>
                 </div>
-            </div>
-            <div class="user-activity">
-              <div class="activity-type">${u.healthStatus||'정상'} 상태</div>
-              <div class="activity-detail">${u.medicalNotes||'특이사항 없음'}</div>
-            </div>
-            ${activitiesHtml}
-        `;
+                <div class="user-activity">
+                    <div class="activity-type">${statusText} 상태</div>
+                    <div class="activity-detail">
+                        🎵 음악: ${user.stats.MUSIC_PLAY || 0}회 |
+                        🎮 게임: ${user.stats.GAME_START || 0}회
+                        ${user.stats.EMERGENCY ? ` | 🚨 응급: ${user.stats.EMERGENCY}회` : ''}
+                    </div>
+                </div>
+                ${activitiesHtml}
+            `;
             grid.appendChild(div);
         });
     }
 
+    // 시간 경과 표시 (예: "3시간 전")
+    function getTimeAgo(date) {
+        const now = new Date();
+        const diff = now - date;
+        const minutes = Math.floor(diff / 60000);
+        const hours = Math.floor(diff / 3600000);
+        const days = Math.floor(diff / 86400000);
+
+        if (days > 0) return `${days}일 전`;
+        if (hours > 0) return `${hours}시간 전`;
+        if (minutes > 0) return `${minutes}분 전`;
+        return '방금 전';
+    }
+
     // 신고 카드 렌더링
+    let emergencyExpanded = false;
+    const EMERGENCY_PREVIEW_COUNT = 3; // 기본으로 보여줄 개수
+
     function renderEmergencyCards(list){
         const container = document.getElementById('res-emg-list');
+        const toggleBtn = document.getElementById('toggle-emergency-btn');
+        const hiddenCount = document.getElementById('hidden-count');
+
         if (!Array.isArray(list) || list.length === 0) {
-            container.className = 'response-box show success';
-            container.innerHTML = '<p style="padding:10px;">신고 내역이 없습니다.</p>';
+            container.className = 'emergency-list';
+            container.innerHTML = '<div style="color:#999;text-align:center;grid-column:1/-1; padding:30px;">✅ 신고 내역이 없습니다.</div>';
+            toggleBtn.style.display = 'none';
             return;
         }
 
-        container.className = 'response-box show success';
+        container.className = 'emergency-list';
 
         // 상태 한글 변환
         const statusText = {
@@ -344,34 +1446,57 @@
             'FALSE_ALARM': '오탐'
         };
 
-        container.innerHTML = `
-      <div class="emergency-list">
-        ${list.map(item => `
-          <div class="emergency-card ${item.status.toLowerCase()}">
+        // 더 보기 버튼 표시 여부 결정
+        if (list.length > EMERGENCY_PREVIEW_COUNT) {
+            toggleBtn.style.display = 'block';
+            hiddenCount.textContent = list.length - EMERGENCY_PREVIEW_COUNT;
+        } else {
+            toggleBtn.style.display = 'none';
+        }
+
+        container.innerHTML = list.map((item, index) => {
+            const isHidden = !emergencyExpanded && index >= EMERGENCY_PREVIEW_COUNT;
+            return `
+          <div class="emergency-card ${item.status.toLowerCase()} ${isHidden ? 'emergency-hidden' : ''}" data-emergency-index="${index}">
             <div class="card-header">
               <span class="report-id">#${item.reportId}</span>
               <span class="status">${statusText[item.status] || item.status}</span>
             </div>
             <div class="card-body">
-              <p><strong>신고자:</strong> ${item.userName} (${item.userId})</p>
+              <p><strong>신고자:</strong> ${item.userName}</p>
               <p><strong>발화 내용:</strong> "${item.fullText || item.triggerWord}"</p>
-              <p><strong>트리거 단어:</strong> ${item.triggerWord}</p>
               <p><strong>확인여부:</strong>
                 <span class="${item.isConfirmed?'ok':'no'}">
-                  ${item.isConfirmed?'확인됨':'미확인'}
+                  ${item.isConfirmed?'✓ 확인됨':'✗ 미확인'}
                 </span>
               </p>
-              <p><strong>발생시간:</strong> ${new Date(item.reportedAt).toLocaleString('ko-KR')}</p>
-              ${item.message?`<p><strong>메시지:</strong> ${item.message}</p>`:''}
+              <p><strong>발생시간:</strong> ${new Date(item.reportedAt).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
             </div>
             ${item.status==='PENDING' || item.status==='CONFIRMED'
-            ? `<button class="resolve-btn" onclick="handleEmergencyResolve(${item.reportId})">✅ 처리</button>`
+            ? `<button class="resolve-btn" onclick="handleEmergencyResolve(${item.reportId})">✅ 처리 완료</button>`
             : `<div class="resolved-label">✔ 처리 완료</div>`
         }
           </div>
-        `).join('')}
-      </div>
-    `;
+        `;
+        }).join('');
+    }
+
+    function toggleEmergencyList() {
+        emergencyExpanded = !emergencyExpanded;
+        const toggleBtn = document.getElementById('toggle-emergency-btn');
+        const cards = document.querySelectorAll('.emergency-card');
+
+        cards.forEach((card, index) => {
+            if (index >= EMERGENCY_PREVIEW_COUNT) {
+                if (emergencyExpanded) {
+                    card.classList.remove('emergency-hidden');
+                } else {
+                    card.classList.add('emergency-hidden');
+                }
+            }
+        });
+
+        toggleBtn.textContent = emergencyExpanded ? '접기' : `더 보기 (${emergencyList.length - EMERGENCY_PREVIEW_COUNT})`;
     }
 
     // 신고 처리 버튼
@@ -471,7 +1596,8 @@
                 const statusData = JSON.parse(msg.body);
                 addActivity(statusData.status==='EMERGENCY'?'emergency':'warning',
                     statusData.userName, statusData.message);
-                loadDashboardData(); // 어르신 카드 상태 갱신
+                // 사용자 활동 데이터 다시 로드
+                loadUserActivitySummary();
             });
         }, (error) => {
             console.warn('STOMP 연결 실패 (신고 실시간 모니터링 비활성화):', error);
@@ -481,11 +1607,13 @@
         }
     }
 
-    // 🔥 어르신 카드를 긴급 상태로 즉시 업데이트
+    // 🔥 사용자 카드를 긴급 상태로 즉시 업데이트 (활동 로그 기반)
     function updateUserCardToEmergency(userId, userName) {
         const card = document.querySelector(`.user-card[data-user-id="${userId}"]`);
         if (!card) {
-            console.warn(`User card not found for userId: ${userId}`);
+            console.warn(`User card not found for userId: ${userId}, 활동 데이터를 다시 로드합니다`);
+            // 카드가 없으면 전체 사용자 활동을 다시 로드
+            loadUserActivitySummary();
             return;
         }
 
@@ -499,12 +1627,12 @@
 
         // 상태 텍스트 변경
         const activityType = card.querySelector('.activity-type');
-        if (activityType) activityType.textContent = 'EMERGENCY 상태';
+        if (activityType) activityType.textContent = '응급 상태';
 
         console.log(`✅ User card updated to EMERGENCY for userId: ${userId}, name: ${userName}`);
     }
 
-    // 🔥 어르신 카드를 정상 상태로 복구
+    // 🔥 사용자 카드를 정상 상태로 복구 (활동 로그 기반)
     function resetUserCardToNormal(userId) {
         const card = document.querySelector(`.user-card[data-user-id="${userId}"]`);
         if (!card) {
@@ -527,7 +1655,7 @@
         console.log(`✅ User card reset to NORMAL for userId: ${userId}`);
     }
 
-    // 활동 피드
+    // 활동 피드 (WebSocket 실시간)
     function addActivity(type,userName,detail){
         const list = document.getElementById('activity-list');
         if(list.children.length===1 && list.children[0].textContent.includes('활동 내역')) {
@@ -539,6 +1667,166 @@
                      <div class="activity-time">${new Date().toLocaleTimeString('ko-KR')}</div>`;
         list.prepend(item);
         while(list.children.length>10) list.removeChild(list.lastChild);
+    }
+
+    // ===== 활동 로그 API 함수들 =====
+
+    // 활동 통계 조회 (오늘)
+    async function loadActivityStats() {
+        try {
+            const now = new Date();
+            const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).toISOString().slice(0,19);
+            const endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString().slice(0,19);
+
+            console.log('활동 통계 조회:', { startDate, endDate });
+
+            const res = await fetch(
+                `${API_BASE}/admins/activity-logs/stats?startDate=${startDate}&endDate=${endDate}`,
+                { headers: { Authorization: `Bearer ${accessToken}` }}
+            );
+
+            console.log('활동 통계 응답:', res.status);
+
+            if (res.ok) {
+                const data = await res.json();
+                console.log('활동 통계 데이터:', data);
+                renderActivityStats(data);
+            } else {
+                const errorText = await res.text();
+                console.error('활동 통계 로드 실패:', res.status, errorText);
+                // 빈 데이터로 렌더링
+                renderActivityStats({ stats: {}, totalCount: 0 });
+            }
+        } catch (e) {
+            console.error('활동 통계 로드 에러:', e);
+            // 빈 데이터로 렌더링
+            renderActivityStats({ stats: {}, totalCount: 0 });
+        }
+    }
+
+    // 활동 통계 렌더링
+    function renderActivityStats(data) {
+        const container = document.getElementById('activity-stats');
+        const stats = data.stats || {};
+        const totalCount = data.totalCount || 0;
+
+        const statLabels = {
+            'MUSIC_PLAY': { icon: '🎵', label: '음악 재생' },
+            'MUSIC_CONTROL': { icon: '⏯️', label: '음악 제어' },
+            'GAME_START': { icon: '🎮', label: '게임 시작' },
+            'GAME_END': { icon: '🏁', label: '게임 종료' },
+            'MODE_CHANGE': { icon: '🔄', label: '모드 변경' },
+            'EMERGENCY': { icon: '🚨', label: '응급 상황' },
+            'UNKNOWN': { icon: '❓', label: '인식 불가' }
+        };
+
+        let html = '';
+        for (const [type, info] of Object.entries(statLabels)) {
+            const count = stats[type] || 0;
+            html += `
+                <div style="background:white; padding:20px; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.05); text-align:center;">
+                    <div style="font-size:32px; margin-bottom:8px;">${info.icon}</div>
+                    <div style="font-size:24px; font-weight:bold; color:#667eea; margin-bottom:4px;">${count}</div>
+                    <div style="font-size:13px; color:#8b95a1;">${info.label}</div>
+                </div>
+            `;
+        }
+
+        // 전체 활동 카드
+        html += `
+            <div style="background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); padding:20px; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.1); text-align:center; color:white;">
+                <div style="font-size:32px; margin-bottom:8px;">📊</div>
+                <div style="font-size:24px; font-weight:bold; margin-bottom:4px;">${totalCount}</div>
+                <div style="font-size:13px;">전체 활동</div>
+            </div>
+        `;
+
+        container.innerHTML = html;
+    }
+
+    // 활동 로그 조회 (페이징)
+    async function loadActivityLogs(page = 0) {
+        try {
+            currentPage = page;
+            let url = `${API_BASE}/admins/activity-logs?page=${page}&size=20&sort=createdAt,desc`;
+
+            // 필터링 적용
+            if (currentActivityType) {
+                url = `${API_BASE}/admins/activity-logs/filter?activityType=${currentActivityType}&page=${page}&size=20`;
+            }
+
+            const res = await fetch(url, {
+                headers: { Authorization: `Bearer ${accessToken}` }
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                renderActivityLogs(data);
+            } else {
+                console.error('활동 로그 조회 실패:', res.status);
+                document.getElementById('activity-list').innerHTML =
+                    '<div style="color:#999;text-align:center;">활동 로그를 불러올 수 없습니다</div>';
+            }
+        } catch (e) {
+            console.error('활동 로그 로드 에러:', e);
+            document.getElementById('activity-list').innerHTML =
+                '<div style="color:#999;text-align:center;">활동 로그 로드 중 오류 발생</div>';
+        }
+    }
+
+    // 활동 로그 렌더링
+    function renderActivityLogs(data) {
+        const list = document.getElementById('activity-list');
+        const content = data.content || [];
+        totalPages = data.totalPages || 0;
+
+        if (content.length === 0) {
+            list.innerHTML = '<div style="color:#999;text-align:center;">활동 내역이 없습니다</div>';
+            document.getElementById('activity-pagination').style.display = 'none';
+            return;
+        }
+
+        const activityIcons = {
+            'MUSIC_PLAY': '🎵',
+            'MUSIC_CONTROL': '⏯️',
+            'GAME_START': '🎮',
+            'GAME_END': '🏁',
+            'MODE_CHANGE': '🔄',
+            'EMERGENCY': '🚨',
+            'UNKNOWN': '❓'
+        };
+
+        list.innerHTML = content.map(log => {
+            const icon = activityIcons[log.activityType] || '📝';
+            const cls = log.activityType === 'EMERGENCY' ? 'emergency' : '';
+            const time = new Date(log.createdAt).toLocaleString('ko-KR');
+
+            return `
+                <div class="activity-item ${cls}">
+                    <div>${icon} <strong>${log.userName}</strong> - ${log.activitySummary}</div>
+                    <div class="activity-time">${time}</div>
+                </div>
+            `;
+        }).join('');
+
+        // 페이징 UI 업데이트
+        document.getElementById('activity-pagination').style.display = 'block';
+        document.getElementById('page-info').textContent = `페이지 ${currentPage + 1} / ${totalPages}`;
+        document.getElementById('btn-prev-page').disabled = currentPage === 0;
+        document.getElementById('btn-next-page').disabled = currentPage >= totalPages - 1;
+    }
+
+    // 페이지 이동
+    function loadActivityPage(page) {
+        if (page < 0 || page >= totalPages) return;
+        loadActivityLogs(page);
+    }
+
+    // 필터 변경
+    function onActivityFilterChange() {
+        const select = document.getElementById('activity-type-filter');
+        currentActivityType = select.value;
+        loadActivityLogs(0); // 첫 페이지로 이동
     }
 
     // 배지 업데이트
@@ -842,19 +2130,29 @@
                 .viz-section-markers { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; }
                 .viz-section-marker { flex: 1; border-right: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; color: #8b95a1; padding: 8px; }
 
-                /* 메트로놈 */
-                .viz-beat-visualizer { margin: 32px 0; padding: 32px; background: #f9fafb; border-radius: 16px; border: 1px solid #e5e7eb; }
-                .viz-beat-visualizer h3 { font-size: 16px; font-weight: 700; color: #191f28; margin-bottom: 24px; }
-                .viz-metronome-display { display: flex; align-items: center; justify-content: space-between; gap: 32px; }
-                .viz-bar-info, .viz-bpm-info { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-                .viz-bar-label, .viz-bpm-label { font-size: 12px; font-weight: 600; color: #8b95a1; text-transform: uppercase; }
-                .viz-bar-number, .viz-bpm-value { font-size: 32px; font-weight: 700; color: #3182f6; }
-                .viz-beat-indicators { flex: 1; display: flex; gap: 16px; justify-content: center; }
-                .viz-beat-dot { width: 80px; height: 80px; border-radius: 50%; background: white; border: 3px solid #e5e7eb; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 700; color: #8b95a1; transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1); }
-                .viz-beat-dot[data-beat="1"] { border-color: #3182f6; }
-                .viz-beat-dot.active { background: #3182f6; color: white; transform: scale(1.2); box-shadow: 0 0 0 8px rgba(49, 130, 246, 0.2); animation: vizBeatPing 0.3s ease-out; }
-                .viz-beat-dot[data-beat="1"].active { background: #1b64da; transform: scale(1.3); box-shadow: 0 0 0 12px rgba(49, 130, 246, 0.3); }
-                @keyframes vizBeatPing { 0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(49, 130, 246, 0.7); } 50% { transform: scale(1.25); } 100% { box-shadow: 0 0 0 12px rgba(49, 130, 246, 0); } }
+                /* 메트로놈 (16비트) - 간단한 박스 */
+                .viz-beat-visualizer { margin: 32px 0; padding: 24px; background: white; border-radius: 12px; border: 1px solid #e5e7eb; }
+                .viz-beat-visualizer h3 { font-size: 14px; font-weight: 600; color: #8b95a1; margin-bottom: 16px; text-align: center; }
+                .viz-metronome-display { display: flex; flex-direction: column; gap: 16px; }
+                .viz-metronome-header { display: flex; justify-content: space-around; align-items: center; margin-bottom: 8px; }
+                .viz-bar-info, .viz-bpm-info { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+                .viz-bar-label, .viz-bpm-label { font-size: 11px; font-weight: 600; color: #8b95a1; text-transform: uppercase; }
+                .viz-bar-number, .viz-bpm-value { font-size: 20px; font-weight: 700; color: #4e5968; }
+                .viz-beat-indicators { display: grid; grid-template-columns: repeat(16, 1fr); gap: 4px; width: 100%; }
+                .viz-beat-box { aspect-ratio: 1; border: 1px solid #d1d5db; background: white; transition: all 0.1s; }
+                .viz-beat-box.active { background: #3182f6; border-color: #3182f6; }
+
+                /* 가사 노래방 스타일 (밝은 배경) */
+                .viz-lyrics-karaoke { margin-top: 40px; padding: 40px; background: white; border-radius: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); border: 1px solid #e5e7eb; min-height: 250px; display: flex; flex-direction: column; justify-content: center; align-items: center; position: relative; }
+                .viz-action-indicator { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; opacity: 0; transition: opacity 0.1s; pointer-events: none; }
+                .viz-action-indicator.active { opacity: 1; animation: actionPulse 0.4s ease-out; }
+                .viz-action-icon { font-size: 80px; }
+                .viz-action-name { font-size: 18px; font-weight: 700; color: #3182f6; background: white; padding: 6px 16px; border-radius: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+                @keyframes actionPulse { 0% { transform: translateX(-50%) scale(0.8); opacity: 0; } 50% { transform: translateX(-50%) scale(1.1); opacity: 1; } 100% { transform: translateX(-50%) scale(1); opacity: 1; } }
+                .viz-current-lyric { font-size: 38px; font-weight: 700; color: #191f28; text-align: center; margin-bottom: 12px; line-height: 1.4; }
+                .viz-next-lyric { font-size: 20px; font-weight: 500; color: #8b95a1; text-align: center; margin-top: 8px; }
+                .viz-lyric-progress { margin-top: 24px; width: 100%; max-width: 600px; height: 6px; background: #f2f4f6; border-radius: 3px; overflow: hidden; }
+                .viz-lyric-progress-bar { height: 100%; background: linear-gradient(90deg, #3182f6, #60a5fa); transition: width 0.1s linear; }
 
                 /* 타임라인 */
                 .viz-timeline { margin: 32px 0; }
@@ -918,23 +2216,37 @@
                         </div>
                     </div>
 
-                    <!-- 메트로놈 -->
+                    <!-- 가사 노래방 스타일 -->
+                    <div class="viz-lyrics-karaoke">
+                        <div class="viz-action-indicator" id="viz-action-indicator">
+                            <div class="viz-action-icon" id="viz-action-icon">🙌</div>
+                            <div class="viz-action-name" id="viz-action-name">동작</div>
+                        </div>
+                        <div class="viz-current-lyric" id="viz-current-lyric">가사를 기다리는 중...</div>
+                        <div class="viz-next-lyric" id="viz-next-lyric">다음: -</div>
+                        <div class="viz-lyric-progress">
+                            <div class="viz-lyric-progress-bar" id="viz-lyric-progress-bar" style="width: 0%;"></div>
+                        </div>
+                    </div>
+
+                    <!-- 메트로놈 (16비트) - 간단한 박스 -->
                     <div class="viz-beat-visualizer">
-                        <h3>비트 시각화 (메트로놈)</h3>
+                        <h3>16비트 메트로놈</h3>
                         <div class="viz-metronome-display">
-                            <div class="viz-bar-info">
-                                <span class="viz-bar-label">마디</span>
-                                <span class="viz-bar-number" id="viz-bar-number">1</span>
+                            <div class="viz-metronome-header">
+                                <div class="viz-bar-info">
+                                    <span class="viz-bar-label">마디</span>
+                                    <span class="viz-bar-number" id="viz-bar-number">1</span>
+                                </div>
+                                <div class="viz-bpm-info">
+                                    <span class="viz-bpm-label">BPM</span>
+                                    <span class="viz-bpm-value">${data.bpm.toFixed(1)}</span>
+                                </div>
                             </div>
                             <div class="viz-beat-indicators">
-                                <div class="viz-beat-dot" data-beat="1">1</div>
-                                <div class="viz-beat-dot" data-beat="2">2</div>
-                                <div class="viz-beat-dot" data-beat="3">3</div>
-                                <div class="viz-beat-dot" data-beat="4">4</div>
-                            </div>
-                            <div class="viz-bpm-info">
-                                <span class="viz-bpm-label">BPM</span>
-                                <span class="viz-bpm-value">${data.bpm.toFixed(1)}</span>
+                                ${[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16].map(i =>
+                                    `<div class="viz-beat-box" data-beat="${i}"></div>`
+                                ).join('')}
                             </div>
                         </div>
                     </div>
@@ -955,6 +2267,7 @@
         window.vizIsPlaying = false;
         window.vizCurrentTime = 0;
         window.vizLastBeatIndex = -1;
+        window.lastActionTime = null;
     }
 
     function formatTime(seconds) {
@@ -966,32 +2279,106 @@
     function renderTimelineItems(timeline, lyricsInfo) {
         if (!timeline || timeline.length === 0) return '<p>타임라인 데이터가 없습니다.</p>';
 
-        // 동작 이모지 매핑 (예시)
+        const lyrics = lyricsInfo?.lines || [];
+
+        // 동작 이모지 매핑 (0부터 시작)
         const actionIcons = {
-            1: '🙌', 2: '👐', 3: '🤸‍♀️', 4: '🙆‍♀️',
-            5: '👏', 6: '🤸', 7: '🙋', 8: '🤷'
+            0: '👏',      // 1, 2절 손 박수
+            1: '👐',      // 1절 팔 치기
+            2: '🍑',      // 2절 1단계 엉덩이 박수
+            3: '🙆‍♀️',  // 2절 2단계 팔 뻗기
+            4: '🤸',      // 2절 2단계 기우뚱
+            5: '🚪',      // 2절 비상구
+            6: '🙋',      // 2절 겨드랑이박수
+            7: '💃'       // 기타
         };
 
-        return timeline.slice(0, 10).map((event, idx) => {
-            const cls = idx === 0 ? 'past' : idx === 1 ? 'current' : 'upcoming';
-            const icon = actionIcons[event.actionCode] || '💃';
+        if (lyrics.length === 0) {
+            // 가사 정보가 없으면 기존 방식대로 표시
+            return timeline.slice(0, 10).map((event, idx) => {
+                const cls = idx === 0 ? 'past' : idx === 1 ? 'current' : 'upcoming';
+                const icon = actionIcons[event.actionCode] || '💃';
 
-            return `
-                <div class="viz-timeline-item ${cls}">
-                    <div class="viz-timeline-indicator"></div>
-                    <div class="viz-timeline-time">${event.time.toFixed(1)}s</div>
-                    <div class="viz-timeline-content">
-                        <div class="viz-timeline-lyric">흥겨운 리듬에 맞춰</div>
-                        <div class="viz-timeline-actions">
-                            <div class="viz-action-chip">
-                                <span>${icon}</span>
-                                <span>${event.actionName}</span>
+                return `
+                    <div class="viz-timeline-item ${cls}">
+                        <div class="viz-timeline-indicator"></div>
+                        <div class="viz-timeline-time">${event.time.toFixed(1)}s</div>
+                        <div class="viz-timeline-content">
+                            <div class="viz-timeline-lyric">동작</div>
+                            <div class="viz-timeline-actions">
+                                <div class="viz-action-chip">
+                                    <span>${icon}</span>
+                                    <span>${event.actionName}</span>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            `;
-        }).join('');
+                `;
+            }).join('');
+        }
+
+        // 가사별로 동작들을 그룹화
+        const lyricItems = [];
+
+        lyrics.forEach((lyric, lyricIdx) => {
+            // 이 가사의 비트 범위 확인 (sbeat ~ ebeat)
+            const beatCount = lyric.ebeat - lyric.sbeat;
+
+            // 이 가사의 시간 범위에 해당하는 동작들을 찾기
+            const actionsInLyric = timeline.filter(event =>
+                event.time >= lyric.start && event.time < lyric.end
+            );
+
+            // 동작이 없는 가사도 표시 (가사만 있는 구간)
+            const cls = lyricIdx === 0 ? 'past' : lyricIdx === 1 ? 'current' : 'upcoming';
+
+            if (actionsInLyric.length === 0) {
+                // 가사만 있고 동작이 없는 구간
+                lyricItems.push(`
+                    <div class="viz-timeline-item ${cls}" style="opacity: 0.6;">
+                        <div class="viz-timeline-indicator"></div>
+                        <div class="viz-timeline-time">${lyric.start.toFixed(1)}s</div>
+                        <div class="viz-timeline-content">
+                            <div class="viz-timeline-lyric">${lyric.text}</div>
+                            <div class="viz-timeline-actions">
+                                <div class="viz-action-chip" style="background: #f0f0f0; border-color: #ddd;">
+                                    <span>🎵</span>
+                                    <span>가사만 (동작 없음, ${beatCount}박자)</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `);
+            } else {
+                // 동작이 있는 구간 - 모든 동작 표시
+                lyricItems.push(`
+                    <div class="viz-timeline-item ${cls}">
+                        <div class="viz-timeline-indicator"></div>
+                        <div class="viz-timeline-time">${lyric.start.toFixed(1)}s</div>
+                        <div class="viz-timeline-content">
+                            <div class="viz-timeline-lyric">
+                                ${lyric.text}
+                                <span style="color: #999; font-size: 0.85em;">(${beatCount}박자, 동작 ${actionsInLyric.length}개)</span>
+                            </div>
+                            <div class="viz-timeline-actions">
+                                ${actionsInLyric.map((event, idx) => {
+                                    const icon = actionIcons[event.actionCode] || '💃';
+                                    return `
+                                        <div class="viz-action-chip">
+                                            <span>${icon}</span>
+                                            <span>${event.actionName}</span>
+                                            <span style="font-size: 0.85em; color: #999;">#${idx + 1}</span>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+                    </div>
+                `);
+            }
+        });
+
+        return lyricItems.join('');
     }
 
     // 시각화 재생 관련 함수
@@ -1016,6 +2403,7 @@
         window.vizIsPlaying = false;
         clearInterval(window.vizAnimationInterval);
         window.vizCurrentTime = 0;
+        window.lastActionTime = null;
         updateVisualizationUI(0);
         updateBeatVisualizer(0);
     }
@@ -1083,14 +2471,332 @@
         // 마디 번호 업데이트
         document.getElementById('viz-bar-number').textContent = currentBeat.bar;
 
-        // 비트 인디케이터 업데이트
-        const beatDots = document.querySelectorAll('.viz-beat-dot');
-        beatDots.forEach(dot => dot.classList.remove('active'));
+        // 16비트 인디케이터 업데이트 (간단한 박스)
+        const beatBoxes = document.querySelectorAll('.viz-beat-box');
+        beatBoxes.forEach(box => box.classList.remove('active'));
 
-        const activeDot = document.querySelector(`.viz-beat-dot[data-beat="${currentBeat.beat}"]`);
-        if (activeDot) {
-            activeDot.classList.add('active');
+        // 16분음표 단위로 계산 (1비트 = 4개의 16분음표)
+        // beat는 1,2,3,4 (4비트), 16분음표는 1-16
+        const sixteenthNote = ((currentBeat.beat - 1) * 4) + 1;
+
+        // 16분음표 범위 (예: beat=1이면 1-4, beat=2이면 5-8)
+        for (let i = 0; i < 4; i++) {
+            const noteIndex = sixteenthNote + i;
+            if (noteIndex <= 16) {
+                const activeBox = document.querySelector(`.viz-beat-box[data-beat="${noteIndex}"]`);
+                if (activeBox && i === 0) {  // 각 비트의 첫 번째 16분음표만 강조
+                    activeBox.classList.add('active');
+                }
+            }
         }
+
+        // 동작 악보에 따라 동작 표시
+        updateActionIndicator(time);
+
+        // 가사 노래방 스타일 업데이트
+        updateKaraokeLyrics(time);
+    }
+
+    // 동작 악보에 따라 동작 표시
+    function updateActionIndicator(time) {
+        const data = window.vizData;
+        if (!data || !data.verse1Timeline) return;
+
+        const timeline = data.verse1Timeline;
+
+        // 동작 이모지 매핑 (0부터 시작)
+        const actionIcons = {
+            0: '👏',      // 1, 2절 손 박수
+            1: '👐',      // 1절 팔 치기
+            2: '🍑',      // 2절 1단계 엉덩이 박수
+            3: '🙆‍♀️',  // 2절 2단계 팔 뻗기
+            4: '🤸',      // 2절 2단계 기우뚱
+            5: '🚪',      // 2절 비상구
+            6: '🙋',      // 2절 겨드랑이박수
+            7: '💃'       // 기타
+        };
+
+        // 현재 시간에서 ±0.2초 내의 동작 찾기
+        const currentAction = timeline.find(event =>
+            Math.abs(event.time - time) < 0.2
+        );
+
+        const actionIndicator = document.getElementById('viz-action-indicator');
+        const actionIcon = document.getElementById('viz-action-icon');
+        const actionName = document.getElementById('viz-action-name');
+
+        if (currentAction && (!window.lastActionTime || Math.abs(window.lastActionTime - currentAction.time) > 0.3)) {
+            // 새로운 동작 표시
+            window.lastActionTime = currentAction.time;
+
+            actionIcon.textContent = actionIcons[currentAction.actionCode] || '💃';
+            actionName.textContent = currentAction.actionName || '동작';
+
+            actionIndicator.classList.add('active');
+            setTimeout(() => actionIndicator.classList.remove('active'), 400);
+        }
+    }
+
+    // 가사 노래방 스타일 업데이트
+    function updateKaraokeLyrics(time) {
+        const data = window.vizData;
+        if (!data || !data.lyricsInfo || !data.lyricsInfo.lines) return;
+
+        const lyrics = data.lyricsInfo.lines;
+
+        // 현재 시간에 해당하는 가사 찾기
+        let currentLyric = null;
+        let nextLyric = null;
+        let progress = 0;
+
+        for (let i = 0; i < lyrics.length; i++) {
+            const lyric = lyrics[i];
+            if (time >= lyric.start && time < lyric.end) {
+                currentLyric = lyric;
+                nextLyric = lyrics[i + 1] || null;
+
+                // 현재 가사 진행률 계산
+                const duration = lyric.end - lyric.start;
+                const elapsed = time - lyric.start;
+                progress = (elapsed / duration) * 100;
+                break;
+            }
+        }
+
+        // UI 업데이트
+        const currentLyricEl = document.getElementById('viz-current-lyric');
+        const nextLyricEl = document.getElementById('viz-next-lyric');
+        const progressBarEl = document.getElementById('viz-lyric-progress-bar');
+
+        if (currentLyric) {
+            currentLyricEl.textContent = currentLyric.text;
+            nextLyricEl.textContent = nextLyric ? `다음: ${nextLyric.text}` : '마지막 가사';
+            progressBarEl.style.width = progress + '%';
+        } else {
+            currentLyricEl.textContent = '가사를 기다리는 중...';
+            nextLyricEl.textContent = lyrics[0] ? `다음: ${lyrics[0].text}` : '-';
+            progressBarEl.style.width = '0%';
+        }
+    }
+
+    // ===== 곡 등록 관련 함수들 =====
+
+    let currentUploadStep = 1;
+    let uploadedFiles = {
+        audio: null,
+        lyrics: null,
+        choreography: null
+    };
+
+    function openSongUploadModal() {
+        currentUploadStep = 1;
+        uploadedFiles = { audio: null, lyrics: null, choreography: null };
+        document.getElementById('song-upload-modal').classList.add('show');
+        updateUploadStepUI();
+
+        // 입력 필드 초기화
+        document.getElementById('song-title').value = '';
+        document.getElementById('song-artist').value = '';
+        document.getElementById('song-s3-key').value = '';
+        document.getElementById('audio-file-name').textContent = '';
+        document.getElementById('lyrics-file-name').textContent = '';
+        document.getElementById('choreography-file-name').textContent = '';
+    }
+
+    function closeSongUploadModal() {
+        document.getElementById('song-upload-modal').classList.remove('show');
+    }
+
+    function nextSongUploadStep() {
+        // 현재 단계 검증
+        if (currentUploadStep === 1) {
+            const title = document.getElementById('song-title').value.trim();
+            const artist = document.getElementById('song-artist').value.trim();
+            const s3Key = document.getElementById('song-s3-key').value.trim();
+            if (!title || !artist || !s3Key) {
+                alert('곡 제목, 아티스트, S3 Key를 모두 입력해주세요.');
+                return;
+            }
+        } else if (currentUploadStep === 2) {
+            if (!uploadedFiles.audio || !uploadedFiles.lyrics) {
+                alert('오디오 파일과 가사 파일을 모두 업로드해주세요.');
+                return;
+            }
+        } else if (currentUploadStep === 3) {
+            if (!uploadedFiles.choreography) {
+                alert('안무 JSON 파일을 업로드해주세요.');
+                return;
+            }
+        } else if (currentUploadStep === 4) {
+            // 업로드 시작
+            currentUploadStep++;
+            updateUploadStepUI();
+            uploadSongToServer();
+            return;
+        }
+
+        if (currentUploadStep < 6) {
+            currentUploadStep++;
+            updateUploadStepUI();
+        }
+    }
+
+    function prevSongUploadStep() {
+        if (currentUploadStep > 1 && currentUploadStep !== 5 && currentUploadStep !== 6) {
+            currentUploadStep--;
+            updateUploadStepUI();
+        }
+    }
+
+    function updateUploadStepUI() {
+        // 스텝 인디케이터 업데이트
+        document.querySelectorAll('.step').forEach(step => {
+            const stepNum = parseInt(step.dataset.step);
+            step.classList.remove('active', 'completed');
+            if (stepNum === currentUploadStep) {
+                step.classList.add('active');
+            } else if (stepNum < currentUploadStep) {
+                step.classList.add('completed');
+            }
+        });
+
+        // 컨텐츠 업데이트
+        document.querySelectorAll('.step-content').forEach(content => {
+            content.classList.remove('active');
+        });
+        document.querySelector(`.step-content[data-step="${currentUploadStep}"]`).classList.add('active');
+
+        // 4단계(미리보기)에 도달하면 미리보기 정보 업데이트
+        if (currentUploadStep === 4) {
+            document.getElementById('preview-title').textContent = document.getElementById('song-title').value || '-';
+            document.getElementById('preview-artist').textContent = document.getElementById('song-artist').value || '-';
+            document.getElementById('preview-audio').textContent = uploadedFiles.audio ? uploadedFiles.audio.name : '-';
+            document.getElementById('preview-lyrics').textContent = uploadedFiles.lyrics ? uploadedFiles.lyrics.name : '-';
+            document.getElementById('preview-choreography').textContent = uploadedFiles.choreography ? uploadedFiles.choreography.name : '-';
+        }
+
+        // 버튼 상태 업데이트
+        const prevBtn = document.getElementById('btn-prev-step');
+        const nextBtn = document.getElementById('btn-next-step');
+        const actions = document.getElementById('song-upload-actions');
+
+        if (currentUploadStep === 1) {
+            prevBtn.style.display = 'none';
+            nextBtn.textContent = '다음';
+            actions.style.display = 'flex';
+        } else if (currentUploadStep === 5 || currentUploadStep === 6) {
+            actions.style.display = 'none';
+        } else {
+            prevBtn.style.display = 'block';
+            nextBtn.textContent = currentUploadStep === 4 ? '업로드 시작' : '다음';
+            actions.style.display = 'flex';
+        }
+    }
+
+    function handleFileSelect(event, fileType) {
+        const file = event.target.files[0];
+        if (file) {
+            uploadedFiles[fileType] = file;
+            const displayName = `${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+            document.getElementById(`${fileType}-file-name`).textContent = displayName;
+        }
+    }
+
+    async function uploadSongToServer() {
+        try {
+            console.log('🎵 곡 업로드 시작');
+            console.log('🔑 사용 중인 토큰:', accessToken ? '있음 (길이: ' + accessToken.length + ')' : '❌ 없음!');
+
+            const s3Key = document.getElementById('song-s3-key').value.trim();
+            if (!s3Key) {
+                alert('S3 Key를 입력해주세요.');
+                currentUploadStep = 1;
+                updateUploadStepUI();
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('title', document.getElementById('song-title').value);
+            formData.append('artist', document.getElementById('song-artist').value);
+            formData.append('s3Key', s3Key);
+            formData.append('audioFile', uploadedFiles.audio);
+            formData.append('lyricsFile', uploadedFiles.lyrics);
+            formData.append('choreographyJson', uploadedFiles.choreography);
+
+            console.log('📍 S3 Key:', s3Key);
+
+            // 진행률 표시 시작
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress += 5;
+                if (progress <= 90) {
+                    updateUploadProgress(progress);
+                }
+            }, 1000);
+
+            console.log('📤 API 요청 URL:', `${API_BASE}/admins/songs`);
+            const res = await fetch(`${API_BASE}/admins/songs`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                },
+                body: formData
+            });
+
+            clearInterval(progressInterval);
+
+            console.log('📥 응답 상태:', res.status, res.statusText);
+
+            if (res.ok) {
+                const result = await res.json();
+                console.log('✅ 업로드 성공:', result);
+                updateUploadProgress(100);
+                setTimeout(() => {
+                    currentUploadStep = 6;
+                    updateUploadStepUI();
+                }, 500);
+            } else {
+                const error = await res.json().catch(() => ({ message: res.statusText }));
+                console.error('❌ 업로드 실패:', error);
+                console.error('   상태 코드:', res.status);
+                console.error('   에러 내용:', error);
+                alert(`업로드 실패 (${res.status}): ${error.error || error.message || res.statusText}`);
+                currentUploadStep = 2;
+                updateUploadStepUI();
+            }
+
+        } catch (e) {
+            console.error('❌ 업로드 중 예외 발생:', e);
+            alert(`업로드 중 오류 발생: ${e.message}`);
+            currentUploadStep = 2;
+            updateUploadStepUI();
+        }
+    }
+
+    function updateUploadProgress(percent) {
+        const fillEl = document.getElementById('upload-progress-fill');
+        const textEl = document.getElementById('upload-progress-text');
+        fillEl.style.width = percent + '%';
+        fillEl.textContent = percent + '%';
+
+        if (percent < 20) {
+            textEl.textContent = '파일을 서버에 업로드하고 있습니다...';
+        } else if (percent < 50) {
+            textEl.textContent = '오디오를 분석하고 있습니다... (비트 검출)';
+        } else if (percent < 70) {
+            textEl.textContent = '가사 타이밍을 분석하고 있습니다...';
+        } else if (percent < 90) {
+            textEl.textContent = '데이터베이스에 저장하고 있습니다...';
+        } else {
+            textEl.textContent = '곡 등록이 완료되었습니다!';
+        }
+    }
+
+    function goToVisualizationAfterUpload() {
+        closeSongUploadModal();
+        showVisualizationScreen();
+        // 곡 목록 새로고침
+        loadSongList();
     }
 </script>
 </body>

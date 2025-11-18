@@ -14,6 +14,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @SpringBootApplication
 // --- ▼ (핵심) 각 데이터 모듈의 스캔 범위를 명시적으로 지정 ▼ ---
 @EnableJpaRepositories(basePackages = {
+		"com.heungbuja.activity.repository", // <-- 활동 로그 Repository 추가
 		"com.heungbuja.admin.repository", "com.heungbuja.auth.repository",
 		"com.heungbuja.device.repository", "com.heungbuja.emergency.repository",
 		"com.heungbuja.game.repository.jpa", "com.heungbuja.s3.repository",
