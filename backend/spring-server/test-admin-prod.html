@@ -2979,11 +2979,11 @@
                 return;
             }
 
-            // FormData 생성 (music-server 분석용)
+            // FormData 생성 (Spring 서버 -> music-server 분석용)
             const formData = new FormData();
             formData.append('title', title);
-            formData.append('audio', simpleUploadedFiles.audio);
-            formData.append('lyrics', simpleUploadedFiles.lyrics);
+            formData.append('audioFile', simpleUploadedFiles.audio);
+            formData.append('lyricsFile', simpleUploadedFiles.lyrics);
 
             console.log('📍 Audio:', simpleUploadedFiles.audio.name);
             console.log('📍 Lyrics:', simpleUploadedFiles.lyrics.name);
@@ -3000,11 +3000,14 @@
                 }
             }, 800);
 
-            // music-server로 분석 요청
-            console.log('📤 music-server 분석 요청');
-            const MUSIC_SERVER_URL = 'http://localhost:8001'; // music-server 주소
-            const res = await fetch(`${MUSIC_SERVER_URL}/api/analyze`, {
+            // Spring 서버를 통해 music-server로 분석 요청
+            console.log('📤 Spring 서버 -> music-server 분석 요청');
+            console.log('🔑 사용 중인 토큰:', accessToken ? '있음 (길이: ' + accessToken.length + ')' : '❌ 없음!');
+            const res = await fetch(`${API_BASE}/admins/songs/analyze-only`, {
                 method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                },
                 body: formData
             });
 
