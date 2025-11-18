@@ -303,12 +303,22 @@ class MotionInferenceService:
         # ========================================================================
         # ⚠️ CRITICAL: Convert model index back to DB actionCode when returning
         # ========================================================================
-        # If target_action_code was provided, return it as-is (already DB format)
-        # If not provided, convert model's best_idx (0-based) to DB actionCode (1-based)
+        # Model class_index → DB actionCode 역매핑
+        CLASS_INDEX_TO_ACTION_CODE = {
+            0: 1,  # CLAP → 손 박수
+            1: 2,  # ELBOW → 팔 치기
+            2: 4,  # STRETCH → 팔 뻗기
+            3: 5,  # TILT → 기우뚱
+            4: 6,  # EXIT → 비상구
+            5: 7,  # UNDERARM → 겨드랑이박수
+            6: 9,  # STAY → 가만히 있음
+        }
         # ========================================================================
-        resolved_action_code = (
-            target_action_code if target_action_code is not None else best_idx + 1
-        )
+        if target_action_code is not None:
+            resolved_action_code = target_action_code
+        else:
+            # 모델의 best_idx를 올바른 actionCode로 변환
+            resolved_action_code = CLASS_INDEX_TO_ACTION_CODE.get(best_idx, best_idx + 1)
 
         return InferenceResult(
             predicted_label=predicted_label,
