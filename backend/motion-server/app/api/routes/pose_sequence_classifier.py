@@ -1,0 +1,208 @@
+import logging
+from functools import lru_cache
+from pathlib import Path
+from typing import Any, List, Optional, Tuple
+
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
+from pydantic import BaseModel, Field
+
+from app.services.pose_sequence_classifier import (
+    ReferenceSequence,
+    evaluate_query,
+    load_npz_bytes,
+    load_reference_sequences,
+    summarize_by_action,
+)
+
+router = APIRouter(prefix="/api/pose-sequences", tags=["pose-sequence"])
+LOGGER = logging.getLogger(__name__)
+BASE_REFERENCE_DIR = Path(__file__).resolve().parents[2] / "services" / "pose_sequences"
+
+
+class PoseSequenceReference(BaseModel):
+    action: str = Field(..., description="참조 동작 이름")
+    person: str = Field(..., description="참조 시퀀스 수집자")
+    sequenceId: int = Field(..., description="참조 시퀀스 ID")
+    distance: float = Field(..., ge=0, description="평균 유클리드 거리")
+    cosine: float = Field(..., description="평균 코사인 유사도")
+    path: str = Field(..., description="참조 시퀀스 파일 경로")
+
+
+class PoseSequenceSummary(BaseModel):
+    action: str = Field(..., description="동작 이름")
+    averageDistance: float = Field(..., ge=0, description="동작별 평균 유클리드 거리")
+    averageCosine: float = Field(..., description="동작별 평균 코사인 유사도")
+
+
+class PoseSequenceClassificationResponse(BaseModel):
+    referenceCount: int = Field(..., ge=0, description="비교에 사용된 참조 시퀀스 수")
+    topResults: List[PoseSequenceReference] = Field(..., description="Top-K 참조 시퀀스 결과")
+    actionSummary: List[PoseSequenceSummary] = Field(..., description="동작별 평균 요약")
+    passedThresholds: Optional[List[PoseSequenceReference]] = Field(
+        None, description="임계값을 통과한 참조 시퀀스 목록"
+    )
+    queryMetadata: Optional[dict[str, Any]] = Field(None, description="질의 시퀀스 메타데이터")
+
+
+def _normalize_actions(actions: Optional[List[str]]) -> Optional[Tuple[str, ...]]:
+    if not actions:
+        return None
+    normalized = {action.strip().upper() for action in actions if action and action.strip()}
+    return tuple(sorted(normalized)) or None
+
+
+@lru_cache(maxsize=16)
+def _get_references_cached(
+    reference_dir: str, actions_key: Optional[Tuple[str, ...]]
+) -> Tuple[ReferenceSequence, ...]:
+    path = Path(reference_dir)
+    references = load_reference_sequences(path, actions=list(actions_key) if actions_key else None)
+    return tuple(references)
+
+
+def _make_reference_payload(
+    ref: ReferenceSequence, distance: float, cosine: float, base_dir: Path
+) -> PoseSequenceReference:
+    try:
+        relative_path = ref.path.relative_to(base_dir)
+        path_str = str(relative_path)
+    except ValueError:
+        path_str = str(ref.path)
+
+    return PoseSequenceReference(
+        action=ref.action,
+        person=ref.person,
+        sequenceId=int(ref.sequence_id),
+        distance=float(distance),
+        cosine=float(cosine),
+        path=path_str,
+    )
+
+
+@router.post(
+    "/classify",
+    response_model=PoseSequenceClassificationResponse,
+    summary="질의 포즈 시퀀스를 참조 시퀀스와 비교",
+)
+async def classify_pose_sequence(
+    query_file: UploadFile = File(..., description=".npz 포맷의 질의 시퀀스 파일"),
+    top_k: int = Query(5, alias="topK", ge=1, description="상위 K개의 결과를 반환"),
+    distance_threshold: Optional[float] = Query(
+        None, alias="distanceThreshold", description="유클리드 거리 임계값(이하만 통과)"
+    ),
+    cosine_threshold: Optional[float] = Query(
+        None, alias="cosineThreshold", description="코사인 유사도 임계값(이상만 통과)"
+    ),
+    actions: Optional[List[str]] = Query(
+        None, description="특정 동작만 비교하고 싶을 때 지정 (대소문자 무시)"
+    ),
+    reference_dir: Optional[str] = Query(
+        None,
+        alias="referenceDir",
+        description="기본 디렉터리 대신 사용할 참조 시퀀스 디렉터리",
+    ),
+) -> PoseSequenceClassificationResponse:
+    if query_file.content_type not in (None, "application/octet-stream", "application/zip"):
+        LOGGER.warning("Unexpected content-type for query_file: %s", query_file.content_type)
+
+    query_bytes = await query_file.read()
+    if not query_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="질의 시퀀스 파일이 비어 있습니다.",
+        )
+
+    try:
+        query_landmarks, query_metadata = load_npz_bytes(query_bytes)
+    except KeyError as exc:
+        LOGGER.warning("Invalid query file (missing landmarks): %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="질의 시퀀스 파일에서 'landmarks' 데이터를 찾을 수 없습니다.",
+        ) from exc
+    except Exception as exc:
+        LOGGER.exception("Failed to load query sequence: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="질의 시퀀스 파일을 읽는 중 오류가 발생했습니다.",
+        ) from exc
+
+    base_reference_dir = BASE_REFERENCE_DIR
+    if reference_dir:
+        custom_dir = Path(reference_dir).expanduser()
+        if not custom_dir.is_absolute():
+            custom_dir = (BASE_REFERENCE_DIR / reference_dir).resolve()
+        base_reference_dir = custom_dir
+
+    if not base_reference_dir.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"참조 디렉터리를 찾을 수 없습니다: {base_reference_dir}",
+        )
+    if not base_reference_dir.is_dir():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"참조 경로가 디렉터리가 아닙니다: {base_reference_dir}",
+        )
+
+    actions_key = _normalize_actions(actions)
+
+    try:
+        references_tuple = _get_references_cached(str(base_reference_dir.resolve()), actions_key)
+    except Exception as exc:  # pragma: no cover - 캐시 내부 예외 처리
+        LOGGER.exception("Failed to load reference sequences: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="참조 시퀀스를 로드하는 중 오류가 발생했습니다.",
+        ) from exc
+
+    references: List[ReferenceSequence] = list(references_tuple)
+    if not references:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="비교할 참조 시퀀스를 찾지 못했습니다.",
+        )
+
+    evaluations = evaluate_query(query_landmarks, references)
+    if not evaluations:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="유사도 계산 결과가 비어 있습니다.",
+        )
+
+    k = min(top_k, len(evaluations))
+    top_results_payload = [
+        _make_reference_payload(ref, euc, cos, base_reference_dir)
+        for ref, euc, cos in evaluations[:k]
+    ]
+
+    action_summary_payload = [
+        PoseSequenceSummary(
+            action=action,
+            averageDistance=float(avg_dist),
+            averageCosine=float(avg_cos),
+        )
+        for action, avg_dist, avg_cos in summarize_by_action(evaluations)
+    ]
+
+    passed_thresholds: List[PoseSequenceReference] = []
+    if distance_threshold is not None or cosine_threshold is not None:
+        for ref, euc, cos in evaluations:
+            if distance_threshold is not None and euc > distance_threshold:
+                continue
+            if cosine_threshold is not None and cos < cosine_threshold:
+                continue
+            passed_thresholds.append(_make_reference_payload(ref, euc, cos, base_reference_dir))
+
+    response_metadata: Optional[dict[str, Any]] = None
+    if query_metadata:
+        response_metadata = dict(query_metadata)
+
+    return PoseSequenceClassificationResponse(
+        referenceCount=len(references),
+        topResults=top_results_payload,
+        actionSummary=action_summary_payload,
+        passedThresholds=passed_thresholds or None,
+        queryMetadata=response_metadata,
+    )
+
