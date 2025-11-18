@@ -9,7 +9,7 @@ app.use(cors());
 app.use(express.json());
 
 // === 설정 ===
-const BACKEND_URL = 'http://k13a103.p.ssafy.io:8080';
+const BACKEND_URL = 'https://heungbuja.site/api';
 const TOKEN_FILE_PATH = '/home/a103/main_service/token.txt';
 
 // === 토큰 저장 ===
@@ -41,7 +41,7 @@ async function loginWithDeviceId() {
 
         console.log('🔐 기기 번호로 로그인 중...', deviceId);
 
-        const response = await axios.post(`${BACKEND_URL}/api/auth/device-login`, {
+        const response = await axios.post(`${BACKEND_URL}/auth/device`, {
             deviceId: deviceId
         });
 
@@ -68,7 +68,7 @@ async function refreshAccessToken() {
     try {
         console.log('🔄 토큰 갱신 중...');
 
-        const response = await axios.post(`${BACKEND_URL}/api/auth/refresh`, {
+        const response = await axios.post(`${BACKEND_URL}/auth/refresh`, {
             refreshToken: currentRefreshToken
         });
 
