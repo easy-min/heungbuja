@@ -1,10 +1,15 @@
+import base64
 import logging
+from io import BytesIO
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, List, Optional, Tuple
 
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
+import numpy as np
+import mediapipe as mp
+from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field
+from PIL import Image
 
 from app.services.pose_sequence_classifier import (
     ReferenceSequence,
@@ -44,6 +49,40 @@ class PoseSequenceClassificationResponse(BaseModel):
     queryMetadata: Optional[dict[str, Any]] = Field(None, description="질의 시퀀스 메타데이터")
 
 
+class PoseSequenceClassificationRequest(BaseModel):
+    npzBase64: Optional[str] = Field(
+        None,
+        description="Base64로 인코딩된 .npz 파일 내용",
+    )
+    actionCode: Optional[int] = Field(
+        None,
+        description="Spring 서버에서 전달하는 목표 동작 코드",
+    )
+    actionName: Optional[str] = Field(
+        None,
+        description="Spring 서버에서 전달하는 목표 동작 이름",
+    )
+    frameCount: Optional[int] = Field(
+        None,
+        ge=1,
+        description="Spring 서버에서 전송한 총 프레임 수",
+    )
+    frames: Optional[List[str]] = Field(
+        None,
+        description="Base64 인코딩된 이미지 프레임 목록",
+    )
+    landmarks: Optional[List[List[List[float]]]] = Field(
+        None,
+        description="(frames, landmarks, dims) 형태의 좌표 배열",
+    )
+    metadata: Optional[dict[str, Any]] = Field(
+        None,
+        description="질의 시퀀스에 대한 메타데이터 (선택)",
+    )
+
+    model_config = {"extra": "forbid"}
+
+
 def _normalize_actions(actions: Optional[List[str]]) -> Optional[Tuple[str, ...]]:
     if not actions:
         return None
@@ -79,13 +118,145 @@ def _make_reference_payload(
     )
 
 
+def _decode_base64_image(data: str) -> np.ndarray:
+    try:
+        image_data = base64.b64decode(data)
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="프레임을 Base64로 디코딩할 수 없습니다.",
+        ) from exc
+
+    try:
+        with Image.open(BytesIO(image_data)) as img:
+            rgb_image = img.convert("RGB")
+            return np.array(rgb_image)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="프레임 이미지를 읽는 중 오류가 발생했습니다.",
+        ) from exc
+
+
+def _extract_landmarks_from_frames(frames: List[str]) -> np.ndarray:
+    if not frames:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="frames 목록이 비어 있습니다.",
+        )
+
+    mp_pose = mp.solutions.pose
+    extracted: List[np.ndarray] = []
+
+    with mp_pose.Pose(
+        static_image_mode=True,
+        model_complexity=1,
+        enable_segmentation=False,
+        min_detection_confidence=0.5,
+    ) as pose:
+        for frame in frames:
+            image = _decode_base64_image(frame)
+            results = pose.process(image)
+            if not results.pose_landmarks:
+                LOGGER.debug("프레임에서 포즈를 감지하지 못했습니다. 프레임을 건너뜁니다.")
+                continue
+
+            coords = np.array(
+                [[lm.x, lm.y] for lm in results.pose_landmarks.landmark],
+                dtype=np.float32,
+            )
+            extracted.append(coords)
+
+    if not extracted:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="유효한 포즈가 감지된 프레임이 없습니다.",
+        )
+
+    return np.stack(extracted, axis=0)
+
+
+def _load_query_sequence(payload: PoseSequenceClassificationRequest) -> Tuple[np.ndarray, dict]:
+    if payload.npzBase64:
+        try:
+            decoded = base64.b64decode(payload.npzBase64)
+        except (ValueError, TypeError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="npzBase64 필드를 Base64로 디코딩할 수 없습니다.",
+            ) from exc
+
+        try:
+            landmarks, metadata = load_npz_bytes(decoded)
+        except KeyError as exc:
+            LOGGER.warning("Invalid npz payload (missing landmarks): %s", exc)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="npz 데이터에서 'landmarks' 배열을 찾을 수 없습니다.",
+            ) from exc
+        except Exception as exc:
+            LOGGER.exception("Failed to load npz payload: %s", exc)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="npz 데이터를 읽는 중 오류가 발생했습니다.",
+            ) from exc
+
+        if payload.metadata:
+            metadata = {**metadata, **payload.metadata}
+        return landmarks, metadata
+
+    if payload.frames:
+        if payload.frameCount is not None and payload.frameCount != len(payload.frames):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="frameCount 값이 frames 배열 길이와 일치하지 않습니다.",
+            )
+
+        landmarks_array = _extract_landmarks_from_frames(payload.frames)
+        metadata = dict(payload.metadata) if payload.metadata else {}
+        metadata.setdefault("source", "frames")
+        metadata.setdefault("frame_count", len(landmarks_array))
+        if payload.actionCode is not None:
+            metadata.setdefault("action_code", payload.actionCode)
+        if payload.actionName:
+            metadata.setdefault("action_name", payload.actionName)
+        return landmarks_array, metadata
+
+    if payload.landmarks:
+        try:
+            landmarks_array = np.asarray(payload.landmarks, dtype=np.float32)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="landmarks 필드를 float32 배열로 변환할 수 없습니다.",
+            ) from exc
+
+        if landmarks_array.ndim != 3:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="landmarks 배열은 (frames, landmarks, dims) 3차원 형태여야 합니다.",
+            )
+
+        metadata = payload.metadata or {}
+        if payload.actionCode is not None:
+            metadata.setdefault("action_code", payload.actionCode)
+        if payload.actionName:
+            metadata.setdefault("action_name", payload.actionName)
+        return landmarks_array, metadata
+
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="npzBase64 또는 landmarks 중 하나는 반드시 포함되어야 합니다.",
+    )
+
+
 @router.post(
     "/classify",
     response_model=PoseSequenceClassificationResponse,
     summary="질의 포즈 시퀀스를 참조 시퀀스와 비교",
 )
 async def classify_pose_sequence(
-    query_file: UploadFile = File(..., description=".npz 포맷의 질의 시퀀스 파일"),
+    payload: PoseSequenceClassificationRequest,
     top_k: int = Query(5, alias="topK", ge=1, description="상위 K개의 결과를 반환"),
     distance_threshold: Optional[float] = Query(
         None, alias="distanceThreshold", description="유클리드 거리 임계값(이하만 통과)"
@@ -102,30 +273,7 @@ async def classify_pose_sequence(
         description="기본 디렉터리 대신 사용할 참조 시퀀스 디렉터리",
     ),
 ) -> PoseSequenceClassificationResponse:
-    if query_file.content_type not in (None, "application/octet-stream", "application/zip"):
-        LOGGER.warning("Unexpected content-type for query_file: %s", query_file.content_type)
-
-    query_bytes = await query_file.read()
-    if not query_bytes:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="질의 시퀀스 파일이 비어 있습니다.",
-        )
-
-    try:
-        query_landmarks, query_metadata = load_npz_bytes(query_bytes)
-    except KeyError as exc:
-        LOGGER.warning("Invalid query file (missing landmarks): %s", exc)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="질의 시퀀스 파일에서 'landmarks' 데이터를 찾을 수 없습니다.",
-        ) from exc
-    except Exception as exc:
-        LOGGER.exception("Failed to load query sequence: %s", exc)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="질의 시퀀스 파일을 읽는 중 오류가 발생했습니다.",
-        ) from exc
+    query_landmarks, query_metadata = _load_query_sequence(payload)
 
     base_reference_dir = BASE_REFERENCE_DIR
     if reference_dir:
