@@ -45,17 +45,17 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3rem;
+  gap: 5rem;
 }
 
 /* 안내 텍스트 (통합 - 깜빡임 방지) */
 .voice-overlay-title {
-  font-size: 2rem;
-  font-weight: 600;
+  font-size: 2.75rem;
+  font-weight: 700;
   color: white;
   margin: 0;
   text-align: center;
-  max-width: 80%;
+  max-width: 100%;
   max-height: 6rem;
   line-height: 1.5;
   word-break: keep-all;
@@ -110,7 +110,7 @@
   }
 }
 
-/* 중앙 흰색 원 */
+/* 중앙 원 */
 .voice-circle {
   position: relative;
   width: 200px;
@@ -118,21 +118,136 @@
   background: white;
   border-radius: 50%;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 1rem;
   box-shadow: 0 0 40px rgba(255, 255, 255, 0.3);
   z-index: 10;
 }
 
-/* 카운트다운 숫자 */
-.voice-circle-countdown {
-  font-size: 6rem;
-  font-weight: 700;
-  color: var(--color-primary);
-  line-height: 1;
+/* 배경 레이어 (기본 원) */
+.voice-circle::before {
+  content: '';
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: white;
+  z-index: -1;
 }
 
-/* 인식 중 텍스트 */
+/* 외곽 파동 레이어 (pulse 효과용) */
+.voice-circle::after {
+  content: '';
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: transparent;
+  z-index: -2;
+}
+
+/* 녹음 중 - 주황색 + ripple pulse */
+.voice-circle.recording {
+  background: transparent;
+}
+
+.voice-circle.recording::before {
+  background: var(--color-primary);
+}
+
+.voice-circle.recording::after {
+  animation: ripple-pulse 1.5s ease-out infinite;
+}
+
+/* 인식 중 - 주황색 */
+.voice-circle.uploading {
+  background: transparent;
+}
+
+.voice-circle.uploading::before {
+  background: var(--color-primary);
+}
+
+/* TTS 재생 중 - 주황색 + ripple pulse */
+.voice-circle.playing {
+  background: transparent;
+}
+
+.voice-circle.playing::before {
+  background: var(--color-primary);
+}
+
+.voice-circle.playing::after {
+  animation: ripple-pulse 1.5s ease-out infinite;
+}
+
+/* Ripple pulse 애니메이션 - 외곽으로 퍼지는 파동 */
+@keyframes ripple-pulse {
+  0% {
+    transform: scale(1);
+    background: var(--color-primary);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.2);
+    background: #FF8A6F;
+    opacity: 0.4;
+  }
+  100% {
+    transform: scale(1.4);
+    background: #FFB39E;
+    opacity: 0;
+  }
+}
+
+/* 원 pulse 애니메이션 (구버전 - 사용 안 함) */
+@keyframes circle-pulse {
+  0%, 100% {
+    transform: scale(1);
+    background: var(--color-primary);
+    box-shadow: 0 0 40px var(--color-primary);
+  }
+  50% {
+    transform: scale(1.05);
+    background: #FF8A6F;
+    box-shadow: 0 0 60px rgba(255, 138, 111, 0.6);
+  }
+}
+
+/* 아이콘 (마이크, 스피커) */
+.voice-icon {
+  color: white;
+}
+
+/* LoadingDots 스타일 오버라이드 */
+.voice-loading {
+  transform: scale(1.5);
+}
+
+/* 카운트다운 숫자 (원 밖에 표시) */
+.voice-countdown-external {
+  position: absolute;
+  top: -60px;
+  font-size: 4rem;
+  font-weight: 800;
+  color: white;
+  line-height: 1;
+  text-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* 카운트다운 숫자 (구버전 - 사용 안 함) */
+.voice-circle-countdown {
+  font-size: 5rem;
+  font-weight: 800;
+  color: white;
+  line-height: 1;
+  position: absolute;
+  bottom: 20px;
+}
+
+/* 인식 중 텍스트 (사용 안 함) */
 .voice-circle-text {
   font-size: 1.5rem;
   font-weight: 600;
@@ -156,12 +271,21 @@
     height: 170px;
   }
 
-  .voice-circle-countdown {
+  .voice-countdown-external {
+    top: -70px;
     font-size: 5rem;
+  }
+
+  .voice-circle-countdown {
+    font-size: 4rem;
   }
 
   .voice-circle-text {
     font-size: 1.25rem;
+  }
+
+  .voice-loading {
+    transform: scale(1.3);
   }
 }
 
@@ -186,11 +310,21 @@
     height: 140px;
   }
 
-  .voice-circle-countdown {
+  .voice-countdown-external {
+    top: -60px;
     font-size: 4rem;
+  }
+
+  .voice-circle-countdown {
+    font-size: 3.5rem;
+    bottom: 15px;
   }
 
   .voice-circle-text {
     font-size: 1rem;
+  }
+
+  .voice-loading {
+    transform: scale(1.2);
   }
 }
