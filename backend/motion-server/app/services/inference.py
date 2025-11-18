@@ -314,52 +314,102 @@ class MotionInferenceService:
         self, action_name: str | None, action_code: int | None
     ) -> int | None:
         # ========================================================================
-        # ⚠️ CRITICAL: DB actionCode vs Model class_index Mismatch Fix
+        # ⚠️ CRITICAL: DB actionCode → Model class_index Mapping
         # ========================================================================
-        # - DB actionCode is 1-based (손 박수=1, 팔 치기=2, ...)
-        # - AI model class_index is 0-based (손 박수=0, 팔 치기=1, ...)
-        # - This causes 1-position shift → incorrect predictions!
+        # DB의 actionCode와 모델의 class_index는 1:1 매핑이 아닙니다!
+        # 일부 DB 동작은 모델에 학습되지 않았습니다.
         #
-        # TEMPORARY FIX: Convert DB actionCode to model index by subtracting 1
-        # TODO: Retrain model with 1-based labels OR update DB to use 0-based codes
+        # Model에 학습된 동작 (7개):
+        #   class 0: CLAP (손 박수)
+        #   class 1: ELBOW (팔 치기)
+        #   class 2: STRETCH (팔 뻗기)
+        #   class 3: TILT (기우뚱)
+        #   class 4: EXIT (비상구)
+        #   class 5: UNDERARM (겨드랑이 박수)
+        #   class 6: STAY (가만히)
+        #
+        # DB actionCode → Model class_index 매핑:
+        ACTION_CODE_TO_CLASS_INDEX = {
+            1: 0,  # 손 박수 → CLAP
+            2: 1,  # 팔 치기 → ELBOW
+            # 3: None,  # 엉덩이 박수 (데이터 없음)
+            4: 2,  # 팔 뻗기 → STRETCH
+            5: 3,  # 기우뚱 → TILT
+            6: 4,  # 비상구 → EXIT
+            7: 5,  # 겨드랑이박수 → UNDERARM
+            # 8: None,  # 팔 모으기 (학습 안 함)
+            9: 6,  # 가만히 있음 → STAY
+        }
         # ========================================================================
+
         if action_code is not None:
-            # Convert DB actionCode (1-based) to model class_index (0-based)
-            model_index = action_code - 1
-            if model_index in self.id_to_label:
+            # DB actionCode를 Model class_index로 변환
+            model_index = ACTION_CODE_TO_CLASS_INDEX.get(action_code)
+            if model_index is not None and model_index in self.id_to_label:
                 return model_index
+
         if action_name:
             key = action_name.strip().upper()
             return self.class_mapping.get(key)
+
         return None
 
     @staticmethod
     def _score_by_probability(probability: float) -> int:
+        # ========================================================================
+        # ⚠️ CRITICAL: Stricter scoring criteria to prevent high scores for
+        # incorrect or minimal movements
+        # ========================================================================
+        # Previous issue: 51% threshold was too lenient
+        # - Even when stationary, model could predict 51-60% → judgment=2 (66.7점)
+        # - Resulted in unfair scores: moving=75점 vs stationary=73점
+        #
+        # New stricter criteria:
+        # - 90%+ → 3점 (Perfect, 100점)
+        # - 75%+ → 2점 (Good, 66.7점)
+        # - 60%+ → 1점 (Needs improvement, 33.3점)
+        # - <60% → 0점 (Incorrect or no movement, 0점)
+        # ========================================================================
         if probability >= 0.90:
             return 3
-        if probability >= 0.51:
+        if probability >= 0.75:
             return 2
-        return 1
+        if probability >= 0.60:
+            return 1
+        return 0
 
     def _fallback_score(
         self, predicted_label: str, confidence: float, target_action: str | None
     ) -> int:
+        # ========================================================================
+        # Fallback scoring when target_probability is not available
+        # Aligned with stricter _score_by_probability criteria
+        # ========================================================================
         if not target_action:
-            return 2 if confidence >= 0.5 else 1
+            # No target specified - use general confidence thresholds
+            if confidence >= 0.90:
+                return 3
+            if confidence >= 0.75:
+                return 2
+            if confidence >= 0.60:
+                return 1
+            return 0
 
         target_key = target_action.strip().upper()
         predicted_key = predicted_label.strip().upper()
 
         if target_key == predicted_key:
-            if confidence >= 0.8:
+            # Predicted correctly - use confidence thresholds
+            if confidence >= 0.90:
                 return 3
-            if confidence >= 0.5:
+            if confidence >= 0.75:
                 return 2
-            return 1
-
-        if confidence >= 0.75:
-            return 2
-        return 1
+            if confidence >= 0.60:
+                return 1
+            return 0
+        else:
+            # Predicted incorrectly - always 0 points
+            return 0
 
     # ========================================================================
     # ⚠️ CRITICAL: Filter out invalid frames (zero vectors) to prevent
@@ -394,8 +444,9 @@ class MotionInferenceService:
                 keypoints.append(coords)
                 valid_count += 1
 
-        # Require at least 3 valid frames for reliable prediction
-        MIN_VALID_FRAMES = 3
+        # Require at least 5 valid frames for reliable prediction
+        # (Increased from 3 to reduce false positives when stationary)
+        MIN_VALID_FRAMES = 5
         if valid_count < MIN_VALID_FRAMES:
             raise ValueError(
                 f"유효한 동작 프레임이 부족합니다 ({valid_count}/{total_count}개). "

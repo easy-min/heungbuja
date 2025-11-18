@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { sendVoiceCommand } from '../api/voiceCommandApi';
-import type { VoiceCommandResponse } from '../types/voiceCommand';
+import { sendVoiceCommand } from '@/api/voiceCommandApi';
+import type { VoiceCommandResponse } from '@/types/voiceCommand';
 import { useAudioStore } from '@/store/audioStore';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
@@ -15,7 +15,13 @@ interface UseVoiceCommandReturn {
   sendCommand: (audioBlob: Blob) => Promise<void>;
 }
 
-export const useVoiceCommand = (): UseVoiceCommandReturn => {
+interface UseVoiceCommandOptions {
+  onRetry?: () => void;
+}
+
+export const useVoiceCommand = (
+  options?: UseVoiceCommandOptions
+): UseVoiceCommandReturn => {
   const [isUploading, setIsUploading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -153,16 +159,21 @@ export const useVoiceCommand = (): UseVoiceCommandReturn => {
           });
         }
         break;
+      
+      // 응급 상황
+      case 'EMERGENCY':
+          break;
 
       default:
         console.log('처리되지 않은 intent:', intent);
+        navigate('/home');
         // screenTransition이 있으면 targetScreen으로 이동
-        if (screenTransition?.targetScreen) {
-          console.log('기본 화면 전환:', screenTransition.targetScreen);
-          navigate(screenTransition.targetScreen, {
-            state: screenTransition.data,
-          });
-        }
+        // if (screenTransition?.targetScreen) {
+        //   console.log('기본 화면 전환:', screenTransition.targetScreen);
+        //   navigate(screenTransition.targetScreen, {
+        //     state: screenTransition.data,
+        //   });
+        // }
         break;
     }
   }, [pauseAudio, playAudio, navigate]);
@@ -195,11 +206,20 @@ export const useVoiceCommand = (): UseVoiceCommandReturn => {
       } else {
         // 실패 시 에러 메시지
         setError(result.responseText);
-        // 에러 TTS도 재생
-        playTTS(result.ttsAudioUrl);
+        // 실패 안내 TTS 재생 후에 재녹음 시도
+        playTTS(result.ttsAudioUrl, () => {
+          options?.onRetry?.();
+        });
       }
 
     } catch (err) {
+      // 403 에러면 팝업 후 로그인 페이지로 이동
+      if (err instanceof Error && 'status' in err && (err as Error & { status?: number }).status === 403) {
+        alert('세션이 만료되었습니다. 다시 로그인해주세요.');
+        navigate('/', { replace: true });
+        return;
+      }
+
       const errorMessage = err instanceof Error ? err.message : '음성 명령 처리 중 오류가 발생했습니다.';
       console.error('음성 명령 전송 실패:', err);
       setError(errorMessage);

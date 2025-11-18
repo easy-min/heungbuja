@@ -164,6 +164,7 @@ public class GameService {
     private final ActionRepository actionRepository;
     private final MediaUrlService mediaUrlService;
     private final SpringServerPerformanceRepository springServerPerformanceRepository;
+    private final com.heungbuja.game.repository.mongo.MotionInferenceLogRepository motionInferenceLogRepository;
 
     @Qualifier("aiWebClient") // 여러 WebClient Bean 중 aiWebClient를 특정
     private final WebClient aiWebClient;
@@ -220,7 +221,7 @@ public class GameService {
         GameStartResponse.SectionPatterns sectionPatterns = createSectionPatterns(songBeat, choreography);
 
         // SectionInfo (Map)와 SegmentInfo 생성
-        Map<String, Double> sectionInfo = createSectionInfo(songBeat, barStartTimes);
+        Map<String, Double> sectionInfo = createSectionInfo(songBeat, beatNumToTimeMap);
         GameStartResponse.SegmentRange verse1cam = createSegmentRange(songBeat, "verse1", beatNumToTimeMap);
         GameStartResponse.SegmentRange verse2cam = createSegmentRange(songBeat, "verse2", beatNumToTimeMap);
         GameStartResponse.SegmentInfo segmentInfo = GameStartResponse.SegmentInfo.builder()
@@ -377,11 +378,11 @@ public class GameService {
     /**
      * SectionInfo 생성을 전담하는 헬퍼 메소드
      */
-    private Map<String, Double> createSectionInfo(SongBeat songBeat, Map<Integer, Double> barStartTimes) {
+    private Map<String, Double> createSectionInfo(SongBeat songBeat, Map<Integer, Double> beatNumToTimeMap) {
         return songBeat.getSections().stream()
                 .collect(Collectors.toMap(
                         SongBeat.Section::getLabel,
-                        s -> barStartTimes.getOrDefault(s.getStartBar(), 0.0)
+                        s -> beatNumToTimeMap.getOrDefault(s.getStartBeat(), 0.0)
                 ));
     }
 
@@ -706,7 +707,16 @@ public class GameService {
 
                             int actionCode = aiResponse.getActionCode();
                             int judgment = aiResponse.getJudgment();
-                            log.info("⏱️ AI 분석 결과 수신 (세션 {}): actionCode={}, judgment={} (응답시간: {}ms)", sessionId, actionCode, judgment, responseTime);
+                            log.info("⏱️ AI 분석 결과 수신 (세션 {}): actionCode={}, judgment={}, 목표확률={}, 신뢰도={} (응답시간: {}ms)",
+                                    sessionId, actionCode, judgment,
+                                    String.format("%.1f%%", (aiResponse.getTargetProbability() != null ? aiResponse.getTargetProbability() : 0) * 100),
+                                    String.format("%.1f%%", aiResponse.getConfidence() * 100),
+                                    responseTime);
+
+                            // ========================================================================
+                            // MongoDB에 추론 상세 로그 저장 (정확도 분석용)
+                            // ========================================================================
+                            saveMotionInferenceLog(sessionId, gameSession.getUserId(), action, aiResponse, responseTime, frames.size(), true, null);
 
                             handleJudgmentResult(sessionId, actionCode, judgment, action.getTime());
                         },
@@ -716,14 +726,21 @@ public class GameService {
                             // 판정 점수를 1점으로 처리하여 게임을 계속 진행합니다.
                             log.error("AI 서버 호출 중 오류 발생 (세션 ID: {}). 기본 점수(1점)으로 처리합니다. (소요시간: {}ms)", sessionId, responseTime, error);
 
-                            // WebClientResponseException의 경우, 더 상세한 정보를 로그에 남깁니다.
-                            if (error instanceof org.springframework.web.reactive.function.client.WebClientResponseException) {
-                                org.springframework.web.reactive.function.client.WebClientResponseException ex = (org.springframework.web.reactive.function.client.WebClientResponseException) error;
-                                log.error(" > AI 서버 응답 코드: {}, 응답 본문: {}", ex.getStatusCode(), ex.getResponseBodyAsString());
-                            }
+                            // ========================================================================
+                            // AI 서버 에러 처리 (0점)
+                            // ========================================================================
+                            // 주요 실패 원인:
+                            // 1. 유효한 프레임 부족 (< 5개) → 사람이 화면에 안 보임 또는 움직이지 않음
+                            // 2. Mediapipe 감지 실패 → 카메라 각도/조명 문제
+                            // 3. 네트워크 타임아웃 또는 서버 장애
+                            //
+                            // → 모든 실패는 0점 처리 (공정한 채점)
+                            // ========================================================================
 
-                            // 에러 발생 시 판정 점수를 1점으로 하여 결과 처리
-                            handleJudgmentResult(sessionId, action.getActionCode(), 1, action.getTime());
+                            // MongoDB에 실패 로그 저장
+                            saveMotionInferenceLog(sessionId, gameSession.getUserId(), action, null, responseTime, frames.size(), false, error.getMessage());
+
+                            handleJudgmentResult(sessionId, action.getActionCode(), 0, action.getTime());
                         }
                 );
     }
@@ -1167,6 +1184,60 @@ public class GameService {
             return "멋져요! 다음 곡은 더 잘하실 수 있을 거예요!";
         } else {
             return "다음 기회에 더 멋진 무대 기대할게요!";
+        }
+    }
+
+    /**
+     * Motion AI 추론 결과를 MongoDB에 저장 (정확도 분석용)
+     */
+    private void saveMotionInferenceLog(
+            String sessionId,
+            Long userId,
+            ActionTimelineEvent action,
+            AiJudgmentResponse aiResponse,
+            long totalResponseTimeMs,
+            int totalFrameCount,
+            boolean success,
+            String errorMessage) {
+
+        try {
+            com.heungbuja.game.domain.MotionInferenceLog.MotionInferenceLogBuilder builder =
+                    com.heungbuja.game.domain.MotionInferenceLog.builder()
+                    .sessionId(sessionId)
+                    .userId(userId)
+                    .timestamp(LocalDateTime.now())
+                    .targetActionCode(action.getActionCode())
+                    .targetActionName(action.getActionName())
+                    .totalFrameCount(totalFrameCount)
+                    .totalResponseTimeMs(totalResponseTimeMs)
+                    .success(success);
+
+            if (aiResponse != null) {
+                // 성공 케이스: AI 응답 데이터 저장
+                builder.predictedActionCode(aiResponse.getActionCode())
+                        .predictedActionName(aiResponse.getPredictedLabel())
+                        .targetProbability(aiResponse.getTargetProbability())
+                        .maxConfidence(aiResponse.getConfidence())
+                        .judgment(aiResponse.getJudgment())
+                        .validFrameCount(totalFrameCount)  // Motion 서버에서 필터링된 개수는 현재 전달 안 됨
+                        .decodeTimeMs(aiResponse.getDecodeTimeMs())
+                        .poseExtractionTimeMs(aiResponse.getPoseTimeMs())
+                        .inferenceTimeMs(aiResponse.getInferenceTimeMs());
+            } else {
+                // 실패 케이스: 에러 정보만 저장
+                builder.judgment(0)
+                        .validFrameCount(0)
+                        .errorMessage(errorMessage);
+            }
+
+            motionInferenceLogRepository.save(builder.build());
+
+            log.debug("MongoDB에 추론 로그 저장 완료: sessionId={}, targetAction={}, success={}",
+                    sessionId, action.getActionName(), success);
+
+        } catch (Exception e) {
+            // MongoDB 저장 실패해도 게임 진행에는 영향 없음
+            log.error("MongoDB 추론 로그 저장 실패: {}", e.getMessage());
         }
     }
 

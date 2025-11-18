@@ -54,12 +54,20 @@ export interface GameStartResponse {
     lyricsInfo: {
       id: string;
       lines: LyricLine[];
-    }
+    };
     verse1Timeline: actionLine[];
     verse2Timelines: {
       level1: actionLine[];
       level2: actionLine[];
       level3: actionLine[];
+    };
+    sectionPatterns: {
+      verse1: string[];
+      verse2: {
+        level1: string[],
+        level2: string[],
+        level3: string[],
+      }
     };
   };
 }
