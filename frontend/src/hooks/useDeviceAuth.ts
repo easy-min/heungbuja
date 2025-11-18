@@ -62,40 +62,31 @@ export const useDeviceAuth = () => {
     setError('');
 
     try {
-      // 1. 저장된 토큰 확인
-      const savedToken = localStorage.getItem('userAccessToken');
-      const savedDeviceId = localStorage.getItem('deviceId');
+      // B안: local-server에서 토큰 가져오기
+      console.log('🔗 local-server에서 토큰 가져오는 중...');
 
-      // 저장된 기기번호가 현재 기기번호와 일치하는지 확인
-      if (savedToken && savedDeviceId === deviceId) {
-        const newToken = await refreshAccessToken();
+      const response = await fetch('http://localhost:3001/api/frontend-token');
 
-        if (newToken) {
-          console.log('토큰 갱신 성공 - 자동 로그인');
-          navigate('/home', { replace: true });
-          return;
-        }
-        console.log('토큰 갱신 실패 - 재로그인 진행');
+      if (!response.ok) {
+        throw new Error('local-server에서 토큰을 가져올 수 없습니다. 서버 상태를 확인하세요.');
       }
 
-      // 2. 토큰 없거나 만료 또는 기기번호 불일치 → 기기번호로 로그인
-      console.log('기기번호로 새로 로그인:', deviceId);
-      const response = await deviceLoginApi({ serialNumber: deviceId });
+      const data = await response.json();
 
       // 토큰 영구 저장 (localStorage)
-      localStorage.setItem('userAccessToken', response.accessToken);
-      localStorage.setItem('userRefreshToken', response.refreshToken);
-      localStorage.setItem('userId', response.userId);
+      localStorage.setItem('userAccessToken', data.accessToken);
+      localStorage.setItem('userRefreshToken', data.refreshToken);
       localStorage.setItem('deviceId', deviceId); // 기기번호도 저장
 
-      console.log('로그인 성공 - 토큰 저장 완료');
+      console.log('✅ local-server에서 토큰 받아옴 - 저장 완료');
+      console.log('📅 토큰 만료 시간:', new Date(data.expiryTime).toLocaleString());
 
       // 메인 페이지로 이동
       navigate('/home', { replace: true });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : '인증 중 오류가 발생했습니다.';
       setError(errorMessage);
-      console.error('Raspberry Pi auth error:', err);
+      console.error('❌ local-server 토큰 가져오기 실패:', err);
     } finally {
       setIsLoading(false);
     }

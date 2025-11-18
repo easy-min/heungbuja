@@ -2,16 +2,21 @@ import React, { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 import { useVoiceCommand } from '../hooks/useVoiceCommand';
+import { useRaspberryVoice } from '../hooks/useRaspberryVoice';
 import VoiceOverlay from './VoiceOverlay';
 import { useAudioStore } from '@/store/audioStore';
 import { useGameStore } from '@/store/gameStore';
+import { useEnvironmentStore } from '@/store/environmentStore';
 import './VoiceButton.css';
 
 const VoiceButton: React.FC = () => {
   const navigate = useNavigate();
+  const { isRaspberryPi } = useEnvironmentStore();
+
+  // 웹 환경 - 기존 녹음 훅
   const {
-    isRecording,
-    countdown,
+    isRecording: webIsRecording,
+    countdown: webCountdown,
     audioBlob,
     startRecording
   } = useVoiceRecorder();
@@ -26,16 +31,36 @@ const VoiceButton: React.FC = () => {
     sendCommand,
   } = useVoiceCommand({
     onRetry: () => {
-      // 실패 시 자동 재녹음: 이번 수동 녹음에 대해 1번만 허용
+      // 실패 시 자동 재녹음: 1번만 허용
       if (!autoRetryFlagRef.current) {
         console.log('❌ 자동 재녹음 기회 없음(이미 사용됨)');
         return;
       }
       console.log('🔁 실패 자동 재녹음 시작');
       autoRetryFlagRef.current = false; // 1회 사용
-      startRecording();
+
+      if (isRaspberryPi) {
+        // 라즈베리파이: 재녹음 요청
+        retryRecording();
+      } else {
+        // 웹: 브라우저 녹음
+        startRecording();
+      }
     }
   });
+
+  // 라즈베리파이 환경 - SSE 기반 훅 (sendCommand 전달)
+  const {
+    isWakeWordDetected,
+    retryRecording,
+  } = useRaspberryVoice({
+    enabled: isRaspberryPi,
+    sendCommand  // VoiceButton의 sendCommand 전달
+  });
+
+  // 환경에 따라 상태 선택
+  const isRecording = isRaspberryPi ? isWakeWordDetected : webIsRecording;
+  const countdown = isRaspberryPi ? 0 : webCountdown;
 
   const { pause } = useAudioStore();
   const requestGameStop = useGameStore((s) => s.requestStop);
@@ -50,7 +75,16 @@ const VoiceButton: React.FC = () => {
   const isManualRecordingRef = useRef(false);
   const emergencyRetryCountRef = useRef(0);
 
-  // Emergency 시 TTS 끝나면 자동으로 다시 녹음 (수동 녹음일 때만 1회)
+  // 라즈베리파이: 웨이크워드 감지 시 플래그 리셋
+  useEffect(() => {
+    if (isRaspberryPi && isWakeWordDetected) {
+      console.log('🎤 웨이크워드 감지 → 재녹음 플래그 리셋');
+      autoRetryFlagRef.current = true;
+      emergencyRetryCountRef.current = 0;
+    }
+  }, [isRaspberryPi, isWakeWordDetected]);
+
+  // Emergency 시 TTS 끝나면 자동으로 다시 녹음 (1회)
   useEffect(() => {
 
     // TTS 재생 중이었다가 막 끝난 순간만 감지
@@ -60,20 +94,22 @@ const VoiceButton: React.FC = () => {
       !isRecording &&
       !isUploading;
 
-    if (
-      isManualRecordingRef.current &&
-      isEmergency &&
-      ttsJustFinished
-    ) {
+    if (isEmergency && ttsJustFinished) {
       if (emergencyRetryCountRef.current === 0) {
         // 🔴 첫 번째 응급 인식 후: 재녹음 1회
         console.log('🚨 응급 상황 인식 → 재녹음 1회 실행');
         emergencyRetryCountRef.current = 1;
-        startRecording();
+
+        if (isRaspberryPi) {
+          // 라즈베리파이: 재녹음 요청
+          retryRecording();
+        } else {
+          // 웹: 브라우저 녹음
+          startRecording();
+        }
       } else {
         // 🔴 두 번째 응급 인식 후: 홈으로 이동
         console.log('🚨 두 번째 응급 인식 → 홈으로 이동');
-        isManualRecordingRef.current = false;
         emergencyRetryCountRef.current = 0;
         navigate('/home');
       }
@@ -102,6 +138,8 @@ const VoiceButton: React.FC = () => {
   };
 
   // 녹음 완료 시 자동 전송
+  // 웹: 항상 전송
+  // 라즈베리파이: 버튼 클릭으로 녹음한 경우에만 전송 (웨이크워드는 useRaspberryVoice에서 처리)
   useEffect(() => {
     if (audioBlob) {
       console.log('녹음 완료! 서버로 전송 중...');
