@@ -29,6 +29,7 @@ const VoiceButton: React.FC = () => {
     responseText,
     response,
     sendCommand,
+    handleSseCommandResult,
   } = useVoiceCommand({
     onRetry: () => {
       // 실패 시 자동 재녹음: 1번만 허용
@@ -55,7 +56,8 @@ const VoiceButton: React.FC = () => {
     retryRecording,
   } = useRaspberryVoice({
     enabled: isRaspberryPi,
-    sendCommand  // VoiceButton의 sendCommand 전달
+    sendCommand,  // VoiceButton의 sendCommand 전달
+    onCommandResult: handleSseCommandResult,  // SSE로 받은 결과를 useVoiceCommand와 동일하게 처리
   });
 
   // 환경에 따라 상태 선택

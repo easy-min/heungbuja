@@ -13,6 +13,7 @@ interface UseVoiceCommandReturn {
   response: VoiceCommandResponse | null;
   responseText: string | null;
   sendCommand: (audioBlob: Blob) => Promise<void>;
+  handleSseCommandResult: (result: VoiceCommandResponse) => void;
 }
 
 interface UseVoiceCommandOptions {
@@ -178,6 +179,29 @@ export const useVoiceCommand = (
     }
   }, [pauseAudio, playAudio, navigate]);
 
+  // SSE로 받은 명령 결과 처리 (라즈베리파이용)
+  const handleSseCommandResult = useCallback((result: VoiceCommandResponse) => {
+    console.log('🎯 SSE 명령 결과 처리:', result);
+    setResponse(result);
+    setResponseText(result.responseText);
+
+    // 성공 시
+    if (result.success) {
+      // TTS 재생 후 명령 처리
+      playTTS(result.ttsAudioUrl, () => {
+        // TTS 재생 완료되면 intent 기반 명령 처리
+        handleCommand(result);
+      });
+    } else {
+      // 실패 시 에러 메시지
+      setError(result.responseText);
+      // 실패 안내 TTS 재생 후에 재녹음 시도
+      playTTS(result.ttsAudioUrl, () => {
+        options?.onRetry?.();
+      });
+    }
+  }, [playTTS, handleCommand, options]);
+
   // 음성 명령 전송
   const sendCommand = useCallback(async (audioBlob: Blob) => {
     setIsUploading(true);
@@ -189,28 +213,9 @@ export const useVoiceCommand = (
     try {
       console.log('음성 명령 전송 중...');
       const result = await sendVoiceCommand(audioBlob);
-      
-      console.log('서버 응답:', result);
-      setResponse(result);
-      
-      // responseText 설정
-      setResponseText(result.responseText);
 
-      // 성공 시
-      if (result.success) {
-        // TTS 재생 후 명령 처리
-        playTTS(result.ttsAudioUrl, () => {
-          // TTS 재생 완료되면 intent 기반 명령 처리
-          handleCommand(result);
-        });
-      } else {
-        // 실패 시 에러 메시지
-        setError(result.responseText);
-        // 실패 안내 TTS 재생 후에 재녹음 시도
-        playTTS(result.ttsAudioUrl, () => {
-          options?.onRetry?.();
-        });
-      }
+      console.log('서버 응답:', result);
+      handleSseCommandResult(result);
 
     } catch (err) {
       // 403 에러면 팝업 후 로그인 페이지로 이동
@@ -227,7 +232,7 @@ export const useVoiceCommand = (
       // console.log('✅ setIsUploading(false) 호출됨 (finally)');
       setIsUploading(false);
     }
-  }, [playTTS, handleCommand]);
+  }, [handleSseCommandResult]);
 
   return {
     isUploading,
@@ -236,5 +241,6 @@ export const useVoiceCommand = (
     response,
     responseText,
     sendCommand,
+    handleSseCommandResult,
   };
 };

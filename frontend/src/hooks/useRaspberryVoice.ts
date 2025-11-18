@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
+import type { VoiceCommandResponse } from '@/types/voiceCommand';
 
 const LOCAL_SERVER_URL = 'http://localhost:3001';
 
 interface UseRaspberryVoiceOptions {
   enabled: boolean; // 라즈베리파이일 때만 true
   sendCommand: (audioBlob: Blob) => Promise<void>; // VoiceButton에서 전달받음
+  onCommandResult?: (result: VoiceCommandResponse) => void; // SSE로 받은 결과 처리
 }
 
-export const useRaspberryVoice = ({ enabled, sendCommand }: UseRaspberryVoiceOptions) => {
+export const useRaspberryVoice = ({ enabled, sendCommand, onCommandResult }: UseRaspberryVoiceOptions) => {
   const [isWakeWordDetected, setIsWakeWordDetected] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
 
@@ -44,6 +46,13 @@ export const useRaspberryVoice = ({ enabled, sendCommand }: UseRaspberryVoiceOpt
               console.log('⏰ 웨이크워드 오버레이 자동 종료');
               setIsWakeWordDetected(false);
             }, 7000);
+            break;
+
+          case 'COMMAND_RESULT':
+            console.log('🎯 음성 명령 결과 수신:', data.payload);
+            if (onCommandResult && data.payload) {
+              onCommandResult(data.payload);
+            }
             break;
 
           default:
