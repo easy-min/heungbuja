@@ -103,13 +103,13 @@ public class AdminSongController {
      * 곡 등록 (music-server 분석 사용)
      * - 오디오 파일, 가사 텍스트 파일, 안무 JSON 업로드
      * - music-server로 오디오 분석 후 자동으로 박자/가사 JSON 생성
-     * - S3 URL은 클라이언트에서 제공
+     * - S3 Key는 클라이언트에서 제공 (예: song/파일명.mp3)
      * - SUPER_ADMIN 권한 필요
      *
      * @param principal 인증된 관리자 정보
      * @param title 곡 제목
      * @param artist 아티스트명
-     * @param s3Url S3에 업로드된 오디오 파일 URL
+     * @param s3Key S3에 업로드된 오디오 파일 Key (예: song/파일명.mp3)
      * @param audioFile 오디오 파일 (.mp3, .wav) - music-server 분석용
      * @param lyricsFile 가사 텍스트 파일 (.txt)
      * @param choreographyJson 안무 정보 JSON 파일
@@ -120,12 +120,12 @@ public class AdminSongController {
             @AuthenticationPrincipal AdminPrincipal principal,
             @RequestParam("title") String title,
             @RequestParam("artist") String artist,
-            @RequestParam("s3Url") String s3Url,
+            @RequestParam("s3Key") String s3Key,
             @RequestParam("audioFile") MultipartFile audioFile,
             @RequestParam("lyricsFile") MultipartFile lyricsFile,
             @RequestParam("choreographyJson") MultipartFile choreographyJson) {
 
-        log.info("관리자 {}가 곡 등록 요청: title={}, artist={}, s3Url={}", principal.getId(), title, artist, s3Url);
+        log.info("관리자 {}가 곡 등록 요청: title={}, artist={}, s3Key={}", principal.getId(), title, artist, s3Key);
 
         // 파일 검증
         if (audioFile.isEmpty() || lyricsFile.isEmpty() || choreographyJson.isEmpty()) {
@@ -147,8 +147,8 @@ public class AdminSongController {
             com.fasterxml.jackson.databind.JsonNode lyricsNode = analysisResult.get("lyrics");
             log.info("music-server 분석 완료");
 
-            // 3. Media 엔티티 생성 (S3 URL 사용)
-            Media media = mediaService.createMediaWithUrl(title, "MUSIC", s3Url, principal.getId());
+            // 3. Media 엔티티 생성 (S3 Key 사용)
+            Media media = mediaService.createMedia(title, "MUSIC", s3Key, principal.getId());
             log.info("Media 엔티티 생성 완료: mediaId={}", media.getId());
 
             // 4. Song 등록 (MySQL + MongoDB)
