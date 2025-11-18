@@ -310,4 +310,49 @@ public class AdminSongController {
             throw new CustomException(ErrorCode.INVALID_FILE_FORMAT, "가사 파일은 .txt 형식이어야 합니다.");
         }
     }
+
+    /**
+     * 곡 분석 (music-server 분석 결과만 반환)
+     * - 등록하지 않고 분석 결과만 확인
+     *
+     * @param principal 인증된 관리자 정보
+     * @param title 곡 제목
+     * @param audioFile 오디오 파일 (.mp3, .wav)
+     * @param lyricsFile 가사 텍스트 파일 (.txt)
+     * @return 분석 결과 (박자 + 가사 JSON)
+     */
+    @PostMapping("/analyze-only")
+    public ResponseEntity<?> analyzeSongOnly(
+            @AuthenticationPrincipal AdminPrincipal principal,
+            @RequestParam("title") String title,
+            @RequestParam("audioFile") MultipartFile audioFile,
+            @RequestParam("lyricsFile") MultipartFile lyricsFile) {
+
+        log.info("관리자 {}가 곡 분석 요청 (등록 안함): title={}", principal.getId(), title);
+
+        // 파일 검증
+        if (audioFile.isEmpty() || lyricsFile.isEmpty()) {
+            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "오디오 파일과 가사 파일을 업로드해주세요.");
+        }
+
+        validateAudioAndLyricsFiles(audioFile, lyricsFile);
+
+        try {
+            // 가사 텍스트 읽기
+            String lyricsText = new String(lyricsFile.getBytes(), "UTF-8");
+
+            // music-server로 오디오 분석 요청
+            log.info("music-server로 오디오 분석 요청 시작");
+            com.fasterxml.jackson.databind.JsonNode analysisResult = musicServerClient.analyzeAudio(audioFile, lyricsText, title);
+
+            log.info("music-server 분석 완료");
+
+            // 분석 결과 그대로 반환
+            return ResponseEntity.ok(analysisResult);
+
+        } catch (Exception e) {
+            log.error("곡 분석 중 오류 발생: {}", e.getMessage(), e);
+            throw new CustomException(ErrorCode.SONG_REGISTRATION_FAILED, "곡 분석에 실패했습니다: " + e.getMessage());
+        }
+    }
 }
