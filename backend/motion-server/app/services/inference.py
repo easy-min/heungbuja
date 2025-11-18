@@ -249,6 +249,12 @@ class MotionInferenceService:
             sampled_frames
         )
 
+        # 🔍 디버깅: 입력 데이터 확인
+        LOGGER.info("🔍 디버깅 - Keypoint sequence shape: %s", keypoint_sequence.shape)
+        LOGGER.info("🔍 디버깅 - Keypoint stats - mean: %.4f, std: %.4f, min: %.4f, max: %.4f",
+                   keypoint_sequence.mean(), keypoint_sequence.std(),
+                   keypoint_sequence.min(), keypoint_sequence.max())
+
         input_tensor = torch.from_numpy(keypoint_sequence).unsqueeze(0)  # (1, T, N, 2)
         input_tensor = input_tensor.to(self.device)
 
@@ -257,6 +263,11 @@ class MotionInferenceService:
             logits = self.model(input_tensor)
             inference_time_ms = (perf_counter() - inference_start) * 1000
             probabilities = torch.softmax(logits, dim=-1).cpu().numpy()[0]
+
+            # 🔍 디버깅: 모델 출력 확인
+            LOGGER.info("🔍 디버깅 - Logits: %s", logits.cpu().numpy()[0])
+            LOGGER.info("🔍 디버깅 - Probabilities: %s", probabilities)
+            LOGGER.info("🔍 디버깅 - Class mapping: %s", self.id_to_label)
 
         decode_time_ms = decode_time_s * 1000
         pose_time_ms = pose_time_s * 1000
@@ -292,12 +303,22 @@ class MotionInferenceService:
         # ========================================================================
         # ⚠️ CRITICAL: Convert model index back to DB actionCode when returning
         # ========================================================================
-        # If target_action_code was provided, return it as-is (already DB format)
-        # If not provided, convert model's best_idx (0-based) to DB actionCode (1-based)
+        # Model class_index → DB actionCode 역매핑
+        CLASS_INDEX_TO_ACTION_CODE = {
+            0: 1,  # CLAP → 손 박수
+            1: 2,  # ELBOW → 팔 치기
+            2: 4,  # STRETCH → 팔 뻗기
+            3: 5,  # TILT → 기우뚱
+            4: 6,  # EXIT → 비상구
+            5: 7,  # UNDERARM → 겨드랑이박수
+            6: 9,  # STAY → 가만히 있음
+        }
         # ========================================================================
-        resolved_action_code = (
-            target_action_code if target_action_code is not None else best_idx + 1
-        )
+        if target_action_code is not None:
+            resolved_action_code = target_action_code
+        else:
+            # 모델의 best_idx를 올바른 actionCode로 변환
+            resolved_action_code = CLASS_INDEX_TO_ACTION_CODE.get(best_idx, best_idx + 1)
 
         return InferenceResult(
             predicted_label=predicted_label,
