@@ -49,29 +49,6 @@ public class MediaService {
     }
 
     /**
-     * S3 URL로 Media 엔티티 생성 (클라이언트에서 이미 업로드한 경우)
-     *
-     * @param title 제목
-     * @param type 미디어 타입 (MUSIC / VIDEO)
-     * @param s3Url S3 URL
-     * @param uploaderId 업로더 ID (관리자 ID)
-     * @return 생성된 Media 엔티티
-     */
-    @Transactional
-    public Media createMediaWithUrl(String title, String type, String s3Url, Long uploaderId) {
-        Media media = new Media();
-        media.setTitle(title);
-        media.setType(type);
-        media.setS3Url(s3Url);
-        media.setUploaderId(uploaderId);
-
-        Media saved = mediaRepository.save(media);
-        log.info("Media 생성 완료 (URL): id={}, title={}, s3Url={}", saved.getId(), title, s3Url);
-
-        return saved;
-    }
-
-    /**
      * Media ID로 조회
      */
     public Media findById(Long id) {

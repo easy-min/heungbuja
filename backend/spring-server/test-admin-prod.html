@@ -653,8 +653,8 @@
                 <h3 style="margin-bottom:20px; color:#667eea;">📝 곡 정보를 입력하세요</h3>
                 <input id="song-title" type="text" placeholder="곡 제목 (예: 내 건강이 어때서)" style="margin-bottom:15px;" required>
                 <input id="song-artist" type="text" placeholder="아티스트 (예: 아이유)" style="margin-bottom:15px;" required>
-                <input id="song-s3-url" type="url" placeholder="S3 오디오 파일 URL (예: https://bucket.s3.region.amazonaws.com/...)" style="margin-bottom:15px;" required>
-                <p style="font-size:12px; color:#999; margin-top:-10px;">※ S3에 이미 업로드된 오디오 파일의 URL을 입력하세요</p>
+                <input id="song-s3-key" type="text" placeholder="S3 Key (예: song/세대를_잇는_노래.mp3)" style="margin-bottom:15px;" required>
+                <p style="font-size:12px; color:#999; margin-top:-10px;">※ S3에 이미 업로드된 오디오 파일의 Key를 입력하세요</p>
             </div>
 
             <!-- 2단계: 오디오 + 가사 업로드 -->
@@ -2597,6 +2597,7 @@
         // 입력 필드 초기화
         document.getElementById('song-title').value = '';
         document.getElementById('song-artist').value = '';
+        document.getElementById('song-s3-key').value = '';
         document.getElementById('audio-file-name').textContent = '';
         document.getElementById('lyrics-file-name').textContent = '';
         document.getElementById('choreography-file-name').textContent = '';
@@ -2611,8 +2612,9 @@
         if (currentUploadStep === 1) {
             const title = document.getElementById('song-title').value.trim();
             const artist = document.getElementById('song-artist').value.trim();
-            if (!title || !artist) {
-                alert('곡 제목과 아티스트를 모두 입력해주세요.');
+            const s3Key = document.getElementById('song-s3-key').value.trim();
+            if (!title || !artist || !s3Key) {
+                alert('곡 제목, 아티스트, S3 Key를 모두 입력해주세요.');
                 return;
             }
         } else if (currentUploadStep === 2) {
@@ -2705,9 +2707,9 @@
             console.log('🎵 곡 업로드 시작');
             console.log('🔑 사용 중인 토큰:', accessToken ? '있음 (길이: ' + accessToken.length + ')' : '❌ 없음!');
 
-            const s3Url = document.getElementById('song-s3-url').value.trim();
-            if (!s3Url) {
-                alert('S3 URL을 입력해주세요.');
+            const s3Key = document.getElementById('song-s3-key').value.trim();
+            if (!s3Key) {
+                alert('S3 Key를 입력해주세요.');
                 currentUploadStep = 1;
                 updateUploadStepUI();
                 return;
@@ -2716,12 +2718,12 @@
             const formData = new FormData();
             formData.append('title', document.getElementById('song-title').value);
             formData.append('artist', document.getElementById('song-artist').value);
-            formData.append('s3Url', s3Url);
+            formData.append('s3Key', s3Key);
             formData.append('audioFile', uploadedFiles.audio);
             formData.append('lyricsFile', uploadedFiles.lyrics);
             formData.append('choreographyJson', uploadedFiles.choreography);
 
-            console.log('📍 S3 URL:', s3Url);
+            console.log('📍 S3 Key:', s3Key);
 
             // 진행률 표시 시작
             let progress = 0;
