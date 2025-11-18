@@ -7,7 +7,6 @@ import com.heungbuja.common.exception.ErrorCode;
 import com.heungbuja.common.security.AdminPrincipal;
 import com.heungbuja.s3.entity.Media;
 import com.heungbuja.s3.service.MediaService;
-import com.heungbuja.s3.service.S3UploadService;
 import com.heungbuja.song.dto.SongGameData;
 import com.heungbuja.song.entity.Song;
 import com.heungbuja.song.repository.jpa.SongRepository;
@@ -38,7 +37,6 @@ public class AdminSongController {
 
     private final SongRepository songRepository;
     private final SongGameDataCache songGameDataCache;
-    private final S3UploadService s3UploadService;
     private final MediaService mediaService;
     private final SongRegistrationService songRegistrationService;
     private final MusicServerClient musicServerClient;
@@ -105,12 +103,14 @@ public class AdminSongController {
      * 곡 등록 (music-server 분석 사용)
      * - 오디오 파일, 가사 텍스트 파일, 안무 JSON 업로드
      * - music-server로 오디오 분석 후 자동으로 박자/가사 JSON 생성
+     * - S3 URL은 클라이언트에서 제공
      * - SUPER_ADMIN 권한 필요
      *
      * @param principal 인증된 관리자 정보
      * @param title 곡 제목
      * @param artist 아티스트명
-     * @param audioFile 오디오 파일 (.mp3, .wav)
+     * @param s3Url S3에 업로드된 오디오 파일 URL
+     * @param audioFile 오디오 파일 (.mp3, .wav) - music-server 분석용
      * @param lyricsFile 가사 텍스트 파일 (.txt)
      * @param choreographyJson 안무 정보 JSON 파일
      * @return 생성된 곡 정보
@@ -120,11 +120,12 @@ public class AdminSongController {
             @AuthenticationPrincipal AdminPrincipal principal,
             @RequestParam("title") String title,
             @RequestParam("artist") String artist,
+            @RequestParam("s3Url") String s3Url,
             @RequestParam("audioFile") MultipartFile audioFile,
             @RequestParam("lyricsFile") MultipartFile lyricsFile,
             @RequestParam("choreographyJson") MultipartFile choreographyJson) {
 
-        log.info("관리자 {}가 곡 등록 요청: title={}, artist={}", principal.getId(), title, artist);
+        log.info("관리자 {}가 곡 등록 요청: title={}, artist={}, s3Url={}", principal.getId(), title, artist, s3Url);
 
         // 파일 검증
         if (audioFile.isEmpty() || lyricsFile.isEmpty() || choreographyJson.isEmpty()) {
@@ -146,15 +147,11 @@ public class AdminSongController {
             com.fasterxml.jackson.databind.JsonNode lyricsNode = analysisResult.get("lyrics");
             log.info("music-server 분석 완료");
 
-            // 3. 오디오 파일을 S3에 업로드
-            String s3Key = s3UploadService.uploadAudioFile(audioFile);
-            log.info("오디오 파일 S3 업로드 완료: s3Key={}", s3Key);
-
-            // 4. Media 엔티티 생성
-            Media media = mediaService.createMedia(title, "MUSIC", s3Key, principal.getId());
+            // 3. Media 엔티티 생성 (S3 URL 사용)
+            Media media = mediaService.createMediaWithUrl(title, "MUSIC", s3Url, principal.getId());
             log.info("Media 엔티티 생성 완료: mediaId={}", media.getId());
 
-            // 5. Song 등록 (MySQL + MongoDB)
+            // 4. Song 등록 (MySQL + MongoDB)
             Song song = songRegistrationService.registerSongWithAnalysis(
                     title, artist, media, beatsNode, lyricsNode, choreographyJson
             );
