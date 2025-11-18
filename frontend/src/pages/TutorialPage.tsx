@@ -1,36 +1,50 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { gameStartApi } from '@/api/game';
 import { useGameStore } from '@/store/gameStore';
+import { useCamera } from '@/hooks/useCamera';
 import type { GameStartResponse } from '@/types/game';
 import './TutorialPage.css';
 
-function TutorialPage(){
+type Step = 1 | 2 | 3;
+
+function TutorialPage() {
   const nav = useNavigate();
   const location = useLocation();
-  const setFromApi = useGameStore(s => s.setFromApi);
+  const setFromApi = useGameStore((s) => s.setFromApi);
+
   const [loading, setLoading] = useState(true);
-  const [songId, setSongId] = useState(0);
+  const [songId, setSongId] = useState<number | null>(null);
+  const [step, setStep] = useState<Step>(1);
+  const [isFinalMessage, setIsFinalMessage] = useState(false);
+
+  // 카메라 훅 (웹소켓 없이 미리보기만 사용)
+  const { stream, isReady, error, startCamera, stopCamera } = useCamera();
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  // 타이머 관리 (단계 전환용)
+  const timersRef = useRef<number[]>([]);
+  const sequenceStartedRef = useRef(false);
+
+  const isStep1 = step === 1;
 
   // 페이지 진입 시 게임 데이터 로드 (음성 명령 처리 포함)
   useEffect(() => {
     setLoading(true);
 
-    // 음성 명령으로 전달된 게임 데이터 확인
     const voiceCommandData = location.state as GameStartResponse | undefined;
 
     if (voiceCommandData?.gameInfo) {
-      // 음성 명령으로 데이터를 받은 경우 - API 호출 없이 바로 저장
       console.log('음성 명령으로 받은 게임 데이터를 store에 저장:', voiceCommandData);
       setFromApi(voiceCommandData);
-      setLoading(false);
       setSongId(voiceCommandData.gameInfo.songId);
+      setLoading(false);
     } else {
-      // 일반 진입인 경우 - API 호출해서 목 데이터 가져오기
       const initGameData = async () => {
         try {
           const res = await gameStartApi();
           setFromApi(res);
+          setSongId(res.gameInfo.songId);
           console.log('게임 데이터 로드 완료:', res);
         } catch (e) {
           console.error('게임 데이터 로드 실패:', e);
@@ -42,21 +56,168 @@ function TutorialPage(){
     }
   }, [location.state, setFromApi]);
 
-  const handleStart = () => {
-    if (loading) return; // 로딩 중이면 무시
-    // useEffect에서 이미 데이터를 로드했으므로 바로 게임 페이지로 이동
-    nav(`/game/${songId}`);
+  // ===== 카메라 시작 / 정리 =====
+  useEffect(() => {
+    startCamera();
+
+    return () => {
+      stopCamera();
+      timersRef.current.forEach((id) => clearTimeout(id));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 스트림을 비디오 엘리먼트에 연결
+  useEffect(() => {
+    if (stream && videoRef.current) {
+      videoRef.current.srcObject = stream;
+    }
+  }, [stream]);
+
+  // ===== 단계 자동 진행 (카메라 준비 시간 제외) =====
+  useEffect(() => {
+    if (loading || !songId || !isReady) return;
+    if (sequenceStartedRef.current) return;
+
+    sequenceStartedRef.current = true;
+    setStep(1);
+    setIsFinalMessage(false);
+
+    // step1: 0s ~ 3s
+    const t1 = window.setTimeout(() => setStep(2), 3000);
+    // step2: 3s ~ 8s
+    const t2 = window.setTimeout(() => setStep(3), 8000);
+    // step3: 8s ~ 13s
+    const t3 = window.setTimeout(() => {
+      setIsFinalMessage(true);
+    }, 13000);
+    // 마지막 멘트 2초 정도 보여주고 게임 시작
+    const t4 = window.setTimeout(() => {
+      nav(`/game/${songId}`);
+    }, 15000);
+
+    timersRef.current = [t1, t2, t3, t4];
+
+    return () => {
+      timersRef.current.forEach((id) => clearTimeout(id));
+    };
+  }, [loading, songId, isReady, nav]);
+
+  // 단계별 문구
+  const renderTitle = () => {
+    if (loading || !isReady) {
+      return (
+        <>
+          카메라를 준비하고 있어요.
+          <br />
+          잠시만 기다려 주세요.
+        </>
+      );
+    }
+
+    if (isFinalMessage) {
+      return (
+        <>
+          좋아요!
+          <br />
+          이제 체조를 시작합니다!
+        </>
+      );
+    }
+
+    switch (step) {
+      case 1:
+        return (
+          <>
+            게임을 시작하기 전,
+            <br />
+            간단한 준비가 필요해요!
+          </>
+        );
+      case 2:
+        return (
+          <>
+            카메라에 상반신이
+            <br />
+            잘 나오도록 앉아주세요!
+          </>
+        );
+      case 3:
+        return (
+          <>
+            준비가 되면 머리 위로
+            <br />
+            동그라미를 만들어주세요!
+          </>
+        );
+    }
   };
 
-  return <>
+  return (
     <div className="tutorial-page">
-      <p > 버튼을 눌러 체조를 시작하세요! </p>
-      <div className="info-msg"> ( 원할한 진행을 위해 카메라 허용을 미리 체크해주세요 ) </div>
-      <button className="play-btn" onClick={handleStart} disabled={loading}>
-        {loading ? '로딩 중...' : <div className="play-icon" />}
-      </button>
+      {/* 상단 단계 인디케이터 */}
+      <div className="tutorial-steps">
+        {[1, 2, 3].map((n) => {
+          const isActive = step === n || (n === 3 && isFinalMessage);
+          return (
+            <div
+              key={n}
+              className={`tutorial-step-circle ${
+                isActive
+                  ? 'tutorial-step-circle--active'
+                  : 'tutorial-step-circle--inactive'
+              }`}
+            >
+              {n}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* 고정 레이아웃: 왼쪽 카메라 슬롯 + 오른쪽 텍스트 */}
+      <div
+        className={`tutorial-layout ${
+          isStep1 ? 'tutorial-layout--step1' : 'tutorial-layout--step23'
+        }`}
+      >
+        {/* ⬇⬇ 1단계가 아닐 때만 카메라 영역 렌더링 */}
+        {!isStep1 && (
+          <div className="tutorial-camera-wrapper">
+            <div className="tutorial-camera-outer">
+              <div className="tutorial-camera-frame">
+                {!error && !loading && isReady && (
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    muted
+                    playsInline
+                    className="tutorial-camera-video"
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 텍스트 영역 */}
+        <div
+          className={`tutorial-title ${
+            isStep1 ? 'tutorial-title--center' : 'tutorial-title--side'
+          }`}
+        >
+          {error ? (
+            <>
+              카메라 연결에 문제가 있습니다.
+              <br />
+              담당자에게 알려 주세요.
+            </>
+          ) : (
+            renderTitle()
+          )}
+        </div>
+      </div>
     </div>
-  </>
+  );
 }
 
 export default TutorialPage;
