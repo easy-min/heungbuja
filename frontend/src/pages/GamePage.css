@@ -46,7 +46,7 @@
 /* 상단 오디오 재생바 – 상단 전체 폭 사용 */
 .audio-bar {
   flex: 0 0 auto;
-  width: 75%;
+  width: 50%;
   background: var(--color-bg);
   box-sizing: border-box;
   display: flex;
@@ -96,7 +96,7 @@
 .motion-video-wrapper {
   width: 100%;
   /* max-width: 1000px; */
-  aspect-ratio: 9 / 5.4;    /* 원하면 4/3 등으로 변경 */
+  aspect-ratio: 9 / 4.8;    /* 원하면 4/3 등으로 변경 */
   overflow: hidden;
   border-radius: 30px;
   background: #000;        /* 비디오 로딩 전 배경 */
