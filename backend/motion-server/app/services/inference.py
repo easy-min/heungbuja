@@ -499,12 +499,30 @@ class MotionInferenceService:
 
     @staticmethod
     def _decode_base64_image(data: str) -> np.ndarray:
+        """
+        Decode base64 image and apply EXIF orientation correction.
+
+        EXIF orientation tags can indicate image rotation/flip.
+        If not corrected, MediaPipe will extract landmarks from rotated image,
+        causing misaligned predictions.
+        """
         try:
             image_data = base64.b64decode(data)
         except base64.binascii.Error as exc:
             raise ValueError("Base64 디코딩에 실패했습니다.") from exc
 
+        # ========================================================================
+        # ⚠️ CRITICAL: Apply EXIF orientation correction
+        # ========================================================================
+        # PIL's ImageOps.exif_transpose() auto-rotates based on EXIF orientation
+        # This ensures consistency with training data preprocessing
+        # ========================================================================
+        from PIL import ImageOps
         with Image.open(BytesIO(image_data)) as img:
+            img = ImageOps.exif_transpose(img)
+            if img is None:
+                # If exif_transpose returns None (no EXIF), reload original
+                img = Image.open(BytesIO(image_data))
             rgb_image = img.convert("RGB")
             return np.array(rgb_image)
 

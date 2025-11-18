@@ -23,6 +23,7 @@ from typing import Dict, Iterable, List, Optional, Tuple
 import cv2
 import mediapipe as mp
 import numpy as np
+from PIL import Image
 
 
 SEQ_PATTERN = re.compile(
@@ -72,7 +73,25 @@ def extract_landmarks_from_image(
     pose: mp.solutions.pose.Pose,
     image_path: Path,
 ) -> Optional[np.ndarray]:
-    image = cv2.imread(str(image_path))
+    # ========================================================================
+    # ⚠️ CRITICAL: Apply EXIF orientation correction
+    # ========================================================================
+    # Some images may have EXIF orientation metadata (rotation info)
+    # cv2.imread() ignores EXIF, causing rotated images to be processed incorrectly
+    # Solution: Use PIL to auto-rotate based on EXIF, then convert to cv2 format
+    # ========================================================================
+    with Image.open(image_path) as pil_img:
+        # Auto-rotate based on EXIF orientation tag
+        from PIL import ImageOps
+        pil_img = ImageOps.exif_transpose(pil_img)
+        if pil_img is None:
+            # If exif_transpose returns None, reload original
+            pil_img = Image.open(image_path)
+
+        # Convert PIL (RGB) to OpenCV (BGR) format
+        image_rgb = np.array(pil_img.convert("RGB"))
+        image = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
+
     if image is None:
         raise FileNotFoundError(f"이미지를 열 수 없습니다: {image_path}")
 

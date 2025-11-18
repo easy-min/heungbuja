@@ -220,4 +220,94 @@ public class AdminSongController {
                     fileType + " 파일은 .json 형식이어야 합니다.");
         }
     }
+
+    /**
+     * 곡 등록 (music-server 분석 + 기본 안무 자동 생성)
+     * - 오디오 파일, 가사 텍스트 파일만 업로드
+     * - music-server로 오디오 분석 후 자동으로 박자/가사 JSON 생성
+     * - 안무는 기본 패턴으로 자동 생성
+     * - S3 Key는 클라이언트에서 제공 (예: song/파일명.mp3)
+     * - SUPER_ADMIN 권한 필요
+     *
+     * @param principal 인증된 관리자 정보
+     * @param title 곡 제목
+     * @param artist 아티스트명
+     * @param s3Key S3에 업로드된 오디오 파일 Key (예: song/파일명.mp3)
+     * @param audioFile 오디오 파일 (.mp3, .wav) - music-server 분석용
+     * @param lyricsFile 가사 텍스트 파일 (.txt)
+     * @return 생성된 곡 정보
+     */
+    @PostMapping("/auto")
+    public ResponseEntity<?> createSongWithAutoChoreography(
+            @AuthenticationPrincipal AdminPrincipal principal,
+            @RequestParam("title") String title,
+            @RequestParam("artist") String artist,
+            @RequestParam("s3Key") String s3Key,
+            @RequestParam("audioFile") MultipartFile audioFile,
+            @RequestParam("lyricsFile") MultipartFile lyricsFile) {
+
+        log.info("관리자 {}가 곡 등록 요청 (기본 안무 자동 생성): title={}, artist={}, s3Key={}",
+                 principal.getId(), title, artist, s3Key);
+
+        // 파일 검증
+        if (audioFile.isEmpty() || lyricsFile.isEmpty()) {
+            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "오디오 파일과 가사 파일을 업로드해주세요.");
+        }
+
+        // 파일 형식 검증
+        validateAudioAndLyricsFiles(audioFile, lyricsFile);
+
+        try {
+            // 1. 가사 텍스트 읽기
+            String lyricsText = new String(lyricsFile.getBytes(), "UTF-8");
+
+            // 2. music-server로 오디오 분석 요청
+            log.info("music-server로 오디오 분석 요청 시작");
+            com.fasterxml.jackson.databind.JsonNode analysisResult = musicServerClient.analyzeAudio(audioFile, lyricsText, title);
+
+            com.fasterxml.jackson.databind.JsonNode beatsNode = analysisResult.get("beats");
+            com.fasterxml.jackson.databind.JsonNode lyricsNode = analysisResult.get("lyrics");
+            log.info("music-server 분석 완료");
+
+            // 3. Media 엔티티 생성 (S3 Key 사용)
+            Media media = mediaService.createMedia(title, "MUSIC", s3Key, principal.getId());
+            log.info("Media 엔티티 생성 완료: mediaId={}", media.getId());
+
+            // 4. Song 등록 (MySQL + MongoDB) - 기본 안무 자동 생성
+            Song song = songRegistrationService.registerSongWithAnalysisAndDefaultChoreography(
+                    title, artist, media, beatsNode, lyricsNode
+            );
+
+            log.info("곡 등록 완료 (기본 안무 포함): songId={}, title={}, artist={}", song.getId(), title, artist);
+
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .body(Map.of(
+                            "message", "곡 등록이 완료되었습니다 (기본 안무 자동 생성).",
+                            "songId", song.getId(),
+                            "title", title,
+                            "artist", artist
+                    ));
+
+        } catch (Exception e) {
+            log.error("곡 등록 중 오류 발생: {}", e.getMessage(), e);
+            throw new CustomException(ErrorCode.SONG_REGISTRATION_FAILED, "곡 등록에 실패했습니다: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 오디오 및 가사 파일 형식 검증
+     */
+    private void validateAudioAndLyricsFiles(MultipartFile audioFile, MultipartFile lyricsFile) {
+        // 오디오 파일 검증
+        String audioFileName = audioFile.getOriginalFilename();
+        if (audioFileName == null || (!audioFileName.endsWith(".mp3") && !audioFileName.endsWith(".wav"))) {
+            throw new CustomException(ErrorCode.INVALID_FILE_FORMAT, "오디오 파일은 .mp3 또는 .wav 형식이어야 합니다.");
+        }
+
+        // 가사 텍스트 파일 검증
+        String lyricsFileName = lyricsFile.getOriginalFilename();
+        if (lyricsFileName == null || !lyricsFileName.endsWith(".txt")) {
+            throw new CustomException(ErrorCode.INVALID_FILE_FORMAT, "가사 파일은 .txt 형식이어야 합니다.");
+        }
+    }
 }
