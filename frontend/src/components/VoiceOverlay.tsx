@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import MicIcon from './icons/MicIcon';
+import SpeakerIcon from './icons/SpeakerIcon';
+import LoadingDots from './icons/LoadingDots';
 import './VoiceOverlay.css';
 
 interface VoiceOverlayProps {
@@ -74,17 +77,29 @@ const VoiceOverlay: React.FC<VoiceOverlayProps> = ({
         
         <div className="voice-circle-container">
           {/* 회전하는 그라디언트 레이어 */}
-          <div className="glow-layer"></div>
-          
-          {/* 중앙 흰색 원 */}
-          <div className="voice-circle">
-            {isUploading ? (
-              <div className="voice-circle-text">인식 중...</div>
-            ) : isPlaying ? (
-              null
-            ) : isRecording && countdown > 0 ? (
-              <div className="voice-circle-countdown">{countdown}</div>
-            ) : null}
+          {/* <div className="glow-layer"></div> */}
+
+          {/* 녹음 중일 때만 카운트다운을 원 위에 표시 */}
+          {isRecording && countdown > 0 && (
+            <div className="voice-countdown-external">{countdown}</div>
+          )}
+
+          {/* 중앙 원 - 상태별 클래스 적용 */}
+          <div className={`voice-circle ${isRecording ? 'recording' : ''} ${isUploading ? 'uploading' : ''} ${isPlaying ? 'playing' : ''}`}>
+            {/* 녹음 중 - 마이크만 */}
+            {isRecording && (
+              <MicIcon className="voice-icon" size={80} />
+            )}
+
+            {/* 인식 중 - 점 3개 */}
+            {isUploading && (
+              <LoadingDots className="voice-loading" />
+            )}
+
+            {/* TTS 재생 중 - 스피커 */}
+            {isPlaying && (
+              <SpeakerIcon className="voice-icon" size={80} />
+            )}
           </div>
         </div>
       </div>
