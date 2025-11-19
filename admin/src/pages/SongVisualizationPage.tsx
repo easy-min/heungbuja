@@ -9,7 +9,6 @@ import VisualizationHeader from '../components/visualization/VisualizationHeader
 import PlaybackControls from '../components/visualization/PlaybackControls';
 import SectionDisplay from '../components/visualization/SectionDisplay';
 import ProgressBar from '../components/visualization/ProgressBar';
-import KaraokeLyrics from '../components/visualization/KaraokeLyrics';
 import ActionIndicator from '../components/visualization/ActionIndicator';
 import Timeline from '../components/visualization/Timeline';
 import '../styles/visualization.css';
@@ -29,7 +28,6 @@ const SongVisualizationPage = () => {
     reset,
     currentTime,
     currentSection,
-    currentLyric,
     currentAction,
     selectedLevel,
     setSelectedLevel,
@@ -133,6 +131,7 @@ const SongVisualizationPage = () => {
             />
 
             {/* 재생 컨트롤 */}
+            <div className="viz-controls-sticky">
             <PlaybackControls
               isPlaying={isPlaying}
               onPlay={play}
@@ -141,6 +140,7 @@ const SongVisualizationPage = () => {
               selectedLevel={selectedLevel}
               onLevelChange={setSelectedLevel}
             />
+            </div>
 
             {/* 타임라인 섹션 */}
             <div className="viz-section">
@@ -160,7 +160,7 @@ const SongVisualizationPage = () => {
               />
 
               {/* 가사 표시 */}
-              <KaraokeLyrics
+              {/* <KaraokeLyrics
                 currentLyric={currentLyric}
                 nextLyric={
                   currentLyric
@@ -170,7 +170,7 @@ const SongVisualizationPage = () => {
                     : null
                 }
                 currentTime={currentTime}
-              />
+              /> */}
 
               {/* 동작 표시 */}
               <ActionIndicator

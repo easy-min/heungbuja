@@ -15,40 +15,49 @@ interface LyricGroup {
 }
 
 const Timeline = ({ lyrics, actions, currentTime, currentAction }: TimelineProps) => {
-  const currentItemRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const currentItemRef = useRef<HTMLDivElement | null>(null);
 
   // 가사별로 동작 그룹화
-  const groupActionsByLyric = (): LyricGroup[] => {
-    const groups: LyricGroup[] = [];
+  const lyricGroups: LyricGroup[] = lyrics.map((lyric) => ({
+    lyric,
+    actions: actions.filter(
+      (action) => action.time >= lyric.start && action.time < lyric.end
+    ),
+  }));
 
-    lyrics.forEach((lyric) => {
-      // 이 가사의 시간 범위 내에 있는 동작들 필터링
-      const lyricActions = actions.filter(
-        (action) => action.time >= lyric.start && action.time < lyric.end
-      );
+  // 현재 활성화된 가사 index 계산
+  const activeIndex = lyricGroups.findIndex(
+    (group) => currentTime >= group.lyric.start && currentTime < group.lyric.end
+  );
 
-      groups.push({
-        lyric,
-        actions: lyricActions,
-      });
-    });
-
-    return groups;
-  };
-
-  const lyricGroups = groupActionsByLyric();
-
-  // 현재 아이템으로 자동 스크롤
+  // 활성 가사로만 스크롤 (타임라인 컨테이너 안에서만)
   useEffect(() => {
-    if (currentItemRef.current) {
-      currentItemRef.current.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
-      });
-    }
-  }, [currentTime]);
+    if (activeIndex === -1) return;
 
-  // 타임라인이 비어있을 때
+    const container = listRef.current;
+    const item = currentItemRef.current;
+    if (!container || !item) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const itemRect = item.getBoundingClientRect();
+
+    const containerHeight = containerRect.height;
+    const itemHeight = itemRect.height;
+
+    // 아이템의 "컨테이너 내부 기준" 위치
+    const offsetWithinContainer = itemRect.top - containerRect.top;
+
+    // 현재 scrollTop을 기준으로 중앙에 맞도록 목표 값 계산
+    const targetScrollTop =
+      container.scrollTop + offsetWithinContainer - containerHeight / 2 + itemHeight / 2;
+
+    container.scrollTo({
+      top: targetScrollTop,
+      behavior: 'smooth',
+    });
+  }, [activeIndex]); // currentTime 대신 activeIndex 기준으로만 이동
+
   if (lyricGroups.length === 0) {
     return (
       <div className="viz-timeline">
@@ -63,16 +72,14 @@ const Timeline = ({ lyrics, actions, currentTime, currentAction }: TimelineProps
   return (
     <div className="viz-timeline">
       <h3 className="viz-timeline-title">타임라인</h3>
-      <div className="viz-timeline-list">
+      <div className="viz-timeline-list" ref={listRef}>
         {lyricGroups.map((group, idx) => {
-          // 현재 가사 구간인지 판단
-          const isActive =
-            currentTime >= group.lyric.start &&
-            currentTime < group.lyric.end;
+          const isActive = idx === activeIndex;
 
           return (
             <LyricSection
               key={`lyric-${idx}`}
+              // 활성 섹션에만 ref 연결
               ref={isActive ? currentItemRef : null}
               lyric={group.lyric}
               actions={group.actions}

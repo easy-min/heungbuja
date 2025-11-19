@@ -8,6 +8,17 @@
   padding: 20px;
 }
 
+/* 재생 컨트롤만 화면에 고정시키는 래퍼 */
+.viz-controls-sticky {
+  position: sticky;
+  /* 상단 여백: 상단 페이지 헤더(대시보드로 돌아가기 + 곡 선택) 높이를 고려해서 조정 */
+  top: 70px;              /* 필요에 따라 60~100px 사이로 맞춰 보세요 */
+  z-index: 20;
+  background: #ffffff;
+  /* 위·아래와 자연스럽게 이어지도록 보더/섀도우는 상황 보고 조정 */
+}
+
+
 .viz-page-header {
   max-width: 1200px;
   margin: 0 auto 30px;

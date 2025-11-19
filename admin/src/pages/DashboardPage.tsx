@@ -28,9 +28,13 @@ import '../styles/device-user.css';
 
 const useMockData = import.meta.env.VITE_USE_MOCK === 'true';
 
+type DashboardTab = 'admin' | 'developer';
+
 const DashboardPage = () => {
   const navigate = useNavigate();
 
+  const [activeTab, setActiveTab] = useState<DashboardTab>('admin');
+  
   // 모달 상태
   const [isDeviceModalOpen, setIsDeviceModalOpen] = useState(false);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
@@ -171,65 +175,52 @@ const DashboardPage = () => {
   return (
     <div className="dashboard-container">
       <div className="dashboard-content">
-        {/* 헤더 */}
-        <DashboardHeader onNotificationClick={handleNotificationClick} />
 
-        {/* 등록 버튼 */}
-        <div className="section">
-          <Button
-            variant="primary"
-            onClick={() => setIsDeviceModalOpen(true)}
-            style={{ marginRight: '10px' }}
-          >
-            📱 기기 등록
-          </Button>
-          <Button
-            variant="success"
-            onClick={() => setIsUserModalOpen(true)}
-            style={{ marginRight: '10px' }}
-          >
-            👴 어르신 등록
-          </Button>
-          <Button
-            variant="primary"
-            onClick={() => navigate('/visualization')}
-            style={{ marginRight: '10px' }}
-          >
-            🎵 곡 시각화
-          </Button>
-          <Button
-            variant="success"
-            onClick={() => setIsSongUploadModalOpen(true)}
-          >
-            🎵 곡 간편 등록
-          </Button>
-        </div>
+        <DashboardHeader 
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          onNotificationClick={handleNotificationClick}
+        />
 
-        {/* 신고 리스트 */}
-        <div className="section">
-          <SectionTitle>📊 실시간 신고 리스트</SectionTitle>
-          <EmergencyList
-            reports={showAllEmergencies ? reports : reports.slice(0, 4)}
-            onResolve={handleResolveEmergency}
-            isLoading={isLoadingReports}
-          />
-          {reports.length > 4 && (
-            <div style={{ textAlign: 'center', marginTop: '20px' }}>
-              <Button
-                variant="secondary"
-                onClick={() => setShowAllEmergencies(!showAllEmergencies)}
-              >
-                {showAllEmergencies ? '접기' : `더 보기 (${reports.length - 4}개)`}
-              </Button>
-            </div>
-          )}
-        </div>
+                    {/* 관리자 / 개발자 탭 별 본문 */}
+      {activeTab === 'admin' && (
+        <>
+          {/* 등록 버튼 - 관리자용 */}
+          <div className="section">
+            <Button
+              variant="primary"
+              onClick={() => setIsDeviceModalOpen(true)}
+              style={{ marginRight: '10px' }}
+            >
+              📱 기기 등록
+            </Button>
+            <Button
+              variant="success"
+              onClick={() => setIsUserModalOpen(true)}
+            >
+              👴 어르신 등록
+            </Button>
+          </div>
 
-        {/* 어르신 현황 */}
-        {/* <div className="section">
-          <SectionTitle>🧑‍🦳 담당 어르신 현황</SectionTitle>
-          <UserGrid users={users} isLoading={isLoadingUsers} />
-        </div> */}
+          {/* 신고 리스트 */}
+          <div className="section">
+            <SectionTitle>📊 실시간 신고 리스트</SectionTitle>
+            <EmergencyList
+              reports={showAllEmergencies ? reports : reports.slice(0, 4)}
+              onResolve={handleResolveEmergency}
+              isLoading={isLoadingReports}
+            />
+            {reports.length > 4 && (
+              <div style={{ textAlign: 'center', marginTop: '20px' }}>
+                <Button
+                  variant="secondary"
+                  onClick={() => setShowAllEmergencies(!showAllEmergencies)}
+                >
+                  {showAllEmergencies ? '접기' : `더 보기 (${reports.length - 4}개)`}
+                </Button>
+              </div>
+            )}
+          </div>
 
         {/* 기기-사용자 관리 */}
         <div className="section">
@@ -237,18 +228,42 @@ const DashboardPage = () => {
           <DeviceUserGrid />
         </div>
 
-        {/* 활동 피드 */}
-        {/* <div className="section">
-          <SectionTitle>📝 활동 피드</SectionTitle>
-          <ActivityFeed activities={activities} />
-        </div> */}
+          {/* WebSocket 상태 */}
+          <WebSocketStatus 
+            isConnected={isConnected} 
+            isConnecting={isConnecting} 
+          />
+        </>
+      )}
 
-        {/* WebSocket 상태 */}
-        <WebSocketStatus 
-          isConnected={isConnected} 
-          isConnecting={isConnecting} 
-        />
-      </div>
+      {activeTab === 'developer' && (
+        <>
+          {/* 개발자용: 곡 관련 기능 */}
+          <div className="section">
+            <SectionTitle>🎧 개발자 도구</SectionTitle>
+            <Button
+              variant="primary"
+              onClick={() => navigate('/visualization')}
+              style={{ marginRight: '10px' }}
+            >
+              🎵 곡 시각화
+            </Button>
+            <Button
+              variant="success"
+              onClick={() => setIsSongUploadModalOpen(true)}
+            >
+              🎵 곡 간편 등록
+            </Button>
+          </div>
+
+          {/* 필요하다면 향후 로그 / 설정 등 개발자용 섹션 추가 가능 */}
+          {/* <div className="section">
+            <SectionTitle>⚙ 시스템 상태</SectionTitle>
+            ...
+          </div> */}
+        </>
+      )}
+    </div>
 
       {/* 모달들 */}
       <DeviceRegisterModal

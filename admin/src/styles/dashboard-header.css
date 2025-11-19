@@ -57,3 +57,52 @@
     transform: scale(1.1);
   }
 }
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.header-tabs {
+  display: flex;
+  gap: 10px;
+  /* background: rgba(255, 255, 255, 0.15); */
+  padding: 6px;
+  border-radius: 12px;
+  backdrop-filter: blur(6px);
+}
+
+.header-tab {
+  padding: 8px 20px;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.7);
+  border: none;
+  color: #333;
+  font-weight: 500;
+  transition: all 0.25s ease;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+}
+
+.header-tab:hover {
+  background: white;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+}
+
+/* 활성 상태 */
+.header-tab--active {
+  background: #2563eb;
+  color: white;
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.4);
+  transform: translateY(-1px);
+}
+
+/* 활성 탭 hover */
+.header-tab--active:hover {
+  background: #1d4ed8;
+  box-shadow: 0 3px 8px rgba(29, 78, 216, 0.45);
+}
+
