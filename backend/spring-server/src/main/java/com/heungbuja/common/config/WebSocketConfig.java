@@ -21,7 +21,10 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws")
                 .setAllowedOriginPatterns("*")
-                .withSockJS();
+                .withSockJS()
+                .setStreamBytesLimit(10 * 1024 * 1024)  // SockJS 스트림 크기 제한: 10MB
+                .setHttpMessageCacheSize(10000)         // 메시지 캐시 크기
+                .setDisconnectDelay(30 * 1000);         // 연결 끊김 지연: 30초
     }
 
     @Override
