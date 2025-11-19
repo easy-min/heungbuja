@@ -1,37 +1,141 @@
-"""Brandnew 모션 추론 서비스 - 새로운 모델 전용."""
+"""Brandnew 모션 추론 서비스 - 독립적인 구현 (test_server_simulation.py 기반)"""
 
 from __future__ import annotations
 
+import base64
 import logging
 import os
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import Sequence
+from time import perf_counter
+from typing import List, Sequence
 
+import cv2
+import mediapipe as mp
 import numpy as np
 import torch
-
-from app.services.inference import (
-    InferenceResult,
-    MotionGCNCNN,
-    PoseExtractor,
-)
+import torch.nn as nn
+import torch.nn.functional as F
 
 LOGGER = logging.getLogger(__name__)
 
 
+@dataclass
+class InferenceResult:
+    predicted_label: str
+    confidence: float
+    judgment: int
+    decode_time_ms: float
+    pose_time_ms: float
+    inference_time_ms: float
+    action_code: int | None
+    target_probability: float | None = None
+
+
+# ============================================================================
+# 모델 구조 정의 (test_server_simulation.py와 완전히 동일)
+# ============================================================================
+
+class GCNLayer(nn.Module):
+    """GCN 레이어 - adjacency를 그대로 사용 (softmax 없음!)"""
+
+    def __init__(self, in_features: int, out_features: int, adjacency: torch.Tensor, dropout: float = 0.0):
+        super().__init__()
+        self.linear = nn.Linear(in_features, out_features)
+        self.dropout = nn.Dropout(dropout)
+        self.norm = nn.LayerNorm(out_features)
+        # ✅ adjacency를 buffer로 등록 (학습 안 됨, checkpoint에서 로드된 값 그대로 사용)
+        self.register_buffer("adjacency", adjacency)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # ✅ softmax 없이 그대로 사용!
+        agg = torch.einsum("ij,btnf->btif", self.adjacency, x)
+        out = self.linear(agg)
+        out = self.dropout(out)
+        out = self.norm(out)
+        return out
+
+
+class TemporalCNN(nn.Module):
+    """시계열 CNN 블록"""
+
+    def __init__(self, in_channels: int, hidden_channels: Sequence[int], kernel_size: int = 3, dropout: float = 0.2):
+        super().__init__()
+        layers: List[nn.Module] = []
+        prev = in_channels
+        padding = kernel_size // 2
+        for channels in hidden_channels:
+            layers.extend([
+                nn.Conv1d(prev, channels, kernel_size=kernel_size, padding=padding),
+                nn.BatchNorm1d(channels),
+                nn.ReLU(inplace=True),
+                nn.Dropout(dropout),
+            ])
+            prev = channels
+        self.network = nn.Sequential(*layers)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        out = self.network(x)
+        return out.mean(dim=-1)
+
+
+class GCNTemporalModel(nn.Module):
+    """GCN + Temporal CNN 모델 (학습 코드와 동일한 구조)"""
+
+    def __init__(self, input_dim: int, num_classes: int, adjacency: torch.Tensor,
+                 gcn_hidden_dims: Sequence[int] = (64, 128),
+                 temporal_channels: Sequence[int] = (128, 256),
+                 dropout: float = 0.3) -> None:
+        super().__init__()
+        self.gcn_layers = nn.ModuleList()
+        prev_dim = input_dim
+        for hidden_dim in gcn_hidden_dims:
+            self.gcn_layers.append(GCNLayer(prev_dim, hidden_dim, adjacency, dropout=dropout))
+            prev_dim = hidden_dim
+
+        self.temporal_cnn = TemporalCNN(prev_dim, temporal_channels, dropout=dropout)
+        temporal_out_dim = temporal_channels[-1] if temporal_channels else prev_dim
+
+        self.classifier = nn.Sequential(
+            nn.Linear(temporal_out_dim, temporal_out_dim),
+            nn.ReLU(inplace=True),
+            nn.Dropout(dropout),
+            nn.Linear(temporal_out_dim, num_classes),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        for gcn in self.gcn_layers:
+            x = F.relu(gcn(x))
+        x = x.mean(dim=2)
+        x = x.permute(0, 2, 1)
+        features = self.temporal_cnn(x)
+        logits = self.classifier(features)
+        return logits
+
+
+# ============================================================================
+# MediaPipe Pose 추출기
+# ============================================================================
+
+class PoseExtractor:
+    """MediaPipe Pose 추출"""
+
+    def __init__(self) -> None:
+        self._pose = mp.solutions.pose.Pose(
+            static_image_mode=True,
+            model_complexity=1,
+            enable_segmentation=False,
+            min_detection_confidence=0.5,
+        )
+
+
+# ============================================================================
+# Brandnew 추론 서비스
+# ============================================================================
+
 class BrandnewMotionInferenceService:
-    """
-    Brandnew 모델 전용 추론 서비스
-
-    기존 모델과 클래스 매핑이 다르므로 별도 구현 필요:
-
-    Brandnew 모델 클래스 순서:
-      0: CLAP, 1: ELBOW, 2: EXIT, 3: STAY, 4: STRETCH, 5: TILT, 6: UNDERARM
-
-    기존 모델 클래스 순서:
-      0: CLAP, 1: ELBOW, 2: STRETCH, 3: TILT, 4: EXIT, 5: UNDERARM, 6: STAY
-    """
+    """Brandnew 모델 전용 추론 서비스 - 독립적인 구현"""
 
     def __init__(self, model_path: Path, device: str | None = None) -> None:
         checkpoint = torch.load(model_path, map_location="cpu", weights_only=False)
@@ -53,16 +157,19 @@ class BrandnewMotionInferenceService:
 
         LOGGER.info("Brandnew model class mapping: %s", self.id_to_label)
 
+        # 모델 파라미터
         gcn_hidden_dims = args.get("gcn_hidden_dims", [64, 128])
         temporal_channels = args.get("temporal_channels", [128, 256])
         dropout = float(args.get("dropout", 0.3))
+        adjacency = checkpoint["model_state_dict"]["gcn_layers.0.adjacency"]
 
-        self.model = MotionGCNCNN(
-            num_nodes=checkpoint["model_state_dict"]["gcn_layers.0.adjacency"].shape[0],
+        # ✅ 독립적인 모델 구조 사용!
+        self.model = GCNTemporalModel(
             input_dim=checkpoint["model_state_dict"]["gcn_layers.0.linear.weight"].shape[1],
+            num_classes=len(class_mapping),
+            adjacency=adjacency,
             gcn_hidden_dims=gcn_hidden_dims,
             temporal_channels=temporal_channels,
-            num_classes=len(self.class_mapping),
             dropout=dropout,
         )
         self.model.load_state_dict(checkpoint["model_state_dict"])
@@ -71,27 +178,24 @@ class BrandnewMotionInferenceService:
 
         self.pose_extractor = PoseExtractor()
 
-        # Brandnew 모델용 매핑 (CLAP 제외 버전)
-        # Model: 0:ELBOW, 1:EXIT, 2:STAY, 3:STRETCH, 4:TILT, 5:UNDERARM
-        # DB actionCode → Model class_index
+        # DB actionCode → Model class_index 매핑 (실제 모델 기준으로 수정 필요)
+        # 실제 모델: 0: ELBOW, 1: EXIT, 2: STAY, 3: STRETCH, 4: TILT, 5: UNDERARM
         self.ACTION_CODE_TO_CLASS_INDEX = {
-            2: 0,  # 팔 치기 → ELBOW
-            4: 3,  # 팔 뻗기 → STRETCH
-            5: 4,  # 기우뚱 → TILT
-            6: 1,  # 비상구 → EXIT
-            7: 5,  # 겨드랑이박수 → UNDERARM
-            9: 2,  # 가만히 있음 → STAY
+            2: self.class_mapping.get("ELBOW"),      # 팔 치기 → ELBOW
+            4: self.class_mapping.get("STRETCH"),    # 팔 뻗기 → STRETCH
+            5: self.class_mapping.get("TILT"),       # 기우뚱 → TILT
+            6: self.class_mapping.get("EXIT"),       # 비상구 → EXIT
+            7: self.class_mapping.get("UNDERARM"),   # 겨드랑이박수 → UNDERARM
+            9: self.class_mapping.get("STAY"),       # 가만히 있음 → STAY
         }
 
-        # Model class_index → DB actionCode
-        self.CLASS_INDEX_TO_ACTION_CODE = {
-            0: 2,  # ELBOW → 팔 치기
-            1: 6,  # EXIT → 비상구
-            2: 9,  # STAY → 가만히 있음
-            3: 4,  # STRETCH → 팔 뻗기
-            4: 5,  # TILT → 기우뚱
-            5: 7,  # UNDERARM → 겨드랑이박수
-        }
+        # Model class_index → DB actionCode (역매핑)
+        self.CLASS_INDEX_TO_ACTION_CODE = {}
+        for action_code, class_idx in self.ACTION_CODE_TO_CLASS_INDEX.items():
+            if class_idx is not None:
+                self.CLASS_INDEX_TO_ACTION_CODE[class_idx] = action_code
+
+        LOGGER.info("Brandnew ACTION_CODE mapping: %s", self.ACTION_CODE_TO_CLASS_INDEX)
 
     def predict(
         self,
@@ -105,9 +209,7 @@ class BrandnewMotionInferenceService:
 
         # 전처리: 학습과 동일한 방식으로 전체 시퀀스 정규화
         sampled_frames = self._sample_frames(frames, self.frames_per_sample)
-        keypoint_sequence, decode_time_s, pose_time_s = self._frames_to_keypoints_corrected(
-            sampled_frames
-        )
+        keypoint_sequence, decode_time_s, pose_time_s = self._frames_to_keypoints(sampled_frames)
 
         LOGGER.info("🔍 Brandnew - Keypoint sequence shape: %s", keypoint_sequence.shape)
 
@@ -115,8 +217,6 @@ class BrandnewMotionInferenceService:
         input_tensor = input_tensor.to(self.device)
 
         with torch.no_grad():
-            from time import perf_counter
-
             inference_start = perf_counter()
             logits = self.model(input_tensor)
             inference_time_ms = (perf_counter() - inference_start) * 1000
@@ -124,7 +224,6 @@ class BrandnewMotionInferenceService:
 
             LOGGER.info("🔍 Brandnew - Logits: %s", logits.cpu().numpy()[0])
             LOGGER.info("🔍 Brandnew - Probabilities: %s", probabilities)
-            LOGGER.info("🔍 Brandnew - Class mapping: %s", self.id_to_label)
 
         decode_time_ms = decode_time_s * 1000
         pose_time_ms = pose_time_s * 1000
@@ -154,7 +253,7 @@ class BrandnewMotionInferenceService:
             total_time_ms,
         )
 
-        # actionCode 변환 (Brandnew 매핑 사용)
+        # actionCode 변환
         if target_action_code is not None:
             resolved_action_code = target_action_code
         else:
@@ -224,19 +323,8 @@ class BrandnewMotionInferenceService:
         else:
             return 0
 
-    def _frames_to_keypoints_corrected(self, frames: Sequence[str]):
-        """
-        프레임을 키포인트 시퀀스로 변환 (학습과 동일한 정규화 사용)
-
-        핵심 차이점:
-        - 기존: 각 프레임별로 개별 정규화
-        - 수정: 전체 시퀀스를 모아서 한 번에 정규화 (학습과 동일)
-        - 이미지 처리: cv2 사용 (학습 데이터 생성과 동일)
-        """
-        import base64
-        import cv2
-        from time import perf_counter
-
+    def _frames_to_keypoints(self, frames: Sequence[str]):
+        """프레임을 키포인트 시퀀스로 변환 (test_server_simulation.py와 동일)"""
         raw_landmarks_list = []
         decode_elapsed = 0.0
         pose_elapsed = 0.0
@@ -246,41 +334,32 @@ class BrandnewMotionInferenceService:
         for encoded in frames:
             total_count += 1
 
-            # 이미지 디코딩 (cv2 방식 - 학습 데이터 생성과 동일)
+            # 이미지 디코딩 (cv2 방식)
             decode_start = perf_counter()
             try:
                 image_data = base64.b64decode(encoded)
             except Exception as exc:
                 raise ValueError("Base64 디코딩에 실패했습니다.") from exc
 
-            # cv2로 이미지 로드 (학습 데이터 생성 시와 동일한 방식)
             nparr = np.frombuffer(image_data, np.uint8)
             image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
             if image is None:
                 raise ValueError("이미지 디코딩에 실패했습니다.")
 
-            # BGR → RGB 변환 (MediaPipe는 RGB 필요)
             image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-
             decode_elapsed += perf_counter() - decode_start
 
-            # Pose 추출 (raw, 정규화 안 함)
+            # Pose 추출
             pose_start = perf_counter()
             results = self.pose_extractor._pose.process(image_rgb)
             pose_elapsed += perf_counter() - pose_start
 
             if not results.pose_landmarks:
-                # Person not detected - skip this frame
                 continue
 
-            # 33 landmarks 추출 (raw)
             landmarks = results.pose_landmarks.landmark
-            all_coords = np.array(
-                [(lm.x, lm.y) for lm in landmarks],
-                dtype=np.float32
-            )  # (33, 2)
-
+            all_coords = np.array([(lm.x, lm.y) for lm in landmarks], dtype=np.float32)
             raw_landmarks_list.append(all_coords)
             valid_count += 1
 
@@ -292,26 +371,20 @@ class BrandnewMotionInferenceService:
                 f"카메라에 전신이 보이도록 해주세요."
             )
 
-        LOGGER.info(
-            "📹 Brandnew - 프레임 분석: 유효=%d개, 전체=%d개",
-            valid_count, total_count
-        )
+        LOGGER.info("📹 Brandnew - 프레임 분석: 유효=%d개, 전체=%d개", valid_count, total_count)
 
         # (T, 33, 2) 형태로 스택
         raw_sequence = np.stack(raw_landmarks_list, axis=0)
 
-        # 전체 시퀀스를 한 번에 정규화 (train_gcn_cnn.py와 동일)
+        # 전체 시퀀스를 한 번에 정규화
         normalized_sequence = self._normalize_sequence(raw_sequence)
 
-        decode_time_s = decode_elapsed
-        pose_time_s = pose_elapsed
-
-        return normalized_sequence, decode_time_s, pose_time_s
+        return normalized_sequence, decode_elapsed, pose_elapsed
 
     @staticmethod
     def _normalize_sequence(landmarks_sequence: np.ndarray) -> np.ndarray:
         """
-        시퀀스 전체를 정규화 (train_gcn_cnn.py의 normalize_landmarks와 동일)
+        시퀀스 전체를 정규화 (test_server_simulation.py와 완전히 동일)
 
         Args:
             landmarks_sequence: (T, 33, 2) raw landmarks
@@ -319,19 +392,14 @@ class BrandnewMotionInferenceService:
         Returns:
             (T, 22, 2) normalized body keypoints
         """
-        # Step 1: x, y 좌표만 사용
-        coords = landmarks_sequence[..., :2]  # (T, 33, 2)
-
-        # Step 2: Pelvis (hip 평균)로 중심 정렬
         HIP_INDICES = (23, 24)
-        pelvis = (coords[:, HIP_INDICES[0], :] + coords[:, HIP_INDICES[1], :]) / 2.0  # (T, 2)
-        coords = coords - pelvis[:, None, :]  # (T, 33, 2)
-
-        # Step 3: 신체 랜드마크만 선택 (11-32)
         USED_LANDMARK_INDICES = list(range(11, 33))
-        body_coords = coords[:, USED_LANDMARK_INDICES, :]  # (T, 22, 2)
 
-        # Step 4: 전체 시퀀스의 max norm으로 정규화 (핵심!)
+        coords = landmarks_sequence[..., :2]
+        pelvis = (coords[:, HIP_INDICES[0], :] + coords[:, HIP_INDICES[1], :]) / 2.0
+        coords = coords - pelvis[:, None, :]
+
+        body_coords = coords[:, USED_LANDMARK_INDICES, :]
         max_range = np.max(np.linalg.norm(body_coords, axis=-1, ord=2))
         if max_range < 1e-6:
             max_range = 1.0
