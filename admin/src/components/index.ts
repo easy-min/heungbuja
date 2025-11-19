@@ -19,3 +19,18 @@ export { default as ActivityFeed } from './ActivityFeed';
 export { default as DeviceRegisterModal } from './DeviceRegisterModal';
 export { default as UserRegisterModal } from './UserRegisterModal';
 export { default as EmergencyAlertModal } from './EmergencyAlertModal';
+export { default as SimpleSongUploadModal } from './SimpleSongUploadModal';
+
+// 시각화 컴포넌트들
+export { default as SongSelector } from './visualization/SongSelector';
+export { default as VisualizationHeader } from './visualization/VisualizationHeader';
+export { default as PlaybackControls } from './visualization/PlaybackControls';
+export { default as SectionDisplay } from './visualization/SectionDisplay';
+export { default as ProgressBar } from './visualization/ProgressBar';
+export { default as KaraokeLyrics } from './visualization/KaraokeLyrics';
+export { default as ActionIndicator } from './visualization/ActionIndicator';
+export { default as MetronomeVisualizer } from './visualization/MetronomeVisualizer';
+export { default as Timeline } from './visualization/Timeline';
+export { default as TimelineItem } from './visualization/TimelineItem';
+export { default as LyricSection } from './visualization/LyricSection';
+export { default as ActionChip } from './visualization/ActionChip';

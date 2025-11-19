@@ -1,0 +1,561 @@
+{
+  "song": "[Official Audio] 서주경(Seo Joo Kyung) - 당돌한 여자.mp3",
+  "meta": {
+    "song": "[Official Audio] 서주경(Seo Joo Kyung) - 당돌한 여자.mp3",
+    "source_json": "당돌한여자_섹션추가.json",
+    "audio_length_sec": null,
+    "avg_beat_sec": 0.461569,
+    "avg_bar_sec": 1.846275,
+    "unit": "4-bars(16beat)",
+    "verse1_bar_range": [
+      17,
+      56
+    ],
+    "verse2_bar_range": [
+      74,
+      115
+    ]
+  },
+  "versions": [
+    {
+      "id": "v_a_b1",
+      "desc": "1절 a(16beat) / 2절 b1(16beat)",
+      "actions": [
+        {
+          "section": "verse1",
+          "action": "a",
+          "unit": "4-bars(16beat)",
+          "blocks": [
+            {
+              "bar_start": 17,
+              "bar_end": 20,
+              "beat_start": 65,
+              "beat_end": 80,
+              "t_start": 33.693152,
+              "t_end": 41.073152
+            },
+            {
+              "bar_start": 21,
+              "bar_end": 24,
+              "beat_start": 81,
+              "beat_end": 96,
+              "t_start": 41.073152,
+              "t_end": 48.473152
+            },
+            {
+              "bar_start": 25,
+              "bar_end": 28,
+              "beat_start": 97,
+              "beat_end": 112,
+              "t_start": 48.473152,
+              "t_end": 55.853152
+            },
+            {
+              "bar_start": 29,
+              "bar_end": 32,
+              "beat_start": 113,
+              "beat_end": 128,
+              "t_start": 55.853152,
+              "t_end": 63.243152
+            },
+            {
+              "bar_start": 33,
+              "bar_end": 36,
+              "beat_start": 129,
+              "beat_end": 144,
+              "t_start": 63.243152,
+              "t_end": 70.623152
+            },
+            {
+              "bar_start": 37,
+              "bar_end": 40,
+              "beat_start": 145,
+              "beat_end": 160,
+              "t_start": 70.623152,
+              "t_end": 78.013152
+            },
+            {
+              "bar_start": 41,
+              "bar_end": 44,
+              "beat_start": 161,
+              "beat_end": 176,
+              "t_start": 78.013152,
+              "t_end": 85.393152
+            },
+            {
+              "bar_start": 45,
+              "bar_end": 48,
+              "beat_start": 177,
+              "beat_end": 192,
+              "t_start": 85.393152,
+              "t_end": 92.783152
+            },
+            {
+              "bar_start": 49,
+              "bar_end": 52,
+              "beat_start": 193,
+              "beat_end": 208,
+              "t_start": 92.783152,
+              "t_end": 100.173152
+            },
+            {
+              "bar_start": 53,
+              "bar_end": 56,
+              "beat_start": 209,
+              "beat_end": 224,
+              "t_start": 100.173152,
+              "t_end": 107.554721
+            }
+          ]
+        },
+        {
+          "section": "verse2",
+          "action": "b1",
+          "unit": "4-bars(16beat)",
+          "blocks": [
+            {
+              "bar_start": 74,
+              "bar_end": 77,
+              "beat_start": 293,
+              "beat_end": 308,
+              "t_start": 138.953152,
+              "t_end": 146.333152
+            },
+            {
+              "bar_start": 78,
+              "bar_end": 81,
+              "beat_start": 309,
+              "beat_end": 324,
+              "t_start": 146.333152,
+              "t_end": 153.733152
+            },
+            {
+              "bar_start": 82,
+              "bar_end": 85,
+              "beat_start": 325,
+              "beat_end": 340,
+              "t_start": 153.733152,
+              "t_end": 161.113152
+            },
+            {
+              "bar_start": 86,
+              "bar_end": 89,
+              "beat_start": 341,
+              "beat_end": 356,
+              "t_start": 161.113152,
+              "t_end": 168.503152
+            },
+            {
+              "bar_start": 90,
+              "bar_end": 93,
+              "beat_start": 357,
+              "beat_end": 372,
+              "t_start": 168.503152,
+              "t_end": 175.883152
+            },
+            {
+              "bar_start": 94,
+              "bar_end": 97,
+              "beat_start": 373,
+              "beat_end": 388,
+              "t_start": 175.883152,
+              "t_end": 183.273152
+            },
+            {
+              "bar_start": 98,
+              "bar_end": 101,
+              "beat_start": 389,
+              "beat_end": 404,
+              "t_start": 183.273152,
+              "t_end": 190.663152
+            },
+            {
+              "bar_start": 102,
+              "bar_end": 105,
+              "beat_start": 405,
+              "beat_end": 420,
+              "t_start": 190.663152,
+              "t_end": 198.043152
+            },
+            {
+              "bar_start": 106,
+              "bar_end": 109,
+              "beat_start": 421,
+              "beat_end": 436,
+              "t_start": 198.043152,
+              "t_end": 205.433152
+            },
+            {
+              "bar_start": 110,
+              "bar_end": 113,
+              "beat_start": 437,
+              "beat_end": 452,
+              "t_start": 205.433152,
+              "t_end": 212.813152
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "v_a_b2",
+      "desc": "1절 a(16beat) / 2절 b2(16beat)",
+      "actions": [
+        {
+          "section": "verse1",
+          "action": "a",
+          "unit": "4-bars(16beat)",
+          "blocks": [
+            {
+              "bar_start": 17,
+              "bar_end": 20,
+              "beat_start": 65,
+              "beat_end": 80,
+              "t_start": 33.693152,
+              "t_end": 41.073152
+            },
+            {
+              "bar_start": 21,
+              "bar_end": 24,
+              "beat_start": 81,
+              "beat_end": 96,
+              "t_start": 41.073152,
+              "t_end": 48.473152
+            },
+            {
+              "bar_start": 25,
+              "bar_end": 28,
+              "beat_start": 97,
+              "beat_end": 112,
+              "t_start": 48.473152,
+              "t_end": 55.853152
+            },
+            {
+              "bar_start": 29,
+              "bar_end": 32,
+              "beat_start": 113,
+              "beat_end": 128,
+              "t_start": 55.853152,
+              "t_end": 63.243152
+            },
+            {
+              "bar_start": 33,
+              "bar_end": 36,
+              "beat_start": 129,
+              "beat_end": 144,
+              "t_start": 63.243152,
+              "t_end": 70.623152
+            },
+            {
+              "bar_start": 37,
+              "bar_end": 40,
+              "beat_start": 145,
+              "beat_end": 160,
+              "t_start": 70.623152,
+              "t_end": 78.013152
+            },
+            {
+              "bar_start": 41,
+              "bar_end": 44,
+              "beat_start": 161,
+              "beat_end": 176,
+              "t_start": 78.013152,
+              "t_end": 85.393152
+            },
+            {
+              "bar_start": 45,
+              "bar_end": 48,
+              "beat_start": 177,
+              "beat_end": 192,
+              "t_start": 85.393152,
+              "t_end": 92.783152
+            },
+            {
+              "bar_start": 49,
+              "bar_end": 52,
+              "beat_start": 193,
+              "beat_end": 208,
+              "t_start": 92.783152,
+              "t_end": 100.173152
+            },
+            {
+              "bar_start": 53,
+              "bar_end": 56,
+              "beat_start": 209,
+              "beat_end": 224,
+              "t_start": 100.173152,
+              "t_end": 107.554721
+            }
+          ]
+        },
+        {
+          "section": "verse2",
+          "action": "b2",
+          "unit": "4-bars(16beat)",
+          "blocks": [
+            {
+              "bar_start": 74,
+              "bar_end": 77,
+              "beat_start": 293,
+              "beat_end": 308,
+              "t_start": 138.953152,
+              "t_end": 146.333152
+            },
+            {
+              "bar_start": 78,
+              "bar_end": 81,
+              "beat_start": 309,
+              "beat_end": 324,
+              "t_start": 146.333152,
+              "t_end": 153.733152
+            },
+            {
+              "bar_start": 82,
+              "bar_end": 85,
+              "beat_start": 325,
+              "beat_end": 340,
+              "t_start": 153.733152,
+              "t_end": 161.113152
+            },
+            {
+              "bar_start": 86,
+              "bar_end": 89,
+              "beat_start": 341,
+              "beat_end": 356,
+              "t_start": 161.113152,
+              "t_end": 168.503152
+            },
+            {
+              "bar_start": 90,
+              "bar_end": 93,
+              "beat_start": 357,
+              "beat_end": 372,
+              "t_start": 168.503152,
+              "t_end": 175.883152
+            },
+            {
+              "bar_start": 94,
+              "bar_end": 97,
+              "beat_start": 373,
+              "beat_end": 388,
+              "t_start": 175.883152,
+              "t_end": 183.273152
+            },
+            {
+              "bar_start": 98,
+              "bar_end": 101,
+              "beat_start": 389,
+              "beat_end": 404,
+              "t_start": 183.273152,
+              "t_end": 190.663152
+            },
+            {
+              "bar_start": 102,
+              "bar_end": 105,
+              "beat_start": 405,
+              "beat_end": 420,
+              "t_start": 190.663152,
+              "t_end": 198.043152
+            },
+            {
+              "bar_start": 106,
+              "bar_end": 109,
+              "beat_start": 421,
+              "beat_end": 436,
+              "t_start": 198.043152,
+              "t_end": 205.433152
+            },
+            {
+              "bar_start": 110,
+              "bar_end": 113,
+              "beat_start": 437,
+              "beat_end": 452,
+              "t_start": 205.433152,
+              "t_end": 212.813152
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "v_a_b3",
+      "desc": "1절 a(16beat) / 2절 b3(16beat)",
+      "actions": [
+        {
+          "section": "verse1",
+          "action": "a",
+          "unit": "4-bars(16beat)",
+          "blocks": [
+            {
+              "bar_start": 17,
+              "bar_end": 20,
+              "beat_start": 65,
+              "beat_end": 80,
+              "t_start": 33.693152,
+              "t_end": 41.073152
+            },
+            {
+              "bar_start": 21,
+              "bar_end": 24,
+              "beat_start": 81,
+              "beat_end": 96,
+              "t_start": 41.073152,
+              "t_end": 48.473152
+            },
+            {
+              "bar_start": 25,
+              "bar_end": 28,
+              "beat_start": 97,
+              "beat_end": 112,
+              "t_start": 48.473152,
+              "t_end": 55.853152
+            },
+            {
+              "bar_start": 29,
+              "bar_end": 32,
+              "beat_start": 113,
+              "beat_end": 128,
+              "t_start": 55.853152,
+              "t_end": 63.243152
+            },
+            {
+              "bar_start": 33,
+              "bar_end": 36,
+              "beat_start": 129,
+              "beat_end": 144,
+              "t_start": 63.243152,
+              "t_end": 70.623152
+            },
+            {
+              "bar_start": 37,
+              "bar_end": 40,
+              "beat_start": 145,
+              "beat_end": 160,
+              "t_start": 70.623152,
+              "t_end": 78.013152
+            },
+            {
+              "bar_start": 41,
+              "bar_end": 44,
+              "beat_start": 161,
+              "beat_end": 176,
+              "t_start": 78.013152,
+              "t_end": 85.393152
+            },
+            {
+              "bar_start": 45,
+              "bar_end": 48,
+              "beat_start": 177,
+              "beat_end": 192,
+              "t_start": 85.393152,
+              "t_end": 92.783152
+            },
+            {
+              "bar_start": 49,
+              "bar_end": 52,
+              "beat_start": 193,
+              "beat_end": 208,
+              "t_start": 92.783152,
+              "t_end": 100.173152
+            },
+            {
+              "bar_start": 53,
+              "bar_end": 56,
+              "beat_start": 209,
+              "beat_end": 224,
+              "t_start": 100.173152,
+              "t_end": 107.554721
+            }
+          ]
+        },
+        {
+          "section": "verse2",
+          "action": "b3",
+          "unit": "4-bars(16beat)",
+          "blocks": [
+            {
+              "bar_start": 74,
+              "bar_end": 77,
+              "beat_start": 293,
+              "beat_end": 308,
+              "t_start": 138.953152,
+              "t_end": 146.333152
+            },
+            {
+              "bar_start": 78,
+              "bar_end": 81,
+              "beat_start": 309,
+              "beat_end": 324,
+              "t_start": 146.333152,
+              "t_end": 153.733152
+            },
+            {
+              "bar_start": 82,
+              "bar_end": 85,
+              "beat_start": 325,
+              "beat_end": 340,
+              "t_start": 153.733152,
+              "t_end": 161.113152
+            },
+            {
+              "bar_start": 86,
+              "bar_end": 89,
+              "beat_start": 341,
+              "beat_end": 356,
+              "t_start": 161.113152,
+              "t_end": 168.503152
+            },
+            {
+              "bar_start": 90,
+              "bar_end": 93,
+              "beat_start": 357,
+              "beat_end": 372,
+              "t_start": 168.503152,
+              "t_end": 175.883152
+            },
+            {
+              "bar_start": 94,
+              "bar_end": 97,
+              "beat_start": 373,
+              "beat_end": 388,
+              "t_start": 175.883152,
+              "t_end": 183.273152
+            },
+            {
+              "bar_start": 98,
+              "bar_end": 101,
+              "beat_start": 389,
+              "beat_end": 404,
+              "t_start": 183.273152,
+              "t_end": 190.663152
+            },
+            {
+              "bar_start": 102,
+              "bar_end": 105,
+              "beat_start": 405,
+              "beat_end": 420,
+              "t_start": 190.663152,
+              "t_end": 198.043152
+            },
+            {
+              "bar_start": 106,
+              "bar_end": 109,
+              "beat_start": 421,
+              "beat_end": 436,
+              "t_start": 198.043152,
+              "t_end": 205.433152
+            },
+            {
+              "bar_start": 110,
+              "bar_end": 113,
+              "beat_start": 437,
+              "beat_end": 452,
+              "t_start": 205.433152,
+              "t_end": 212.813152
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,623 @@
+/* ============================================
+   모달 오버레이 & 박스
+   ============================================ */
+.modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px; /* 상하좌우 여백 확보 */
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modalBox {
+  background: white;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 460px;
+  max-height: 90vh; /* 핵심! 화면 높이의 90%까지만 */
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 50px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.3s ease-out;
+  overflow: hidden; /* border-radius 적용 */
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ============================================
+   헤더 (항상 고정)
+   ============================================ */
+.modalHeader {
+  position: relative;
+  padding: 28px 24px 24px;
+  text-align: center;
+  flex-shrink: 0; /* 절대 줄어들지 않음 */
+  border-bottom: 1px solid #f0f0f0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.headerContent {
+  position: relative;
+  z-index: 1;
+}
+
+.iconWrapper {
+  margin-bottom: 12px;
+}
+
+.musicIcon {
+  font-size: 48px;
+  display: inline-block;
+  animation: bounce 1s infinite;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+.modalTitle {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+.modalSubtitle {
+  font-size: 14px;
+  opacity: 0.95;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.closeButton {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  font-size: 20px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  z-index: 2;
+}
+
+.closeButton:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: rotate(90deg);
+}
+
+/* ============================================
+   바디 (스크롤 영역)
+   ============================================ */
+.modalBody {
+  padding: 0;
+  overflow-y: auto; /* 세로 스크롤 */
+  flex: 1; /* 남은 공간 모두 차지 */
+  
+  /* 스크롤바 스타일링 */
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e0 transparent;
+}
+
+.modalBody::-webkit-scrollbar {
+  width: 6px;
+}
+
+.modalBody::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.modalBody::-webkit-scrollbar-thumb {
+  background: #cbd5e0;
+  border-radius: 3px;
+}
+
+.modalBody::-webkit-scrollbar-thumb:hover {
+  background: #a0aec0;
+}
+
+.stepContent {
+  padding: 24px;
+}
+
+/* ============================================
+   푸터 (항상 고정)
+   ============================================ */
+.modalFooter {
+  padding: 20px 24px;
+  display: flex;
+  gap: 12px;
+  flex-shrink: 0; /* 절대 줄어들지 않음 */
+  border-top: 1px solid #f0f0f0;
+  background: #fafafa;
+}
+
+/* ============================================
+   입력 필드
+   ============================================ */
+.inputGroup {
+  margin-bottom: 20px;
+}
+
+.label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #333;
+  font-size: 14px;
+}
+
+.input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 2px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 14px;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.input::placeholder {
+  color: #9ca3af;
+}
+
+.hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.4;
+}
+
+/* ============================================
+   파일 업로드
+   ============================================ */
+.hiddenInput {
+  display: none;
+}
+
+.fileInputWrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 2px dashed #cbd5e0;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: #fafafa;
+  min-height: 54px;
+}
+
+.fileInputWrapper:hover {
+  border-color: #667eea;
+  background: #f7f9fc;
+}
+
+.fileInputWrapper.hasFile {
+  border-style: solid;
+  border-color: #2ecc71;
+  background: #f0fdf4;
+  cursor: default;
+}
+
+.uploadIcon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.fileIcon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.placeholder {
+  flex: 1;
+  color: #9ca3af;
+  font-size: 14px;
+}
+
+.fileName {
+  flex: 1;
+  color: #333;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.removeFileButton {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: #ef4444;
+  color: white;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.removeFileButton:hover {
+  background: #dc2626;
+  transform: scale(1.1);
+}
+
+/* ============================================
+   버튼
+   ============================================ */
+.btn {
+  flex: 1;
+  padding: 13px 24px;
+  border: none;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.btnPrimary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.btnPrimary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+}
+
+.btnPrimary:disabled {
+  background: #e5e7eb;
+  color: #9ca3af;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.btnSecondary {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.btnSecondary:hover {
+  background: #e5e7eb;
+}
+
+.btnSuccess {
+  background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(46, 204, 113, 0.3);
+}
+
+.btnSuccess:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(46, 204, 113, 0.4);
+}
+
+.btnSuccess:disabled {
+  background: #e5e7eb;
+  color: #9ca3af;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* ============================================
+   Progress Bar
+   ============================================ */
+.progressContainer {
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.progressBar {
+  width: 100%;
+  height: 40px;
+  background: #f0f0f0;
+  border-radius: 20px;
+  overflow: hidden;
+  margin-bottom: 20px;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.progressFill {
+  height: 100%;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 700;
+  font-size: 14px;
+  transition: width 0.3s ease;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+}
+
+.progressText {
+  font-size: 15px;
+  color: #667eea;
+  font-weight: 600;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* ============================================
+   분석 미리보기
+   ============================================ */
+.summaryCards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.summaryCard {
+  text-align: center;
+  padding: 20px;
+  background: linear-gradient(135deg, #f7f9fc 0%, #eef2f7 100%);
+  border-radius: 12px;
+  border: 2px solid #e5e7eb;
+}
+
+.summaryIcon {
+  font-size: 32px;
+  margin-bottom: 8px;
+}
+
+.summaryValue {
+  font-size: 24px;
+  font-weight: 700;
+  color: #667eea;
+  margin-bottom: 4px;
+}
+
+.summaryLabel {
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.previewSection {
+  margin-bottom: 24px;
+}
+
+.previewTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.badge {
+  display: inline-block;
+  padding: 4px 10px;
+  background: #667eea;
+  color: white;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.beatTimeline,
+.lyricsList {
+  max-height: 240px;
+  overflow-y: auto;
+  border: 2px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 12px;
+  background: #fafafa;
+  
+  /* 스크롤바 */
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e0 transparent;
+}
+
+.beatTimeline::-webkit-scrollbar,
+.lyricsList::-webkit-scrollbar {
+  width: 6px;
+}
+
+.beatTimeline::-webkit-scrollbar-thumb,
+.lyricsList::-webkit-scrollbar-thumb {
+  background: #cbd5e0;
+  border-radius: 3px;
+}
+
+.beatItem {
+  padding: 8px 10px;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  color: #4b5563;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.beatItem:last-child {
+  border-bottom: none;
+}
+
+.lyricsItem {
+  padding: 12px;
+  background: white;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.lyricsItem:last-child {
+  margin-bottom: 0;
+}
+
+.lyricsText {
+  font-weight: 600;
+  color: #2ecc71;
+  margin-bottom: 6px;
+  font-size: 14px;
+}
+
+.lyricsTiming {
+  font-size: 11px;
+  color: #6b7280;
+  font-family: 'Courier New', monospace;
+}
+
+.moreItems {
+  text-align: center;
+  padding: 12px;
+  color: #9ca3af;
+  font-size: 13px;
+  font-style: italic;
+}
+
+/* ============================================
+   완료 화면
+   ============================================ */
+.successContainer {
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.successIcon {
+  font-size: 80px;
+  margin-bottom: 20px;
+  animation: scaleIn 0.5s ease-out;
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.successTitle {
+  font-size: 24px;
+  font-weight: 700;
+  color: #2ecc71;
+  margin: 0 0 24px;
+}
+
+.successInfo {
+  background: #f0fdf4;
+  border: 2px solid #2ecc71;
+  border-radius: 12px;
+  padding: 20px;
+  text-align: left;
+}
+
+.successInfo p {
+  margin: 0 0 12px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #333;
+}
+
+.successInfo p:last-child {
+  margin-bottom: 0;
+}
+
+.successInfo strong {
+  color: #2ecc71;
+  font-weight: 600;
+}
+
+/* ============================================
+   반응형
+   ============================================ */
+@media (max-width: 768px) {
+  .modalBox {
+    max-width: 95vw;
+    max-height: 95vh;
+  }
+
+  .stepContent {
+    padding: 20px 16px;
+  }
+
+  .modalFooter {
+    padding: 16px;
+  }
+
+  .summaryCards {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .modalBox {
+    max-width: 100vw;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .modalHeader {
+    border-radius: 0;
+  }
+
+  .modalTitle {
+    font-size: 20px;
+  }
+
+  .modalSubtitle {
+    font-size: 13px;
+  }
+
+  .modalFooter {
+    flex-direction: column;
+  }
+
+  .btn {
+    width: 100%;
+  }
+}

@@ -4,88 +4,246 @@
   flex-direction: column;
   height: 100vh;
   width: 100vw;
-  background-color: #000;
-  color: #fff;
+  background-color: var(--color-bg);
   overflow: hidden;
 }
 
-/* 상단: 비디오 컨테이너 (80%) */
-.video-container {
-  flex: 8;
+/* 상단: 제목 + 오디오바 */
+.top-container {
   display: flex;
   flex-direction: row;
-  gap: 0;
+  gap: 6px;
+  padding: 8px 30px 0 30px;   
+  justify-content: space-between;
 }
 
-/* 왼쪽: 캐릭터 (50%) */
+/* 노래 정보 (타이틀, 가수) */
+.song-info {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: baseline;
+  margin: 1%;
+  gap: 0.8rem;
+}
+
+.song-info .game-song-title,
+.song-info .game-song-artist {
+  color: var(--color-text) !important;
+}
+
+.game-song-title {
+  font-size: 3rem;
+  font-weight: 800;
+}
+
+.game-song-artist {
+  font-size: 2rem;
+  font-weight: 500;
+}
+
+/* 상단 오디오 재생바 – 상단 전체 폭 사용 */
+.audio-bar {
+  flex: 0 0 auto;
+  width: 50%;
+  background: var(--color-bg);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+.audio-player {
+  width: 100%;
+  display: block;
+}
+
+.game-main {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;       /* 양쪽 컨테이너 높이 맞추기 */
+  overflow: hidden;
+  margin: 0 30px 20px;
+  gap: 10px;
+}
+
+/* 비디오 컨테이너 */
+/* .right-container {
+  flex: 7;
+  display: flex;
+  flex-direction: column;
+} */
+
+.right__main {
+  flex: 7;
+  display: flex;
+  flex-direction: column;
+  border-radius: 30px;
+  height: 100%;
+}
+
+/* 위쪽: 캐릭터 */
 .character-section {
   flex: 1;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   display: flex;
   align-items: center;
   justify-content: center;
-  border-right: 2px solid #fff;
-}
-
-.character-section .placeholder {
-  text-align: center;
-  opacity: 0.7;
-}
-
-.character-section .placeholder h2 {
-  font-size: 2rem;
-  margin-bottom: 10px;
-}
-
-.character-section .placeholder p {
-  font-size: 1.2rem;
-}
-
-/* 오른쪽: 카메라 (50%) */
-.camera-section {
-  flex: 1;
   position: relative;
-  background-color: #1a1a1a;
+}
+
+/* 비디오를 감싸는 박스: 비율 유지 + 크롭 영역 */
+.motion-video-wrapper {
+  width: 100%;
+  /* max-width: 1000px; */
+  aspect-ratio: 9 / 4.8;    /* 원하면 4/3 등으로 변경 */
+  overflow: hidden;
+  border-radius: 30px;
+  background: #000;        /* 비디오 로딩 전 배경 */
+}
+
+/* 실제 비디오: 확대 + 가운데 정렬 */
+.motion-video {
+  width: 100%;             /* 100% → 딱 맞게, 110~130% → 줌 인 */
+  height: 100%;            /* 세로도 같이 키워줌 */
+  object-fit: cover;       /* 비율 유지하면서 박스를 꽉 채우고 남는 부분은 크롭 */
+  transform-origin: center center;
+  /* scale: 얼마나 확대할지, translateX/Y: 어느 방향으로 옮길지 */
+  transform: scale(1.2) translateX(-1%) translateY(-2%);
+  display: block;
+}
+
+/* 동작 이름 말풍선 */
+.action-label-overlay {
+  position: absolute;
+  top: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 14px 32px;
+  border-radius: 999px;
+
+  /* 살짝 그라데이션 + 불투명도 높여서 가독성 강화 */
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.95),
+    rgba(255, 245, 220, 0.95)
+  );
+  color: var(--color-text);
+
+  font-size: 1.8rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  white-space: nowrap;      /* 필요하면 줄바꿈 막기, 두 줄 허용하려면 제거 */
+
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.18),
+    0 0 0 2px rgba(255, 255, 255, 0.9);  /* 테두리 느낌 */
+
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+
+
+.character-section video {
+  border-radius: 20px;
+}
+
+/* 아래쪽: 가사 (20%) */
+.lyrics-container {
+  /* flex: 1; */
   display: flex;
-  align-items: center;
+  flex-direction: column;
   justify-content: center;
+  align-items: center;
+  text-align: center;
+  color: var(--color-bg);
+}
+
+/* 현재 가사: 크게/진하게 */
+.lyrics-current {
+  margin-top: -10px;
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.4;
+  opacity: 1;
+  transition: opacity 150ms ease, transform 150ms ease;
+  word-break: keep-all;
+}
+
+/* 다음 가사: 작게/연하게 */
+.lyrics-next {
+  margin-top: 6px;
+  font-size: 1.4rem;
+  opacity: 0.45;
+  line-height: 1.35;
+  word-break: keep-all;
+}
+
+
+/*카메라 컨테이너 */
+.left-container {
+  flex: 2;
+  display: flex;
+  flex-direction: column;
+}
+
+.left__main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-secondary);
+  border-radius: 30px;
+}
+
+/* 위쪽: 카메라 */
+.camera-section {
+  flex: 4;
+  position: relative;
+  display: flex;
+  align-items: flex-start; 
+  justify-content: center;
+  margin-top: 5%;
 }
 
 .camera-video {
-  width: 100%;
-  height: 100%;
+  width: 90%;
+  height: auto;
   object-fit: cover;
   transform: scaleX(-1); /* 거울 효과 */
+  border-radius: 20px;
 }
 
 .capture-canvas {
   display: none;
 }
 
-/* 세그먼트 정보 */
+/* 캡처 상태 배지 – 레이아웃에 영향 없도록 오버레이 */
 .segment-info {
   position: absolute;
-  top: 20px;
-  left: 20px;
-  background: rgba(0, 0, 0, 0.7);
-  padding: 10px 20px;
-  border-radius: 8px;
+  top: 16px;
+  left: 30px;
+  padding: 0;                 /* 내부 배지에 padding을 맡기기 위해 0 */
+  border-radius: 999px;
   display: flex;
   align-items: center;
-  gap: 15px;
-}
-
-.segment-number {
-  font-size: 1.5rem;
-  font-weight: bold;
+  gap: 8px;
+  background: transparent;    /* ✅ 항상 투명 */
+  color: var(--color-bg);
+  font-size: 0.95rem;
+  font-weight: 600;
+  pointer-events: none;
+  z-index: 2;
 }
 
 .capturing-badge,
 .uploading-badge {
   font-size: 1rem;
-  padding: 5px 10px;
-  border-radius: 5px;
-  background-color: #ff4444;
+  padding: 6px 14px;
+  border-radius: 999px;
+
+  background: rgba(255,80,53, 0.45);
+  color: var(--color-bg);
+
   animation: pulse 1s infinite;
 }
 
@@ -118,124 +276,137 @@
   border: 2px solid #44ff44;
 }
 
-/* 하단: 가사 (20%) */
-.lyrics-container {
-  flex: 2;
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+/* 카운트 다운 */
+.countdown-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(250,250,247,0.8);
   display: flex;
   align-items: center;
   justify-content: center;
-  border-top: 2px solid #fff;
+  z-index: 9999;
+  backdrop-filter: blur(5px);
 }
 
-.lyrics-container .placeholder {
-  text-align: center;
-  opacity: 0.7;
+.countdown-bubble {
+  min-width: 220px;
+  min-height: 220px;
+  border-radius: 9999px;
+  background: var(--color-primary);
+  color: var(--color-bg);
+  font-size: 6rem;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 18px 40px rgba(0,0,0,.35),
+    inset -8px -8px 16px rgba(255,255,255,.25),
+    inset 8px 8px 18px rgba(0,0,0,.25);
+  animation: countdown-pop 1s ease-in-out infinite;
 }
 
-.lyrics-container .placeholder h3 {
-  font-size: 1.5rem;
-  margin-bottom: 5px;
+@keyframes countdown-pop {
+  0%   { transform: scale(.85); opacity: .8; }
+  50%  { transform: scale(1.00); opacity: 1; }
+  100% { transform: scale(.85); opacity: .8; }
 }
 
-.lyrics-container .placeholder p {
-  font-size: 1rem;
-}
-
-/* 테스트 컨트롤 */
-.test-controls {
+.section-message-overlay {
   position: fixed;
-  bottom: 20px;
+  top: 20%;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.9);
-  padding: 20px;
-  border-radius: 15px;
-  border: 2px solid #fff;
-  z-index: 1000;
-  min-width: 500px;
+  z-index: 9999;
+  background: rgba(255, 209, 102, 0.7);
+  padding: 24px 32px;
+  border-radius: 12px;
+  color: var(--color-text);
+  font-size: 1.4rem;
+  font-weight: 700;
+  text-align: center;
+  animation: fadeInOut 4s ease-in-out forwards;
 }
 
-.audio-container {
-  margin-bottom: 15px;
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: translate(-50%, -10%); }
+  10% { opacity: 1; transform: translate(-50%, 0); }
+  90% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -10%); }
 }
 
-.audio-container audio {
-  width: 100%;
+.ws-message-overlay {
+  position: fixed;
+  top: 20%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  background: rgba(255,80,53, 0.7);
+  padding: 24px 32px;
+  border-radius: 12px;
+  color: var(--color-bg);
+  font-size: 1.8rem;
+  font-weight: 700;
+  text-align: center;
+  animation: fadeInOut 4s ease-in-out forwards;
 }
 
-.button-group {
+
+/* 동작 인식 피드백 */
+
+.feedback-section {
+  flex: 3;
+  position: relative;
   display: flex;
-  gap: 10px;
-  margin-bottom: 15px;
+  align-items: center;
+  justify-content: center;
 }
 
-.button-group button {
-  flex: 1;
-  padding: 12px 20px;
-  font-size: 1rem;
-  font-weight: bold;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.3s;
+.feedback-placeholder {
+  opacity: 0.4;
 }
 
-.btn-start {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #fff;
+.feedback-badge {
+  width: 85%;
+  max-width: 420px;
+  min-height: 120px;
+  padding: 14px 22px;
+  border-radius: 30px;
+  text-align: center;
+  font-weight: 800;
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.25),
+    inset 0 2px 4px rgba(255, 255, 255, 0.6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  letter-spacing: 0.03em;
+  color: var(--color-bg);
 }
 
-.btn-start:hover:not(:disabled) {
-  transform: scale(1.05);
-  box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+/* 내부 텍스트: 아주 크게, 가독성 최우선 */
+.feedback-main-text {
+  font-size: clamp(2.2rem, 2.8vw, 3rem);  /* 화면 크기에 따라 자동 조정 */
+  line-height: 1.2;
 }
 
-.btn-stop {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-  color: #fff;
+/* 상태별 색상은 필요하면 아주 살짝만 톤 차이 */
+/* (눈에 잘 띄도록 모두 흰 글씨 유지) */
+.feedback-perfect {
+  background: #FF5035;
 }
 
-.btn-stop:hover:not(:disabled) {
-  transform: scale(1.05);
-  box-shadow: 0 5px 15px rgba(245, 87, 108, 0.4);
+.feedback-good {
+  background: #1E9C5E;
 }
 
-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.feedback-soso {
+  background: #5A5A5A;
 }
 
-/* 디버그 정보 */
-.debug-info {
-  background: rgba(255, 255, 255, 0.1);
-  padding: 10px;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  font-family: 'Courier New', monospace;
-}
-
-.debug-info div {
-  margin: 5px 0;
-}
-
-/* 반응형 (옵션) */
-@media (max-width: 1024px) {
-  .video-container {
-    flex-direction: column;
-  }
-
-  .character-section,
-  .camera-section {
-    flex: 1;
-    border: none;
-  }
-
-  .character-section {
-    border-bottom: 2px solid #fff;
-  }
-
-  .test-controls {
-    min-width: 90%;
-  }
+/* 피드백이 없을 때 자리만 유지 */
+.feedback-placeholder {
+  opacity: 0;
 }

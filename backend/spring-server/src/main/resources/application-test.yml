@@ -1,0 +1,44 @@
+# ===================================================================
+# TEST 전용 프로파일 (IntelliJ에서 로컬 실행 시 사용)
+# ===================================================================
+
+spring:
+  # --- MySQL & Redis ---
+  # 로컬 Docker 컨테이너에 접속하도록 'localhost'로 설정
+  datasource:
+    url: jdbc:mysql://localhost:3306/heungbudb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul&characterEncoding=utf8
+    username: heungbu # .env의 MYSQL_USER 값
+    password: lastdance # .env의 MYSQL_PASSWORD 값
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+    # --- MongoDB ---
+    # (핵심) 배포된 원격 DB에 접속하도록 실제 서버 주소로 설정
+    mongodb:
+#      uri: mongodb://heungbu:lastdance@k13a103.p.ssafy.io:27017/heungbudb?authSource=admin
+      uri: mongodb://heungbu:lastdance@localhost:27017/heungbudb?authSource=admin
+
+  jpa:
+    # 테스트 시에는 스키마를 자동으로 생성하거나 업데이트하는 것이 편리
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        show_sql: true # 테스트 중에는 SQL 쿼리를 로그로 확인하는 것이 디버깅에 유용
+        format_sql: true
+
+logging:
+  level:
+    # 테스트 시에는 디버그 레벨로 로그를 보면 더 많은 정보를 얻을 수 있음
+    com.heungbuja: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql: TRACE # SQL 파라미터 값까지 확인
+#    org.springframework.messaging: TRACE
+#    org.springframework.web.socket: TRACE
+
+# 테스트를 위해 임시로 모든 API 경로 허용
+security:
+  permit-all-paths: /api/**

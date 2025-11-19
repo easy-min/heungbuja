@@ -1,0 +1,54 @@
+.tutorial-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  height: 100vh;
+  width: 100vw;
+
+  background-color: var(--color-bg);
+}
+
+.tutorial-page p {
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.info-msg {
+  font-size: 1.3rem;
+  font-weight: 500;
+  color: var(--color-text);
+  margin-top: 10px;
+  margin-bottom: 30px;
+}
+
+/* === 버튼 기본 스타일 === */
+.play-btn {
+  width: 120px;
+  height: 120px;
+  border: none;
+  border-radius: 20px;
+  background-color: var(--color-primary);
+  cursor: pointer;
+  position: relative;
+  box-shadow:
+    6px 6px 12px rgba(0, 0, 0, 0.25), /* 바닥 그림자 */
+    -6px -6px 12px rgba(255, 255, 255, 0.4); /* 윗면 빛 반사 */
+  transition: all 0.2s ease;
+}
+
+/* === 삼각형 아이콘 === */
+.play-icon {
+  width: 0;
+  height: 0;
+  border-left: 40px solid var(--color-secondary);
+  border-top: 25px solid transparent;
+  border-bottom: 25px solid transparent;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-40%, -50%);
+  filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.2));
+}

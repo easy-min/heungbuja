@@ -1,6 +1,7 @@
 package com.heungbuja.song.domain;
 
 import lombok.Getter;
+import lombok.Setter;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
@@ -11,19 +12,20 @@ import java.util.List;
  * 노래의 가사 정보를 라인별로 담고 있음
  */
 @Getter
+@Setter
 @Document(collection = "song_lyrics")
 public class SongLyrics {
 
     @Id
     private String id;
+    private Long songId;
 
-    // 중요: 어떤 노래의 가사인지 식별할 필드가 필요합니다.
-    // MongoDB에 데이터를 넣을 때, 이 필드에 노래 제목을 꼭 넣어주세요.
     private String title;
 
     private List<Line> lines;
 
     @Getter
+    @Setter
     public static class Line {
         private int lineIndex;
         private String text;

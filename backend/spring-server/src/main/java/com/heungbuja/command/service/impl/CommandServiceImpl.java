@@ -26,6 +26,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * 통합 명령 처리 서비스 구현체
  * 의도 분석 → 적절한 서비스 호출 → 응답 생성
@@ -52,6 +55,13 @@ public class CommandServiceImpl implements CommandService {
     private final EmergencyService emergencyService;
     private final com.heungbuja.s3.service.MediaUrlService mediaUrlService;
     private final com.heungbuja.context.service.ConversationContextService conversationContextService;
+    private final com.heungbuja.session.service.SessionStateService sessionStateService;
+
+    // 세션 서비스
+    private final com.heungbuja.session.service.SessionPrepareService sessionPrepareService;
+
+    // Song 캐시
+    private final com.heungbuja.song.service.SongGameDataCache songGameDataCache;
 
     // 기타
     private final VoiceCommandRepository voiceCommandRepository;
@@ -64,7 +74,7 @@ public class CommandServiceImpl implements CommandService {
      * 트랜잭션을 롤백하지 않도록 설정
      */
     @Override
-    @Transactional(noRollbackFor = {CustomException.class, Exception.class})
+    @Transactional(noRollbackFor = CustomException.class)
     public CommandResponse processTextCommand(CommandRequest request) {
         User user = userService.findById(request.getUserId());
         String text = request.getText().trim();
@@ -131,17 +141,18 @@ public class CommandServiceImpl implements CommandService {
             // 모드 관련 (프론트가 관리하므로 TTS 응답만)
             case MODE_HOME -> handleModeChange(user, Intent.MODE_HOME, PlaybackMode.HOME);
             case MODE_LISTENING -> handleModeChange(user, Intent.MODE_LISTENING, PlaybackMode.LISTENING);
-            case MODE_EXERCISE -> handleModeChange(user, Intent.MODE_EXERCISE, PlaybackMode.EXERCISE);
-            case MODE_EXERCISE_END -> handleSimpleResponse(user, Intent.MODE_EXERCISE_END);
+            case MODE_EXERCISE -> handleGameStart(user);
+            case MODE_EXERCISE_END -> handleGameEnd(user);
 
             // 응급 상황
             case EMERGENCY -> handleEmergency(user, intentResult);
             case EMERGENCY_CANCEL -> handleEmergencyCancel(user);
+            case EMERGENCY_CONFIRM -> handleEmergencyConfirm(user, intentResult);
 
             // 인식 불가
             case UNKNOWN -> handleUnknown();
 
-            default -> handleError();
+            default -> handleError(intent);
         };
     }
 
@@ -154,6 +165,9 @@ public class CommandServiceImpl implements CommandService {
 
         Song song = songService.searchByArtist(query);
 
+        // 게임 진행 중이면 중단
+        handleActivityInterrupt(user.getId(), "음악 재생");
+
         // 청취 이력 기록
         listeningHistoryService.recordListening(user, song, PlaybackMode.LISTENING);
 
@@ -161,17 +175,31 @@ public class CommandServiceImpl implements CommandService {
         conversationContextService.changeMode(user.getId(), PlaybackMode.LISTENING);
         conversationContextService.setCurrentSong(user.getId(), song.getId());
 
+        // Redis: 활동 상태 업데이트
+        sessionStateService.setCurrentActivity(user.getId(),
+            com.heungbuja.session.state.ActivityState.music(String.valueOf(song.getId())));
+
         // presigned URL 생성
         String presignedUrl = mediaUrlService.issueUrlById(song.getMedia().getId());
 
         String responseText = responseGenerator.generateResponse(Intent.SELECT_BY_ARTIST, song.getArtist(), song.getTitle());
-        String ttsUrl = ttsService.synthesize(responseText);
 
-        return CommandResponse.withSong(
+        // 화면 전환 정보 생성
+        Map<String, Object> screenData = new HashMap<>();
+        screenData.put("songId", song.getId());
+        screenData.put("autoPlay", true);
+
+        CommandResponse.ScreenTransition screenTransition = CommandResponse.ScreenTransition.builder()
+                .targetScreen("/listening")
+                .action("PLAY_SONG")
+                .data(screenData)
+                .build();
+
+        return CommandResponse.withSongAndScreen(
                 Intent.SELECT_BY_ARTIST,
                 responseText,
-                "/commands/tts/" + ttsUrl,
-                SongInfoDto.from(song, PlaybackMode.LISTENING, presignedUrl)
+                SongInfoDto.from(song, PlaybackMode.LISTENING, presignedUrl),
+                screenTransition
         );
     }
 
@@ -182,6 +210,9 @@ public class CommandServiceImpl implements CommandService {
         String title = intentResult.getEntity("title");
         Song song = songService.searchByTitle(title);
 
+        // 게임 진행 중이면 중단
+        handleActivityInterrupt(user.getId(), "음악 재생");
+
         // 청취 이력 기록
         listeningHistoryService.recordListening(user, song, PlaybackMode.LISTENING);
 
@@ -189,17 +220,31 @@ public class CommandServiceImpl implements CommandService {
         conversationContextService.changeMode(user.getId(), PlaybackMode.LISTENING);
         conversationContextService.setCurrentSong(user.getId(), song.getId());
 
+        // Redis: 활동 상태 업데이트
+        sessionStateService.setCurrentActivity(user.getId(),
+            com.heungbuja.session.state.ActivityState.music(String.valueOf(song.getId())));
+
         // presigned URL 생성
         String presignedUrl = mediaUrlService.issueUrlById(song.getMedia().getId());
 
         String responseText = responseGenerator.generateResponse(Intent.SELECT_BY_TITLE, song.getArtist(), song.getTitle());
-        String ttsUrl = ttsService.synthesize(responseText);
 
-        return CommandResponse.withSong(
+        // 화면 전환 정보 생성
+        Map<String, Object> screenData = new HashMap<>();
+        screenData.put("songId", song.getId());
+        screenData.put("autoPlay", true);
+
+        CommandResponse.ScreenTransition screenTransition = CommandResponse.ScreenTransition.builder()
+                .targetScreen("/listening")
+                .action("PLAY_SONG")
+                .data(screenData)
+                .build();
+
+        return CommandResponse.withSongAndScreen(
                 Intent.SELECT_BY_TITLE,
                 responseText,
-                "/commands/tts/" + ttsUrl,
-                SongInfoDto.from(song, PlaybackMode.LISTENING, presignedUrl)
+                SongInfoDto.from(song, PlaybackMode.LISTENING, presignedUrl),
+                screenTransition
         );
     }
 
@@ -212,6 +257,9 @@ public class CommandServiceImpl implements CommandService {
 
         Song song = songService.searchByArtistAndTitle(artist, title);
 
+        // 게임 진행 중이면 중단
+        handleActivityInterrupt(user.getId(), "음악 재생");
+
         // 청취 이력 기록
         listeningHistoryService.recordListening(user, song, PlaybackMode.LISTENING);
 
@@ -219,17 +267,31 @@ public class CommandServiceImpl implements CommandService {
         conversationContextService.changeMode(user.getId(), PlaybackMode.LISTENING);
         conversationContextService.setCurrentSong(user.getId(), song.getId());
 
+        // Redis: 활동 상태 업데이트
+        sessionStateService.setCurrentActivity(user.getId(),
+            com.heungbuja.session.state.ActivityState.music(String.valueOf(song.getId())));
+
         // presigned URL 생성
         String presignedUrl = mediaUrlService.issueUrlById(song.getMedia().getId());
 
         String responseText = responseGenerator.generateResponse(Intent.SELECT_BY_ARTIST_TITLE, song.getArtist(), song.getTitle());
-        String ttsUrl = ttsService.synthesize(responseText);
 
-        return CommandResponse.withSong(
+        // 화면 전환 정보 생성
+        Map<String, Object> screenData = new HashMap<>();
+        screenData.put("songId", song.getId());
+        screenData.put("autoPlay", true);
+
+        CommandResponse.ScreenTransition screenTransition = CommandResponse.ScreenTransition.builder()
+                .targetScreen("/listening")
+                .action("PLAY_SONG")
+                .data(screenData)
+                .build();
+
+        return CommandResponse.withSongAndScreen(
                 Intent.SELECT_BY_ARTIST_TITLE,
                 responseText,
-                "/commands/tts/" + ttsUrl,
-                SongInfoDto.from(song, PlaybackMode.LISTENING, presignedUrl)
+                SongInfoDto.from(song, PlaybackMode.LISTENING, presignedUrl),
+                screenTransition
         );
     }
 
@@ -259,6 +321,135 @@ public class CommandServiceImpl implements CommandService {
     }
 
     /**
+     * 게임 시작 처리 (튜토리얼)
+     */
+    private CommandResponse handleGameStart(User user) {
+        log.info("게임 시작 요청: userId={}", user.getId());
+
+        // 1. 음악/게임 진행 중이면 중단
+        handleActivityInterrupt(user.getId(), "게임 시작");
+
+        // 2. 노래 선택 (최근 청취한 곡 or 랜덤)
+        Song selectedSong;
+        try {
+            var recentHistory = listeningHistoryService.getRecentHistory(user, 1);
+            if (!recentHistory.isEmpty()) {
+                selectedSong = recentHistory.get(0).getSong();
+            } else {
+                selectedSong = songService.searchByArtist("");
+            }
+        } catch (Exception e) {
+            log.error("게임용 노래 선택 실패: userId={}", user.getId(), e);
+            String errorText = "게임을 시작할 노래를 찾을 수 없습니다";
+            String ttsUrl = ttsService.synthesize(errorText);
+            return CommandResponse.failure(Intent.MODE_EXERCISE, errorText, "/commands/tts/" + ttsUrl);
+        }
+
+        // 3. Song 게임 데이터 조회 (캐시 우선)
+        com.heungbuja.song.dto.SongGameData songGameData = songGameDataCache.getOrLoadSongGameData(selectedSong.getId());
+        log.debug("Song 게임 데이터 조회: songId={}", selectedSong.getId());
+
+        // 4. audioUrl 생성
+        String audioUrl = mediaUrlService.issueUrlById(selectedSong.getMedia().getId());
+
+        // 5. SessionPrepareService로 세션 준비 (GameState만 생성)
+        com.heungbuja.game.dto.GameSessionPrepareResponse prepareResponse =
+                sessionPrepareService.prepareGameSession(
+                        user.getId(),
+                        selectedSong,
+                        audioUrl,
+                        songGameData
+                );
+
+        String sessionId = prepareResponse.getSessionId();
+        log.info("GameState 생성 완료: sessionId={}", sessionId);
+
+        // 6. ActivityState 설정 (Command가 관리!)
+        sessionStateService.setCurrentActivity(
+                user.getId(),
+                com.heungbuja.session.state.ActivityState.gameTutorial(sessionId)
+        );
+
+        // 7. SessionStatus 설정
+        sessionStateService.setSessionStatus(sessionId, "TUTORIAL_READY");
+
+        log.info("세션 상태 설정 완료: sessionId={}", sessionId);
+
+        // 8. ConversationContext 모드 변경
+        conversationContextService.changeMode(user.getId(), PlaybackMode.EXERCISE);
+
+        // 9. 응답 생성
+        String responseText = String.format("%s의 %s로 게임을 시작할게요",
+                selectedSong.getArtist(), selectedSong.getTitle());
+
+        Map<String, Object> tutorialData = new HashMap<>();
+        tutorialData.put("sessionId", sessionId);
+        tutorialData.put("tutorialVideoUrl", prepareResponse.getTutorialVideoUrl());
+        tutorialData.put("songTitle", prepareResponse.getSongTitle());
+        tutorialData.put("songArtist", prepareResponse.getSongArtist());
+
+        CommandResponse.ScreenTransition screenTransition = CommandResponse.ScreenTransition.builder()
+                .targetScreen("/tutorial")
+                .action("START_TUTORIAL")
+                .data(tutorialData)
+                .build();
+
+        return CommandResponse.builder()
+                .success(true)
+                .intent(Intent.MODE_EXERCISE)
+                .responseText(responseText)
+                .ttsAudioUrl(null)
+                .songInfo(null)
+                .screenTransition(screenTransition)
+                .build();
+    }
+
+    /**
+     * 게임 종료 처리 (Command가 ActivityState 조회)
+     */
+    private CommandResponse handleGameEnd(User user) {
+        // Command가 ActivityState 조회!
+        com.heungbuja.session.state.ActivityState currentActivity =
+                sessionStateService.getCurrentActivity(user.getId());
+
+        if (currentActivity.getType() == com.heungbuja.session.enums.ActivityType.GAME) {
+            String sessionId = currentActivity.getSessionId();
+            log.info("게임 종료 요청: userId={}, sessionId={}", user.getId(), sessionId);
+
+            // Redis 상태만 변경 (GameService가 감지)
+            if (sessionStateService.trySetInterrupt(sessionId, "USER_END")) {
+                log.info("게임 중단 플래그 설정: sessionId={}", sessionId);
+            } else {
+                log.warn("게임 중단 플래그 설정 실패 (이미 처리 중): sessionId={}", sessionId);
+            }
+        } else {
+            log.warn("게임 진행 중이 아님: userId={}, currentType={}",
+                    user.getId(), currentActivity.getType());
+        }
+
+        String responseText = responseGenerator.generateResponse(Intent.MODE_EXERCISE_END);
+
+        // ConversationContext 모드 변경
+        conversationContextService.changeMode(user.getId(), PlaybackMode.HOME);
+
+        // 화면 전환
+        CommandResponse.ScreenTransition screenTransition = CommandResponse.ScreenTransition.builder()
+                .targetScreen("/home")
+                .action("END_GAME")
+                .data(Map.of())
+                .build();
+
+        return CommandResponse.builder()
+                .success(true)
+                .intent(Intent.MODE_EXERCISE_END)
+                .responseText(responseText)
+                .ttsAudioUrl(null)
+                .songInfo(null)
+                .screenTransition(screenTransition)
+                .build();
+    }
+
+    /**
      * 응급 상황 처리
      */
     private CommandResponse handleEmergency(User user, IntentResult intentResult) {
@@ -275,7 +466,7 @@ public class CommandServiceImpl implements CommandService {
                 .fullText(intentResult.getRawText())  // 전체 발화 텍스트
                 .build();
 
-        emergencyService.detectEmergency(emergencyRequest);
+        emergencyService.detectEmergencyWithSchedule(emergencyRequest);
 
         String responseText = responseGenerator.generateResponse(Intent.EMERGENCY);
         String ttsUrl = ttsService.synthesize(responseText, "urgent"); // 긴급 음성 타입
@@ -296,10 +487,23 @@ public class CommandServiceImpl implements CommandService {
     }
 
     /**
+     * 응급 상황 즉시 확정 처리
+     */
+    private CommandResponse handleEmergencyConfirm(User user, IntentResult intentResult) {
+        emergencyService.confirmRecentReport(user.getId());
+
+        String responseText = responseGenerator.generateResponse(Intent.EMERGENCY_CONFIRM);
+        String ttsUrl = ttsService.synthesize(responseText, "urgent"); // 긴급 음성 타입
+
+        return CommandResponse.success(Intent.EMERGENCY_CONFIRM, responseText, "/commands/tts/" + ttsUrl);
+    }
+
+    /**
      * 인식 불가
      */
     private CommandResponse handleUnknown() {
-        String responseText = responseGenerator.generateResponse(Intent.UNKNOWN);
+//        String responseText = responseGenerator.generateResponse(Intent.UNKNOWN);
+        String responseText = "잘 듣지 못했어요. 다시 말씀해주세요";
         String ttsUrl = ttsService.synthesize(responseText);
 
         return CommandResponse.failure(Intent.UNKNOWN, responseText, "/commands/tts/" + ttsUrl);
@@ -350,13 +554,23 @@ public class CommandServiceImpl implements CommandService {
             String presignedUrl = mediaUrlService.issueUrlById(similarSong.getMedia().getId());
 
             String responseText = responseGenerator.generateResponse(Intent.PLAY_MORE_LIKE_THIS);
-            String ttsUrl = ttsService.synthesize(responseText);
 
-            return CommandResponse.withSong(
+            // 화면 전환 정보 생성
+            Map<String, Object> screenData = new HashMap<>();
+            screenData.put("songId", similarSong.getId());
+            screenData.put("autoPlay", true);
+
+            CommandResponse.ScreenTransition screenTransition = CommandResponse.ScreenTransition.builder()
+                    .targetScreen("/listening")
+                    .action("PLAY_SONG")
+                    .data(screenData)
+                    .build();
+
+            return CommandResponse.withSongAndScreen(
                     Intent.PLAY_MORE_LIKE_THIS,
                     responseText,
-                    "/commands/tts/" + ttsUrl,
-                    SongInfoDto.from(similarSong, PlaybackMode.LISTENING, presignedUrl)
+                    SongInfoDto.from(similarSong, PlaybackMode.LISTENING, presignedUrl),
+                    screenTransition
             );
         } catch (CustomException e) {
             // 같은 가수의 곡을 찾지 못한 경우
@@ -369,11 +583,14 @@ public class CommandServiceImpl implements CommandService {
     /**
      * 에러 처리
      */
-    private CommandResponse handleError() {
+    private CommandResponse handleError(Intent intent) {
+        log.warn("처리되지 않은 Intent: {}", intent);
+
         String errorMsg = responseGenerator.errorMessage();
         String ttsUrl = ttsService.synthesize(errorMsg);
 
-        return CommandResponse.failure(Intent.UNKNOWN, errorMsg, "/commands/tts/" + ttsUrl);
+        // 원래 intent를 유지하면서 실패 응답 반환
+        return CommandResponse.failure(intent, errorMsg, "/commands/tts/" + ttsUrl);
     }
 
     /**
@@ -387,5 +604,44 @@ public class CommandServiceImpl implements CommandService {
                 .build();
 
         voiceCommandRepository.save(command);
+    }
+
+    /**
+     * 현재 활동 인터럽트 처리 (Command가 ActivityState 조회)
+     */
+    private void handleActivityInterrupt(Long userId, String newActivity) {
+        // Command가 ActivityState 조회!
+        com.heungbuja.session.state.ActivityState currentActivity =
+                sessionStateService.getCurrentActivity(userId);
+
+        if (currentActivity.getType() == com.heungbuja.session.enums.ActivityType.IDLE) {
+            return;
+        }
+
+        log.info("활동 인터럽트: userId={}, 현재={}, 새활동={}",
+                userId, currentActivity.getType(), newActivity);
+
+        switch (currentActivity.getType()) {
+            case GAME:
+                // sessionId 획득 후 Redis 플래그만 설정
+                String sessionId = currentActivity.getSessionId();
+                if (sessionStateService.trySetInterrupt(sessionId, newActivity)) {
+                    log.info("게임 중단 플래그 설정: sessionId={}, reason={}", sessionId, newActivity);
+                }
+                break;
+
+            case MUSIC:
+                // 음악은 바로 정리 (프론트가 관리)
+                sessionStateService.clearActivity(userId);
+                log.info("음악 중단: userId={}", userId);
+                break;
+
+            case EMERGENCY:
+                log.warn("응급 상황 중에는 다른 활동 불가: userId={}", userId);
+                break;
+
+            default:
+                break;
+        }
     }
 }

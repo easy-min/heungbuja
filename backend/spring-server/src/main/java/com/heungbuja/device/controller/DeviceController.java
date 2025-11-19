@@ -1,5 +1,6 @@
 package com.heungbuja.device.controller;
 
+import com.heungbuja.common.security.AdminPrincipal;
 import com.heungbuja.device.dto.DeviceRegisterRequest;
 import com.heungbuja.device.dto.DeviceResponse;
 import com.heungbuja.device.dto.DeviceUpdateRequest;
@@ -9,7 +10,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -23,28 +24,28 @@ public class DeviceController {
 
     @PostMapping
     public ResponseEntity<DeviceResponse> registerDevice(
-            Authentication authentication,
+            @AuthenticationPrincipal AdminPrincipal principal,
             @Valid @RequestBody DeviceRegisterRequest request) {
-        Long adminId = (Long) authentication.getPrincipal();
+        Long adminId = principal.getId();
         DeviceResponse response = deviceService.registerDevice(adminId, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<DeviceResponse> getDevice(
-            Authentication authentication,
+            @AuthenticationPrincipal AdminPrincipal principal,
             @PathVariable Long id) {
-        Long requesterId = (Long) authentication.getPrincipal();
+        Long requesterId = principal.getId();
         DeviceResponse response = deviceService.getDeviceById(requesterId, id);
         return ResponseEntity.ok(response);
     }
 
     @GetMapping
     public ResponseEntity<List<DeviceResponse>> getDevices(
-            Authentication authentication,
+            @AuthenticationPrincipal AdminPrincipal principal,
             @RequestParam(required = false) Long adminId,
             @RequestParam(required = false, defaultValue = "false") boolean availableOnly) {
-        Long requesterId = (Long) authentication.getPrincipal();
+        Long requesterId = principal.getId();
 
         // adminId가 없으면 본인의 기기만 조회
         Long targetAdminId = adminId != null ? adminId : requesterId;
@@ -55,10 +56,10 @@ public class DeviceController {
 
     @PutMapping("/{id}")
     public ResponseEntity<DeviceResponse> updateDevice(
-            Authentication authentication,
+            @AuthenticationPrincipal AdminPrincipal principal,
             @PathVariable Long id,
             @Valid @RequestBody DeviceUpdateRequest request) {
-        Long requesterId = (Long) authentication.getPrincipal();
+        Long requesterId = principal.getId();
         DeviceResponse response = deviceService.updateDevice(requesterId, id, request);
         return ResponseEntity.ok(response);
     }
