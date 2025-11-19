@@ -192,7 +192,7 @@ const DashboardPage = () => {
           onNotificationClick={handleNotificationClick}
         />
 
-                    {/* 관리자 / 개발자 탭 별 본문 */}
+      {/* 관리자 / 개발자 탭 별 본문 */}
       {activeTab === 'admin' && (
         <>
           {/* 등록 버튼 - 관리자용 */}
