@@ -10,6 +10,7 @@ import type  { FeedbackMessage, GameEndResponse, GameWsMessage } from '@/types/g
 import { useGameStore } from '@/store/gameStore';
 import { gameEndApi } from '@/api/game';
 import  VoiceButton from '@/components/VoiceButton'
+import LoadingDots from '@/components/icons/LoadingDots';
 import './GamePage.css';
 
 function GamePage() {
@@ -921,13 +922,20 @@ function GamePage() {
 
   return (
     <>
+      {/* 카운트 시작 전: 로딩 점만 전체 화면에 표시 */}
+      {!isCounting && !isGameStarted && (
+        <div className="game-loading-overlay">
+          <LoadingDots className="game-loading-dots" />
+        </div>
+      )}
+
       {isCounting && (
         <div className="countdown-overlay">
           <div className="countdown-bubble">{count > 0 ? count : 'Go!'}</div>
         </div>
       )}
 
-      {wsMessage && (
+      {wsMessage && (isCounting || isGameStarted) && (
         <div className="ws-message-overlay">
           <div className="ws-message-bubble">{wsMessage}</div>
         </div>

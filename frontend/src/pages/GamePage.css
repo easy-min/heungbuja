@@ -413,3 +413,23 @@
 .feedback-placeholder {
   opacity: 0;
 }
+
+/* 게임 시작 전 로딩 오버레이 */
+.game-loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 110;                /* 카운트다운/웹소켓 배너보다 위가 아니면 살짝 조정 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg);
+}
+
+/* 로딩 점 크기/색상 */
+.game-loading-dots {
+  transform: scale(2);
+}
+
+.game-loading-dots .dot {
+  background-color: var(--color-primary);
+}
