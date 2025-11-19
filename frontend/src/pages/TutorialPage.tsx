@@ -18,6 +18,7 @@ function TutorialPage() {
   const [songId, setSongId] = useState<number | null>(null);
   const [step, setStep] = useState<Step>(1);
   const [isFinalMessage, setIsFinalMessage] = useState(false);
+  const [showCheck, setShowCheck] = useState(false);
   
   // 카메라 훅 (웹소켓 없이 미리보기만 사용)
   const { stream, isReady, error, startCamera, stopCamera } = useCamera();
@@ -94,20 +95,29 @@ function TutorialPage() {
     setStep(1);
     setIsFinalMessage(false);
 
-    // step1: 0s ~ 3s
+     // step1: 0s ~ 3s -> 2단계 진입
     const t1 = window.setTimeout(() => setStep(2), 3000);
-    // step2: 3s ~ 8s
-    const t2 = window.setTimeout(() => setStep(3), 8000);
-    // step3: 8s ~ 13s
-    const t3 = window.setTimeout(() => {
+
+    // 2 -> 3 단계: 6s ~ 8s 동안 체크(2초), 이후 3단계 진입
+    const t2a = window.setTimeout(() => setShowCheck(true), 6000);
+    const t2b = window.setTimeout(() => {
+      setShowCheck(false);
+      setStep(3);
+    }, 8000);
+
+    // 3 -> 최종 멘트: 11s ~ 13s 동안 체크(2초), 이후 최종 멘트
+    const t3a = window.setTimeout(() => setShowCheck(true), 11000);
+    const t3b = window.setTimeout(() => {
+      setShowCheck(false);
       setIsFinalMessage(true);
     }, 13000);
+
     // 마지막 멘트 2초 정도 보여주고 게임 시작
     const t4 = window.setTimeout(() => {
       nav(`/game/${songId}`);
     }, 15000);
 
-    timersRef.current = [t1, t2, t3, t4];
+    timersRef.current = [t1, t2a, t2b, t3a, t3b, t4];
 
     return () => {
       timersRef.current.forEach((id) => clearTimeout(id));
@@ -183,6 +193,17 @@ function TutorialPage() {
           );
         })}
       </div>
+
+      {/* 체크 애니메이션 오버레이 */}
+      {showCheck && (
+        <div className="step-check">
+          <div className="step-check__outer">
+            <div className="step-check__inner">
+              <span className="step-check__mark">✓</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 고정 레이아웃: 왼쪽 카메라 슬롯 + 오른쪽 텍스트 */}
       <div

@@ -170,30 +170,107 @@
   background-color: var(--color-primary);
 }
 
-/* 기존 버튼 스타일은 필요 시 유지 */
-.play-btn {
-  width: 120px;
-  height: 120px;
-  border: none;
-  border-radius: 20px;
-  background-color: var(--color-primary);
-  cursor: pointer;
-  position: relative;
-  box-shadow:
-    6px 6px 12px rgba(0, 0, 0, 0.25),
-    -6px -6px 12px rgba(255, 255, 255, 0.4);
-  transition: all 0.2s ease;
+/* ========== 단계 전환 체크 애니메이션 ========== */
+
+.step-check {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 50;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
 }
 
-.play-icon {
-  width: 0;
-  height: 0;
-  border-left: 40px solid var(--color-secondary);
-  border-top: 25px solid transparent;
-  border-bottom: 25px solid transparent;
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-40%, -50%);
-  filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.2));
+/* 바깥 연한 링 */
+.step-check__outer {
+  width: 190px;
+  height: 190px;
+  border-radius: 50%;
+  background: #e2f9ee;   /* 더 연한 초록톤 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: step-check-ring 2s ease-out forwards;  /* 0.9s -> 2s */
+}
+
+/* 안쪽 진한 원 */
+.step-check__inner {
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  background: #2fd27d;   /* #1e9c5e 보다 연하고 쨍한 초록 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: step-check-pop 2s ease-out forwards;   /* 0.9s -> 2s */
+}
+
+/* 체크 아이콘 */
+.step-check__mark {
+  color: #ffffff;
+  font-size: 72px;
+  font-weight: 900;
+  animation: step-check-mark 2s ease-out forwards;  /* 0.9s -> 2s */
+}
+
+/* 바깥 링: 살짝 퍼지면서 사라지는 느낌 */
+@keyframes step-check-ring {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  30% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  70% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.15);
+    opacity: 0;
+  }
+}
+
+/* 안쪽 원: 톡 튀었다가 살짝 되돌아오는 바운스 */
+@keyframes step-check-pop {
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  35% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+  55% {
+    transform: scale(0.96);
+  }
+  75% {
+    transform: scale(1.02);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+/* 체크 마크: 약간 늦게 나타나서 또렷해지는 느낌 */
+@keyframes step-check-mark {
+  0% {
+    transform: scale(0.3) rotate(-10deg);
+    opacity: 0;
+  }
+  30% {
+    transform: scale(1.05) rotate(0deg);
+    opacity: 1;
+  }
+  70% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0;
+  }
 }
