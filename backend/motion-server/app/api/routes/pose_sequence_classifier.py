@@ -3,7 +3,7 @@ import logging
 from io import BytesIO
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Optional, Sequence, Tuple
 
 import numpy as np
 import mediapipe as mp
@@ -16,6 +16,7 @@ from app.services.pose_sequence_classifier import (
     evaluate_query,
     load_npz_bytes,
     load_reference_sequences,
+    normalize_landmarks,
     sanitize_landmarks_array,
 )
 
@@ -46,6 +47,10 @@ LABEL_TO_ACTION_CODE = {label: code for code, label in ACTION_CODE_TO_LABEL.item
 
 MIN_VALID_FRAMES = 1
 MIN_MOTION_THRESHOLD = 0.05
+LEFT_SHOULDER_IDX = 0
+RIGHT_SHOULDER_IDX = 1
+LEFT_WRIST_IDX = 4
+RIGHT_WRIST_IDX = 5
 
 
 class PoseSequenceClassificationResponse(BaseModel):
@@ -99,6 +104,65 @@ def _normalize_actions(actions: Optional[List[str]]) -> Optional[Tuple[str, ...]
         return None
     normalized = {action.strip().upper() for action in actions if action and action.strip()}
     return tuple(sorted(normalized)) or None
+
+
+def _is_clap_like(sequence: np.ndarray) -> bool:
+    if sequence.ndim != 3 or sequence.shape[0] == 0:
+        return False
+
+    try:
+        normalized = normalize_landmarks(sequence)
+    except ValueError:
+        return False
+
+    left_wrist = normalized[:, LEFT_WRIST_IDX]
+    right_wrist = normalized[:, RIGHT_WRIST_IDX]
+    wrist_distance = np.linalg.norm(left_wrist - right_wrist, axis=1)
+    if wrist_distance.size == 0:
+        return False
+
+    min_wrist_distance = float(np.min(wrist_distance))
+    mean_wrist_distance = float(np.mean(wrist_distance))
+
+    left_shoulder = normalized[:, LEFT_SHOULDER_IDX]
+    right_shoulder = normalized[:, RIGHT_SHOULDER_IDX]
+    shoulder_height = (left_shoulder[:, 1] + right_shoulder[:, 1]) / 2.0
+    wrist_height = (left_wrist[:, 1] + right_wrist[:, 1]) / 2.0
+    height_diff = float(np.mean(shoulder_height - wrist_height))
+
+    if min_wrist_distance > 0.35:
+        return False
+    if mean_wrist_distance > 0.60:
+        return False
+    if height_diff > 0.25:
+        return False
+    return True
+
+
+def _has_clear_margin(
+    target_action: str,
+    target_result: Optional[Tuple[ReferenceSequence, float, float]],
+    evaluations: Sequence[Tuple[ReferenceSequence, float, float]],
+    cosine_margin: float = 0.05,
+) -> bool:
+    if not target_result:
+        return False
+
+    _, best_dist, best_cos = target_result
+    best_other: Optional[Tuple[ReferenceSequence, float, float]] = None
+    for ref, euc, cos in evaluations:
+        if ref.action.strip().upper() == target_action:
+            continue
+        if best_other is None or cos > best_other[2]:
+            best_other = (ref, euc, cos)
+
+    if best_other is None:
+        return True
+
+    _, other_dist, other_cos = best_other
+    if best_cos - other_cos < cosine_margin and other_dist <= best_dist + 0.5:
+        return False
+    return True
 
 
 @lru_cache(maxsize=16)
@@ -262,9 +326,10 @@ def _resolve_target_action(
 
 
 def _score_similarity(distance: float, cosine: float) -> int:
-    if cosine >= 0.90 and distance <= 5.5:
+    clamped_cosine = max(0.0, min(1.0, cosine))
+    if distance <= 4.5 and clamped_cosine >= 0.92:
         return 3
-    if cosine >= 0.80 and distance <= 7.5:
+    if distance <= 6.5 and clamped_cosine >= 0.82:
         return 2
     return 1
 
@@ -400,14 +465,27 @@ async def classify_pose_sequence(
 
     judgment = 0
     if target_action:
-        best_match = next(
-            ((euc, cos) for ref, euc, cos in evaluations if ref.action.strip().upper() == target_action),
+        best_match_tuple = next(
+            ((ref, euc, cos) for ref, euc, cos in evaluations if ref.action.strip().upper() == target_action),
             None,
         )
-        if best_match:
-            best_dist, best_cos = best_match
-            score = _score_similarity(best_dist, best_cos)
-            judgment = _judgment_from_score(score)
+        if best_match_tuple:
+            _, best_dist, best_cos = best_match_tuple
+            additional_checks_passed = True
+
+            if target_action == "CLAP":
+                if not _is_clap_like(query_landmarks):
+                    LOGGER.info("CLAP heuristics failed; wrists did not converge sufficiently.")
+                    additional_checks_passed = False
+                elif not _has_clear_margin(target_action, best_match_tuple, evaluations):
+                    LOGGER.info("CLAP detection ambiguous compared to other actions.")
+                    additional_checks_passed = False
+
+            if additional_checks_passed:
+                score = _score_similarity(best_dist, best_cos)
+                judgment = _judgment_from_score(score)
+            else:
+                judgment = 0
         else:
             LOGGER.warning(
                 "요청한 동작(%s)에 해당하는 참조 시퀀스를 찾지 못했습니다.",
