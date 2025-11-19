@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.time.Instant;
 
 /**
@@ -74,7 +75,7 @@ public class GameSession implements Serializable {
                 .verse1Judgments(new ArrayList<>())
                 .verse2Judgments(new ArrayList<>())
                 .nextActionIndex(0)
-                .frameBuffer(new HashMap<>())
+                .frameBuffer(new TreeMap<>())
                 .lastFrameReceivedTime(0L)
                 .judgmentCount(0) // <-- 빌더에 초기값 설정 추가
                 .build();
