@@ -287,25 +287,25 @@ class BrandnewMotionInferenceService:
 
     @staticmethod
     def _score_by_probability(probability: float) -> int:
-        """확률 기반 점수 계산"""
-        if probability >= 0.90:
+        """확률 기반 점수 계산 (완화된 기준)"""
+        if probability >= 0.80:  # 90 → 80
             return 3
-        if probability >= 0.75:
+        if probability >= 0.60:  # 75 → 60
             return 2
-        if probability >= 0.60:
+        if probability >= 0.40:  # 60 → 40
             return 1
         return 0
 
     def _fallback_score(
         self, predicted_label: str, confidence: float, target_action: str | None
     ) -> int:
-        """목표 확률이 없을 때 폴백 점수 계산"""
+        """목표 확률이 없을 때 폴백 점수 계산 (완화된 기준)"""
         if not target_action:
-            if confidence >= 0.90:
+            if confidence >= 0.80:  # 90 → 80
                 return 3
-            if confidence >= 0.75:
+            if confidence >= 0.60:  # 75 → 60
                 return 2
-            if confidence >= 0.60:
+            if confidence >= 0.40:  # 60 → 40
                 return 1
             return 0
 
@@ -313,11 +313,11 @@ class BrandnewMotionInferenceService:
         predicted_key = predicted_label.strip().upper()
 
         if target_key == predicted_key:
-            if confidence >= 0.90:
+            if confidence >= 0.80:  # 90 → 80
                 return 3
-            if confidence >= 0.75:
+            if confidence >= 0.60:  # 75 → 60
                 return 2
-            if confidence >= 0.60:
+            if confidence >= 0.40:  # 60 → 40
                 return 1
             return 0
         else:
