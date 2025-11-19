@@ -125,6 +125,12 @@ def _is_clap_like(sequence: np.ndarray) -> bool:
     mean_wrist_distance = float(np.mean(wrist_distance))
     wrist_range = float(np.max(wrist_distance) - min_wrist_distance)
     # hands should move toward each other then apart; ensure at least one strong convergence
+    LOGGER.info(
+        "CLAP metrics | min=%.3f, mean=%.3f, range=%.3f",
+        min_wrist_distance,
+        mean_wrist_distance,
+        wrist_range,
+    )
     convergence_strength = wrist_range
 
     if min_wrist_distance > 0.28:

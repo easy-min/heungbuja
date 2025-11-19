@@ -210,6 +210,10 @@ class BrandnewMotionInferenceService:
 
         # 전처리: 학습과 동일한 방식으로 전체 시퀀스 정규화
         sampled_frames = self._sample_frames(frames, self.frames_per_sample)
+
+        # 디버깅: 프레임 저장
+        self._save_frames_for_debug(sampled_frames, target_action_name, target_action_code)
+
         keypoint_sequence, decode_time_s, pose_time_s = self._frames_to_keypoints(sampled_frames)
 
         LOGGER.info("🔍 Brandnew - Keypoint sequence shape: %s", keypoint_sequence.shape)
@@ -419,6 +423,42 @@ class BrandnewMotionInferenceService:
 
         indices = np.linspace(0, len(frames) - 1, target_count).astype(int)
         return [frames[i] for i in indices]
+
+    def _save_frames_for_debug(
+        self,
+        frames: Sequence[str],
+        target_action_name: str | None,
+        target_action_code: int | None,
+    ):
+        """디버깅용 프레임 저장"""
+        import datetime
+        from pathlib import Path
+
+        # 저장 디렉토리
+        debug_dir = Path("/app/debug_frames")
+        debug_dir.mkdir(exist_ok=True)
+
+        # 타임스탬프
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        action_info = f"{target_action_name or 'unknown'}_{target_action_code or 0}"
+
+        # 각 프레임 저장
+        for i, frame_b64 in enumerate(frames):
+            try:
+                # Base64 디코딩
+                frame_bytes = base64.b64decode(frame_b64)
+                frame_array = np.frombuffer(frame_bytes, dtype=np.uint8)
+                frame = cv2.imdecode(frame_array, cv2.IMREAD_COLOR)
+
+                # 파일명: {timestamp}_{action}_{frame_num}.jpg
+                filename = f"{timestamp}_{action_info}_frame{i:02d}.jpg"
+                filepath = debug_dir / filename
+
+                cv2.imwrite(str(filepath), frame)
+            except Exception as e:
+                LOGGER.warning("프레임 %d 저장 실패: %s", i, e)
+
+        LOGGER.info("🖼️ 디버그 프레임 저장 완료: %s (%d개)", action_info, len(frames))
 
 
 @lru_cache(maxsize=1)
