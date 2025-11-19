@@ -714,12 +714,12 @@ public class McpCommandServiceImpl implements CommandService {
                         .build();
             }
 
-            // start_game: 게임 시작
+            // start_game: 게임 시작 → gameData의 intent 확인
             if ("start_game".equals(result.getToolName()) && result.getData() != null) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> gameData = (Map<String, Object>) result.getData();
                 String intentStr = (String) gameData.get("intent");
-                Intent intent = "MODE_EXERCISE_NO_SONG".equals(intentStr) ? Intent.MODE_EXERCISE_NO_SONG : Intent.MODE_EXERCISE_NO_SONG;
+                Intent intent = "MODE_EXERCISE_NO_SONG".equals(intentStr) ? Intent.MODE_EXERCISE_NO_SONG : Intent.MODE_EXERCISE;
 
                 return CommandResponse.builder()
                         .success(true)
@@ -734,14 +734,14 @@ public class McpCommandServiceImpl implements CommandService {
                         .build();
             }
 
-            // start_game_with_song: 특정 노래로 게임 시작
+            // start_game_with_song: 특정 노래로 게임 시작 → START_GAME_IMMEDIATELY
             if ("start_game_with_song".equals(result.getToolName()) && result.getData() != null) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> gameData = (Map<String, Object>) result.getData();
 
                 return CommandResponse.builder()
                         .success(true)
-                        .intent(Intent.MODE_EXERCISE_NO_SONG)  // START_GAME_IMMEDIATELY는 gameData.intent에 있음
+                        .intent(Intent.MODE_EXERCISE)  // 특정 노래로 게임 시작
                         .responseText(responseText)
                         .ttsAudioUrl(null)  // TTS는 Controller에서 처리
                         .screenTransition(CommandResponse.ScreenTransition.builder()
@@ -846,7 +846,7 @@ public class McpCommandServiceImpl implements CommandService {
                 return switch (mode.toUpperCase()) {
                     case "HOME" -> Intent.MODE_HOME;
                     case "LISTENING" -> Intent.MODE_LISTENING;
-                    case "EXERCISE" -> Intent.MODE_EXERCISE_NO_SONG;
+                    case "EXERCISE" -> Intent.MODE_EXERCISE;
                     default -> Intent.UNKNOWN;
                 };
             }
@@ -867,6 +867,11 @@ public class McpCommandServiceImpl implements CommandService {
             case MODE_LISTENING -> CommandResponse.ScreenTransition.builder()
                     .targetScreen("/listening")
                     .action("GO_LISTENING")
+                    .data(Map.of())
+                    .build();
+            case MODE_EXERCISE -> CommandResponse.ScreenTransition.builder()
+                    .targetScreen("/exercise")
+                    .action("GO_EXERCISE")
                     .data(Map.of())
                     .build();
             case MODE_EXERCISE_NO_SONG -> CommandResponse.ScreenTransition.builder()
