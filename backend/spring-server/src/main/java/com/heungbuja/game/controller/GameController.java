@@ -94,8 +94,8 @@ public class GameController {
      * @return 게임 가능한 노래 목록
      */
     @GetMapping("/list")
-    public ResponseEntity<List<com.heungbuja.game.dto.GameSongListResponse>> getGameSongList() {
-        List<com.heungbuja.game.dto.GameSongListResponse> songList = gameService.getAvailableGameSongs(5);
+    public ResponseEntity<List<GameSongListResponse>> getGameSongList() {
+        List<GameSongListResponse> songList = gameService.getAvailableGameSongs(5);
         return ResponseEntity.ok(songList);
     }
 
