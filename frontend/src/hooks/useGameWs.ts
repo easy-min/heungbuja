@@ -4,6 +4,9 @@ import type { GameWsMessage } from '@/types/game';
 import SockJS from 'sockjs-client';
 import { Client, type IMessage } from '@stomp/stompjs';
 
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
+
 const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL || 'https://localhost:8080/ws';
 
 interface UseGameWsOptions {
@@ -20,6 +23,10 @@ interface UseGameWsReturn {
   disconnect: () => void;
   sendFrame: (params: { sessionId: string; blob: Blob; currentPlayTime: number }) => Promise<void>;
   clientRef: React.MutableRefObject<Client | null>;
+    /** 디버그용: 메모리에 쌓인 프레임 개수 */
+  debugFramesCount: number;
+  /** 쌓인 프레임들을 ZIP으로 묶어 한 번에 다운로드 */
+  downloadFramesZip: () => Promise<void>;
 }
 
 /** Blob -> Base64 (prefix 없이 본문만 반환) */
@@ -38,6 +45,11 @@ export function useGameWs(options?: UseGameWsOptions): UseGameWsReturn {
   const clientRef = useRef<Client | null>(null);
   const currentSessionRef = useRef<string | null>(null);
   const everConnectedRef = useRef(false);
+
+  // ▼ 디버그용 프레임 버퍼
+  const [debugFramesCount, setDebugFramesCount] = useState(0);
+  const debugFramesRef = useRef<{ blob: Blob; time: number; idx: number }[]>([]);
+  const debugFrameIndexRef = useRef(0);
 
   /** 연결 */
   const connect = useCallback((sessionId: string) => {
@@ -129,18 +141,29 @@ export function useGameWs(options?: UseGameWsOptions): UseGameWsReturn {
   }, []);
 
   /** 프레임 전송: /app/game/frame 로 JSON 본문 전송 */
-  const sendFrame = useCallback(
+    const sendFrame = useCallback(
     async ({ sessionId, blob, currentPlayTime }: { sessionId: string; blob: Blob; currentPlayTime: number }) => {
       const client = clientRef.current;
       if (!client || !client.connected) return;
 
+      // ---- 1) 서버 전송용 Base64 변환
       const frameData = await blobToBase64(blob);
       const body = JSON.stringify({
         sessionId,
-        frameData,            // Base64-encoded-image-string...
-        currentPlayTime,      // 초 단위
+        frameData,
+        currentPlayTime, // 초 단위
       });
 
+      // ---- 2) 디버그용: 메모리에만 프레임 쌓기 (DEV에서만)
+      // if (import.meta.env.DEV) {
+        const idx = debugFrameIndexRef.current++;
+        debugFramesRef.current.push({ blob, time: currentPlayTime, idx });
+        setDebugFramesCount(debugFramesRef.current.length);
+        // 필요하다면 최대 개수 제한도 가능:
+        // if (debugFramesRef.current.length > 200) debugFramesRef.current.shift();
+      // }
+
+      // ---- 3) WebSocket 전송
       try {
         client.publish({
           destination: '/app/game/frame',
@@ -155,8 +178,44 @@ export function useGameWs(options?: UseGameWsOptions): UseGameWsReturn {
     [options]
   );
 
+  const downloadFramesZip = useCallback(async () => {
+    const frames = debugFramesRef.current;
+    if (!frames.length) {
+      console.log('No debug frames to download.');
+      return;
+    }
+
+    try {
+      const zip = new JSZip();
+      const folder = zip.folder('frames');
+
+      if (!folder) throw new Error('Failed to create zip folder.');
+
+      // Blob → ArrayBuffer로 변환해서 zip에 추가
+      for (const f of frames) {
+        const arrayBuf = await f.blob.arrayBuffer();
+        const filename = `frame_${f.idx}_${f.time.toFixed(3)}.jpg`; // 필요한 확장자로 수정 가능
+        folder.file(filename, arrayBuf);
+      }
+
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const ts = new Date().toISOString().replace(/[:.]/g, '-');
+      saveAs(zipBlob, `frames_${ts}.zip`);
+
+      // 다운로드 후 비우기 (원하면 주석 처리)
+      debugFramesRef.current = [];
+      debugFrameIndexRef.current = 0;
+      setDebugFramesCount(0);
+    } catch (e) {
+      console.error('downloadFramesZip error:', e);
+      options?.onError?.(e as Error);
+    }
+  }, [options]);
+
+
+
   /** 언마운트 시 정리 */
   useEffect(() => () => disconnect(), [disconnect]);
 
-  return { isConnected, isConnecting, connect, disconnect, sendFrame, clientRef };
+  return { isConnected, isConnecting, connect, disconnect, sendFrame, clientRef, debugFramesCount, downloadFramesZip, };
 }

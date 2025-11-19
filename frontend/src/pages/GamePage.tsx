@@ -75,7 +75,7 @@ function GamePage() {
   const feedbackHideTimerRef = useRef<number | null>(null);
   const [verse2Level, setVerse2Level] = useState<'level1' | 'level2' | 'level3'>('level2');
 
-  const { connect, disconnect, sendFrame, isConnected } = useGameWs({
+  const { connect, disconnect, sendFrame, isConnected, downloadFramesZip, debugFramesCount } = useGameWs({
     onError: () => {
       if (forceStopRef.current) return;
       setWsMessage('웹소켓 연결 실패');   // 문구 먼저 노출
@@ -1036,6 +1036,9 @@ function GamePage() {
           <VoiceButton />
         </div>
       </div>
+      <button type="button" onClick={downloadFramesZip}>
+  프레임 ZIP 다운로드 ({debugFramesCount}장)
+</button>
     </>
   );
 }
