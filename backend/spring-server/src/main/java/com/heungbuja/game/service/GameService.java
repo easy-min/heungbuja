@@ -68,7 +68,7 @@ public class GameService {
     /** Redis 세션 만료 시간 (분) */
     private static final int SESSION_TIMEOUT_MINUTES = 30;
     private static final int JUDGMENT_PERFECT = 3;
-    private static final double JUDGMENT_BUFFER_SECONDS = 0.2; // 앞뒤로 0.2초의 여유 시간
+    private static final double JUDGMENT_BUFFER_SECONDS = 0.6; // 앞뒤로 0.6초의 여유 시간 (총 1.2초, 학습 데이터와 동일)
 
     // --- Redis Key 접두사 상수 ---
     private static final String GAME_STATE_KEY_PREFIX = "game_state:";
