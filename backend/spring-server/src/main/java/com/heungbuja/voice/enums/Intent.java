@@ -22,6 +22,7 @@ public enum Intent {
     // 모드 관련 (단순화)
     MODE_HOME("홈으로 이동"),
     MODE_LISTENING("감상 모드"),
+    MODE_EXERCISE("체조 모드"),
     MODE_EXERCISE_NO_SONG("노래 없이 체조 시작 - 목록 화면"),
     MODE_EXERCISE_END("체조 종료"),
 
