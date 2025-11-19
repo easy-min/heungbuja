@@ -133,11 +133,11 @@ def _is_clap_like(sequence: np.ndarray) -> bool:
     )
     convergence_strength = wrist_range
 
-    if min_wrist_distance > 0.28:
+    if min_wrist_distance > 0.32:
         return False
-    if mean_wrist_distance > 0.50:
+    if mean_wrist_distance > 0.55:
         return False
-    if convergence_strength < 0.18:
+    if convergence_strength < 0.12:
         return False
     return True
 
@@ -146,8 +146,8 @@ def _has_clear_margin(
     target_action: str,
     target_result: Optional[Tuple[ReferenceSequence, float, float]],
     evaluations: Sequence[Tuple[ReferenceSequence, float, float]],
-    cosine_margin: float = 0.07,
-    distance_margin: float = 0.7,
+    cosine_margin: float = 0.05,
+    distance_margin: float = 0.5,
 ) -> bool:
     if not target_result:
         return False
