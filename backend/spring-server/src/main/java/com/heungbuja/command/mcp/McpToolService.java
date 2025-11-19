@@ -373,16 +373,24 @@ public class McpToolService {
 
         // ----------------------- 수정 --------------------------------------------
 
-        // 1. 노래 ID 결정 (songId가 없으면 context에서 가져오기)
+        // 1. 노래 ID 결정 (songId가 없으면 게임 목록 화면으로)
         if (songId == null) {
-            log.info("songId가 없음, context에서 현재 곡 조회 시도");
-            ConversationContext context = conversationContextService.getOrCreate(userId);
-            songId = context.getCurrentSongId();
+            log.info("songId가 없음, 게임 목록 화면으로 이동");
 
-            if (songId == null) {
-                throw new IllegalArgumentException("게임 시작을 위한 노래가 없습니다. 먼저 노래를 선택해주세요.");
-            }
-            log.info("context에서 songId 획득: {}", songId);
+            // 게임 목록 화면 응답
+            Map<String, Object> listData = new HashMap<>();
+            listData.put("intent", "MODE_EXERCISE_NO_SONG");
+
+            String message = "게임 목록을 보여드릴게요";
+
+            log.info("게임 목록 화면 이동: userId={}", userId);
+
+            return McpToolResult.success(
+                    toolCall.getId(),
+                    "start_game",
+                    message,
+                    listData
+            );
         }
 
         // 노래 존재 여부 확인
