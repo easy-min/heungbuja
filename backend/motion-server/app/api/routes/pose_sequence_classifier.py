@@ -368,7 +368,14 @@ async def classify_pose_sequence(
             detail="비교할 참조 시퀀스를 찾지 못했습니다.",
         )
 
-    evaluations = evaluate_query(query_landmarks, references)
+    try:
+        evaluations = evaluate_query(query_landmarks, references)
+    except ValueError as exc:
+        LOGGER.warning("유사도 계산 중 오류 발생: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
     if not evaluations:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
