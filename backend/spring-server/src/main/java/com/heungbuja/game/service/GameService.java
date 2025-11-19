@@ -69,6 +69,9 @@ public class GameService {
     private static final int SESSION_TIMEOUT_MINUTES = 30;
     private static final int JUDGMENT_PERFECT = 3;
     private static final double ACTION_DURATION_SECONDS = 1.2; // 1개 동작 지속 시간 (학습 데이터와 동일: 2비트 = 1.2초)
+    private static final double CENTER_BUFFER_SECONDS = 1.0; // 중심 기반 동작: 수집 범위 (±1.0초)
+    private static final int CLAP_ACTION_CODE = 1; // 손 박수 actionCode
+    private static final int ELBOW_ACTION_CODE = 2; // 팔 치기 actionCode
 
     // --- Redis Key 접두사 상수 ---
     private static final String GAME_STATE_KEY_PREFIX = "game_state:";
@@ -567,6 +570,11 @@ public class GameService {
         GameState gameState = getGameState(sessionId);
         GameSession gameSession = getGameSession(sessionId);
 
+        if (gameSession == null) {
+            log.error("GameSession이 존재하지 않습니다: sessionId={}", sessionId);
+            return;
+        }
+
         gameSession.setLastFrameReceivedTime(Instant.now().toEpochMilli());
 
         List<ActionTimelineEvent> timeline = getCurrentTimeline(gameState, gameSession);
@@ -579,15 +587,30 @@ public class GameService {
 
         ActionTimelineEvent currentAction = timeline.get(nextActionIndex);
         double actionTime = currentAction.getTime();
+        int actionCode = currentAction.getActionCode();
 
-        // 프레임 수집: 동작 시작부터 1.2초 동안 (학습 데이터와 동일)
-        if (currentPlayTime >= actionTime &&
-                currentPlayTime <= actionTime + ACTION_DURATION_SECONDS) {
+        // 프레임 수집: 동작별로 다르게 처리
+        boolean shouldCollect;
+        boolean shouldTrigger;
+
+        if (actionCode == CLAP_ACTION_CODE || actionCode == ELBOW_ACTION_CODE) {
+            // 손 박수, 팔 치기: 중심 기반 수집 (actionTime ± 1.0초)
+            shouldCollect = currentPlayTime >= actionTime - CENTER_BUFFER_SECONDS &&
+                           currentPlayTime <= actionTime + CENTER_BUFFER_SECONDS;
+            shouldTrigger = currentPlayTime > actionTime + CENTER_BUFFER_SECONDS;
+        } else {
+            // 다른 동작: 시작 기반 수집 (actionTime → actionTime + 1.2초)
+            shouldCollect = currentPlayTime >= actionTime &&
+                           currentPlayTime <= actionTime + ACTION_DURATION_SECONDS;
+            shouldTrigger = currentPlayTime > actionTime + ACTION_DURATION_SECONDS;
+        }
+
+        if (shouldCollect) {
             gameSession.getFrameBuffer().put(currentPlayTime, request.getFrameData());
         }
 
         // 판정 트리거: 동작 종료 후
-        if (currentPlayTime > actionTime + ACTION_DURATION_SECONDS) {
+        if (shouldTrigger) {
             if (!gameSession.getFrameBuffer().isEmpty()) {
 
                 // --- ▼ (핵심 수정) 2번에 1번만 AI 서버를 호출하도록 변경 ---
