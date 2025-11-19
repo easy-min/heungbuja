@@ -104,17 +104,9 @@ class BrandnewMotionInferenceService:
         if not frames:
             raise ValueError("프레임 데이터가 비어 있습니다.")
 
-        # 기존 inference.py의 로직 재사용
-        from app.services.inference import MotionInferenceService
-
-        # 임시 서비스 생성 (전처리용)
-        temp_service = MotionInferenceService.__new__(MotionInferenceService)
-        temp_service.frames_per_sample = self.frames_per_sample
-        temp_service.pose_extractor = self.pose_extractor
-        temp_service.device = self.device
-
-        sampled_frames = temp_service._sample_frames(frames, self.frames_per_sample)
-        keypoint_sequence, decode_time_s, pose_time_s = temp_service._frames_to_keypoints(
+        # 전처리: 학습과 동일한 방식으로 전체 시퀀스 정규화
+        sampled_frames = self._sample_frames(frames, self.frames_per_sample)
+        keypoint_sequence, decode_time_s, pose_time_s = self._frames_to_keypoints_corrected(
             sampled_frames
         )
 
@@ -232,6 +224,130 @@ class BrandnewMotionInferenceService:
             return 0
         else:
             return 0
+
+    def _frames_to_keypoints_corrected(self, frames: Sequence[str]):
+        """
+        프레임을 키포인트 시퀀스로 변환 (학습과 동일한 정규화 사용)
+
+        핵심 차이점:
+        - 기존: 각 프레임별로 개별 정규화
+        - 수정: 전체 시퀀스를 모아서 한 번에 정규화 (학습과 동일)
+        """
+        import base64
+        from io import BytesIO
+        from time import perf_counter
+        from PIL import Image, ImageOps
+
+        raw_landmarks_list = []
+        decode_elapsed = 0.0
+        pose_elapsed = 0.0
+        valid_count = 0
+        total_count = 0
+
+        for encoded in frames:
+            total_count += 1
+
+            # 이미지 디코딩
+            decode_start = perf_counter()
+            try:
+                image_data = base64.b64decode(encoded)
+            except Exception as exc:
+                raise ValueError("Base64 디코딩에 실패했습니다.") from exc
+
+            with Image.open(BytesIO(image_data)) as img:
+                img = ImageOps.exif_transpose(img)
+                if img is None:
+                    img = Image.open(BytesIO(image_data))
+                rgb_image = img.convert("RGB")
+                image_np = np.array(rgb_image)
+
+            decode_elapsed += perf_counter() - decode_start
+
+            # Pose 추출 (raw, 정규화 안 함)
+            pose_start = perf_counter()
+            results = self.pose_extractor._pose.process(image_np)
+            pose_elapsed += perf_counter() - pose_start
+
+            if not results.pose_landmarks:
+                # Person not detected - skip this frame
+                continue
+
+            # 33 landmarks 추출 (raw)
+            landmarks = results.pose_landmarks.landmark
+            all_coords = np.array(
+                [(lm.x, lm.y) for lm in landmarks],
+                dtype=np.float32
+            )  # (33, 2)
+
+            raw_landmarks_list.append(all_coords)
+            valid_count += 1
+
+        # 최소 프레임 체크
+        MIN_VALID_FRAMES = 5
+        if valid_count < MIN_VALID_FRAMES:
+            raise ValueError(
+                f"유효한 동작 프레임이 부족합니다 ({valid_count}/{total_count}개). "
+                f"카메라에 전신이 보이도록 해주세요."
+            )
+
+        LOGGER.info(
+            "📹 Brandnew - 프레임 분석: 유효=%d개, 전체=%d개",
+            valid_count, total_count
+        )
+
+        # (T, 33, 2) 형태로 스택
+        raw_sequence = np.stack(raw_landmarks_list, axis=0)
+
+        # 전체 시퀀스를 한 번에 정규화 (train_gcn_cnn.py와 동일)
+        normalized_sequence = self._normalize_sequence(raw_sequence)
+
+        decode_time_s = decode_elapsed
+        pose_time_s = pose_elapsed
+
+        return normalized_sequence, decode_time_s, pose_time_s
+
+    @staticmethod
+    def _normalize_sequence(landmarks_sequence: np.ndarray) -> np.ndarray:
+        """
+        시퀀스 전체를 정규화 (train_gcn_cnn.py의 normalize_landmarks와 동일)
+
+        Args:
+            landmarks_sequence: (T, 33, 2) raw landmarks
+
+        Returns:
+            (T, 22, 2) normalized body keypoints
+        """
+        # Step 1: x, y 좌표만 사용
+        coords = landmarks_sequence[..., :2]  # (T, 33, 2)
+
+        # Step 2: Pelvis (hip 평균)로 중심 정렬
+        HIP_INDICES = (23, 24)
+        pelvis = (coords[:, HIP_INDICES[0], :] + coords[:, HIP_INDICES[1], :]) / 2.0  # (T, 2)
+        coords = coords - pelvis[:, None, :]  # (T, 33, 2)
+
+        # Step 3: 신체 랜드마크만 선택 (11-32)
+        USED_LANDMARK_INDICES = list(range(11, 33))
+        body_coords = coords[:, USED_LANDMARK_INDICES, :]  # (T, 22, 2)
+
+        # Step 4: 전체 시퀀스의 max norm으로 정규화 (핵심!)
+        max_range = np.max(np.linalg.norm(body_coords, axis=-1, ord=2))
+        if max_range < 1e-6:
+            max_range = 1.0
+        body_coords = body_coords / max_range
+
+        return body_coords.astype(np.float32)
+
+    def _sample_frames(self, frames: Sequence[str], target_count: int):
+        """프레임 샘플링"""
+        if len(frames) == target_count:
+            return list(frames)
+
+        if len(frames) < target_count:
+            padding = [frames[-1]] * (target_count - len(frames))
+            return list(frames) + padding
+
+        indices = np.linspace(0, len(frames) - 1, target_count).astype(int)
+        return [frames[i] for i in indices]
 
 
 @lru_cache(maxsize=1)
