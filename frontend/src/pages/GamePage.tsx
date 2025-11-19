@@ -82,7 +82,7 @@ function GamePage() {
       setRedirectReason('wsError');       // 이동은 별도 effect에서 지연 처리
     },
     onDisconnect: () => {
-      if (forceStopRef.current) return;
+      if (forceStopRef.current || hasNavigatedRef.current) return;
       // 최초 연결 이후 끊김: 배너만 띄우고 기다리면 stomp가 자동 재연결
       setWsMessage('연결이 끊어졌습니다. 재시도 중…');
     },
@@ -440,6 +440,7 @@ function GamePage() {
   // 웹소켓 연결 확인
   useEffect(() => {
     if (forceStopRef.current) return;
+    if (hasNavigatedRef.current) return;
     if (stopRequested) return;
     if (isConnected || redirectReason) {
       if (isConnected) setWsMessage(null);
@@ -789,6 +790,11 @@ function GamePage() {
   async function goToResultOnce() {
     if (hasNavigatedRef.current) return;
     hasNavigatedRef.current = true;
+
+    forceStopRef.current = true;
+    setWsMessage(null);
+    setRedirectReason(null);
+
     stopMonitoring();
     stopCamera();
     stopStream();
