@@ -6,6 +6,11 @@
     <title>흥부자 통합 API 대시보드 (배포 서버)</title>
     <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+
+    <!-- 곡 분석 시각화 라이브러리 -->
+    <script src="https://cdn.jsdelivr.net/npm/wavesurfer.js@7.7.15/dist/wavesurfer.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family:'Malgun Gothic',sans-serif; background:linear-gradient(135deg,#eef1f6 0%,#f8f9fb 100%); color:#333; padding:30px; }
@@ -788,45 +793,86 @@
 
             <!-- 분석 결과 미리보기 -->
             <div id="analysis-preview-container" style="display:none; margin-bottom:20px;">
-                <h3 style="color:#667eea; margin-bottom:15px;">📊 분석 결과 미리보기</h3>
+                <h3 style="color:#667eea; margin-bottom:20px; font-size:24px; text-align:center;">
+                    🎵 AI 분석 결과 시각화
+                </h3>
 
-                <!-- 박자 정보 -->
-                <div style="background:#fff; border:2px solid #667eea; border-radius:10px; padding:20px; margin-bottom:15px;">
-                    <h4 style="color:#667eea; margin-bottom:10px;">🎼 박자 정보</h4>
-                    <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:15px;">
-                        <div style="background:#f8f9fa; padding:15px; border-radius:8px; text-align:center;">
-                            <div style="font-size:12px; color:#666; margin-bottom:5px;">BPM</div>
-                            <div id="preview-bpm" style="font-size:24px; font-weight:bold; color:#667eea;">--</div>
+                <!-- 통계 대시보드 -->
+                <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:15px; margin-bottom:20px;">
+                    <div style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding:20px; border-radius:12px; text-align:center; color:white; box-shadow:0 4px 15px rgba(102,126,234,0.3);">
+                        <div style="font-size:14px; opacity:0.9; margin-bottom:8px;">BPM</div>
+                        <div id="preview-bpm" style="font-size:32px; font-weight:bold;">--</div>
+                        <div style="font-size:11px; opacity:0.8; margin-top:5px;">템포</div>
+                    </div>
+                    <div style="background:linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding:20px; border-radius:12px; text-align:center; color:white; box-shadow:0 4px 15px rgba(240,147,251,0.3);">
+                        <div style="font-size:14px; opacity:0.9; margin-bottom:8px;">비트 수</div>
+                        <div id="preview-beats-count" style="font-size:32px; font-weight:bold;">--</div>
+                        <div style="font-size:11px; opacity:0.8; margin-top:5px;">총 박자</div>
+                    </div>
+                    <div style="background:linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); padding:20px; border-radius:12px; text-align:center; color:white; box-shadow:0 4px 15px rgba(79,172,254,0.3);">
+                        <div style="font-size:14px; opacity:0.9; margin-bottom:8px;">곡 길이</div>
+                        <div id="preview-duration" style="font-size:32px; font-weight:bold;">--</div>
+                        <div style="font-size:11px; opacity:0.8; margin-top:5px;">재생 시간</div>
+                    </div>
+                    <div style="background:linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); padding:20px; border-radius:12px; text-align:center; color:white; box-shadow:0 4px 15px rgba(67,233,123,0.3);">
+                        <div style="font-size:14px; opacity:0.9; margin-bottom:8px;">가사 줄 수</div>
+                        <div id="preview-lyrics-count-card" style="font-size:32px; font-weight:bold;">--</div>
+                        <div style="font-size:11px; opacity:0.8; margin-top:5px;">총 라인</div>
+                    </div>
+                </div>
+
+                <!-- 오디오 파형 시각화 -->
+                <div style="background:#fff; border:2px solid #667eea; border-radius:12px; padding:25px; margin-bottom:20px; box-shadow:0 4px 15px rgba(0,0,0,0.05);">
+                    <h4 style="color:#667eea; margin-bottom:15px; font-size:18px; display:flex; align-items:center; gap:10px;">
+                        <span>🎼</span>
+                        <span>오디오 파형 & 비트 타임라인</span>
+                    </h4>
+                    <div id="waveform-container" style="background:#f8f9fa; border-radius:8px; padding:15px; margin-bottom:15px;"></div>
+
+                    <!-- 재생 컨트롤 -->
+                    <div style="display:flex; align-items:center; gap:15px; margin-bottom:15px;">
+                        <button id="btn-play-pause" onclick="toggleWaveformPlayback()" style="background:#667eea; color:white; border:none; padding:12px 25px; border-radius:8px; font-weight:bold; cursor:pointer; font-size:14px;">
+                            ▶️ 재생
+                        </button>
+                        <div id="current-time-display" style="font-family:monospace; font-size:16px; font-weight:bold; color:#667eea;">
+                            00:00.0 / 00:00.0
                         </div>
-                        <div style="background:#f8f9fa; padding:15px; border-radius:8px; text-align:center;">
-                            <div style="font-size:12px; color:#666; margin-bottom:5px;">총 비트 수</div>
-                            <div id="preview-beats-count" style="font-size:24px; font-weight:bold; color:#667eea;">--</div>
-                        </div>
-                        <div style="background:#f8f9fa; padding:15px; border-radius:8px; text-align:center;">
-                            <div style="font-size:12px; color:#666; margin-bottom:5px;">곡 길이</div>
-                            <div id="preview-duration" style="font-size:24px; font-weight:bold; color:#667eea;">--</div>
+                        <div style="flex:1; background:#e9ecef; height:8px; border-radius:4px; position:relative; overflow:hidden;">
+                            <div id="playback-progress" style="background:linear-gradient(90deg, #667eea 0%, #764ba2 100%); height:100%; width:0%; transition:width 0.1s;"></div>
                         </div>
                     </div>
 
-                    <!-- 비트 타임라인 -->
-                    <div style="margin-top:15px;">
-                        <div style="font-size:12px; color:#666; margin-bottom:5px;">비트 타임라인 (처음 40개)</div>
-                        <div id="preview-beats-timeline" style="background:#f8f9fa; padding:10px; border-radius:5px; font-family:monospace; font-size:11px; max-height:100px; overflow-y:auto;">
+                    <!-- 비트 마커 범례 -->
+                    <div style="display:flex; gap:20px; flex-wrap:wrap; font-size:12px; color:#666;">
+                        <div style="display:flex; align-items:center; gap:5px;">
+                            <div style="width:12px; height:12px; background:#667eea; border-radius:50%;"></div>
+                            <span>비트 마커</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:5px;">
+                            <div style="width:12px; height:3px; background:#dc3545;"></div>
+                            <span>Bar 시작</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:5px;">
+                            <div style="width:12px; height:12px; background:#28a745; border-radius:3px;"></div>
+                            <span>가사 구간</span>
                         </div>
                     </div>
                 </div>
 
-                <!-- 가사 정보 -->
-                <div style="background:#fff; border:2px solid #28a745; border-radius:10px; padding:20px; margin-bottom:15px;">
-                    <h4 style="color:#28a745; margin-bottom:10px;">🎤 가사 정보</h4>
-                    <div style="background:#f8f9fa; padding:15px; border-radius:8px; text-align:center; margin-bottom:15px;">
-                        <div style="font-size:12px; color:#666; margin-bottom:5px;">총 가사 줄 수</div>
-                        <div id="preview-lyrics-count" style="font-size:24px; font-weight:bold; color:#28a745;">--</div>
-                    </div>
+                <!-- 비트 분포 차트 -->
+                <div style="background:#fff; border:2px solid #764ba2; border-radius:12px; padding:25px; margin-bottom:20px; box-shadow:0 4px 15px rgba(0,0,0,0.05);">
+                    <h4 style="color:#764ba2; margin-bottom:15px; font-size:18px;">📊 비트 간격 분포 (BPM 일정성)</h4>
+                    <canvas id="beat-interval-chart" style="max-height:200px;"></canvas>
+                </div>
 
-                    <!-- 가사 목록 -->
-                    <div style="font-size:12px; color:#666; margin-bottom:5px;">가사 타이밍 (처음 10줄)</div>
-                    <div id="preview-lyrics-list" style="background:#f8f9fa; padding:10px; border-radius:5px; max-height:200px; overflow-y:auto;">
+                <!-- 가사-비트 매칭 타임라인 -->
+                <div style="background:#fff; border:2px solid #28a745; border-radius:12px; padding:25px; margin-bottom:20px; box-shadow:0 4px 15px rgba(0,0,0,0.05);">
+                    <h4 style="color:#28a745; margin-bottom:15px; font-size:18px;">🎤 가사-비트 매칭 타임라인</h4>
+                    <canvas id="lyrics-timeline-chart" style="max-height:300px;"></canvas>
+
+                    <!-- 가사 목록 (스크롤 가능) -->
+                    <div style="margin-top:20px; max-height:250px; overflow-y:auto; background:#f8f9fa; border-radius:8px; padding:10px;">
+                        <div id="preview-lyrics-list"></div>
                     </div>
                 </div>
 
@@ -867,7 +913,97 @@
             </select>
         </div>
 
-        <div id="song-visualization-container"></div>
+        <!-- 시각화 탭 -->
+        <div class="section">
+            <div style="display:flex; gap:10px; margin-bottom:20px; border-bottom:2px solid #e5e8eb; padding-bottom:10px;">
+                <button id="tab-basic-viz" class="btn btn-primary" onclick="switchVisualizationTab('basic')" style="flex:1;">
+                    📊 기본 시각화
+                </button>
+                <button id="tab-timeline-viz" class="btn btn-secondary" onclick="switchVisualizationTab('timeline')" style="flex:1;">
+                    🎼 악보 타임라인
+                </button>
+            </div>
+
+            <!-- 기본 시각화 컨테이너 -->
+            <div id="basic-visualization-container">
+                <div id="song-visualization-container"></div>
+            </div>
+
+            <!-- 악보 타임라인 컨테이너 -->
+            <div id="timeline-visualization-container" style="display:none;">
+                <!-- 로딩 상태 -->
+                <div id="timeline-loading" style="text-align:center; padding:50px; color:#666;">
+                    <div style="font-size:48px; margin-bottom:15px;">🎵</div>
+                    <div style="font-size:18px;">곡을 선택하면 악보 타임라인이 표시됩니다</div>
+                </div>
+
+                <!-- 악보 타임라인 컨텐츠 -->
+                <div id="score-timeline-content" style="display:none;">
+                    <!-- 1. 상단 축약 타임라인 (고정) -->
+                    <div style="background:#fff; border-radius:12px; padding:20px; margin-bottom:20px; box-shadow:0 4px 15px rgba(0,0,0,0.05); position:sticky; top:0; z-index:10;">
+                        <h3 style="color:#667eea; margin-bottom:15px; font-size:18px;">📊 전체 타임라인 (클릭하여 이동)</h3>
+                        <div id="overview-timeline" style="position:relative; height:80px; background:#f8f9fa; border-radius:8px; overflow:hidden;">
+                            <!-- 섹션 블록들이 여기 들어감 -->
+                            <div id="overview-sections"></div>
+                            <!-- 재생 위치 표시 -->
+                            <div id="overview-playhead" style="position:absolute; top:0; bottom:0; width:3px; background:#dc3545; display:none; transition:left 0.1s;">
+                                <div style="position:absolute; top:-8px; left:-6px; width:0; height:0; border-left:6px solid transparent; border-right:6px solid transparent; border-top:8px solid #dc3545;"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 2. 중간 상세 타임라인 (가로 스크롤) -->
+                    <div style="background:#fff; border-radius:12px; padding:20px; margin-bottom:20px; box-shadow:0 4px 15px rgba(0,0,0,0.05);">
+                        <h3 style="color:#667eea; margin-bottom:15px; font-size:18px;">🎼 상세 악보 타임라인</h3>
+                        <div id="detail-timeline-scroll" style="overflow-x:auto; overflow-y:hidden; position:relative; cursor:grab;">
+                            <div id="detail-timeline" style="position:relative; min-width:2000px; height:400px;">
+                                <!-- 배경 그리드 -->
+                                <div id="timeline-grid"></div>
+                                <!-- 섹션 레이어 -->
+                                <div id="timeline-sections" style="position:absolute; top:0; left:0; right:0; height:60px;"></div>
+                                <!-- 가사 레이어 -->
+                                <div id="timeline-lyrics" style="position:absolute; top:70px; left:0; right:0; height:80px;"></div>
+                                <!-- 비트 레이어 -->
+                                <div id="timeline-beats" style="position:absolute; top:160px; left:0; right:0; height:60px;"></div>
+                                <!-- 동작 레이어 -->
+                                <div id="timeline-patterns" style="position:absolute; top:230px; left:0; right:0; height:80px;"></div>
+                                <!-- 시간축 -->
+                                <div id="timeline-axis" style="position:absolute; top:320px; left:0; right:0; height:80px;"></div>
+                                <!-- 재생 위치 -->
+                                <div id="detail-playhead" style="position:absolute; top:0; bottom:0; width:3px; background:#dc3545; left:0; display:none;">
+                                    <div style="position:absolute; top:-8px; left:-6px; width:0; height:0; border-left:6px solid transparent; border-right:6px solid transparent; border-top:8px solid #dc3545;"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="margin-top:10px; font-size:12px; color:#666; text-align:center;">
+                            💡 Tip: 마우스 드래그로 스크롤, Shift+휠로 좌우 스크롤
+                        </div>
+                    </div>
+
+                    <!-- 3. 하단 현재 재생 정보 패널 (고정) -->
+                    <div id="playback-info-panel" style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%); color:white; border-radius:12px; padding:25px; box-shadow:0 4px 20px rgba(102,126,234,0.3); position:sticky; bottom:20px;">
+                        <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:20px; align-items:center;">
+                            <div>
+                                <div style="font-size:12px; opacity:0.8; margin-bottom:5px;">⏱️ 재생 시간</div>
+                                <div id="current-playback-time" style="font-size:24px; font-weight:bold; font-family:monospace;">00:00.0</div>
+                            </div>
+                            <div>
+                                <div style="font-size:12px; opacity:0.8; margin-bottom:5px;">🎬 섹션</div>
+                                <div id="current-section" style="font-size:20px; font-weight:bold;">-</div>
+                            </div>
+                            <div>
+                                <div style="font-size:12px; opacity:0.8; margin-bottom:5px;">🎤 가사</div>
+                                <div id="current-lyrics" style="font-size:16px; font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">-</div>
+                            </div>
+                            <div>
+                                <div style="font-size:12px; opacity:0.8; margin-bottom:5px;">💃 동작</div>
+                                <div id="current-pattern" style="font-size:20px; font-weight:bold;">-</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -2185,6 +2321,9 @@
         }
     }
 
+    let currentVisualizationTab = 'basic';
+    let currentSongData = null;
+
     function onSongChange() {
         const select = document.getElementById('song-select');
         const songId = select.value;
@@ -2193,6 +2332,30 @@
             loadSongVisualization(parseInt(songId));
         } else {
             document.getElementById('song-visualization-container').innerHTML = '';
+            document.getElementById('timeline-loading').style.display = 'block';
+            document.getElementById('score-timeline-content').style.display = 'none';
+        }
+    }
+
+    function switchVisualizationTab(tab) {
+        currentVisualizationTab = tab;
+
+        // 탭 버튼 스타일 변경
+        if (tab === 'basic') {
+            document.getElementById('tab-basic-viz').className = 'btn btn-primary';
+            document.getElementById('tab-timeline-viz').className = 'btn btn-secondary';
+            document.getElementById('basic-visualization-container').style.display = 'block';
+            document.getElementById('timeline-visualization-container').style.display = 'none';
+        } else {
+            document.getElementById('tab-basic-viz').className = 'btn btn-secondary';
+            document.getElementById('tab-timeline-viz').className = 'btn btn-primary';
+            document.getElementById('basic-visualization-container').style.display = 'none';
+            document.getElementById('timeline-visualization-container').style.display = 'block';
+
+            // 악보 타임라인 렌더링 (데이터가 있으면)
+            if (currentSongData) {
+                renderScoreTimeline(currentSongData);
+            }
         }
     }
 
@@ -2211,7 +2374,21 @@
 
             const data = await res.json();
             console.log('시각화 데이터:', data);
+
+            // 데이터 저장
+            currentSongData = data;
+
+            // 기본 시각화 렌더링
             renderVisualization(data);
+
+            // 악보 타임라인 탭이 활성화되어 있으면 렌더링
+            if (currentVisualizationTab === 'timeline') {
+                renderScoreTimeline(data);
+            } else {
+                // 로딩 상태 제거
+                document.getElementById('timeline-loading').style.display = 'none';
+                document.getElementById('score-timeline-content').style.display = 'none';
+            }
         } catch(e) {
             console.error('시각화 로드 에러:', e);
             alert('곡 시각화 데이터를 불러오는데 실패했습니다: ' + e.message);
@@ -3055,39 +3232,258 @@
         }
     }
 
-    function displayAnalysisPreview(data) {
-        console.log('📊 분석 결과 시각화');
+    let wavesurfer = null;
+    let beatIntervalChart = null;
+    let lyricsTimelineChart = null;
 
-        // 박자 정보
+    function displayAnalysisPreview(data) {
+        console.log('📊 분석 결과 시각화 시작');
+
+        // 1. 통계 카드 업데이트
         const bpm = data.beats.tempoMap[0].bpm.toFixed(1);
         const beatsCount = data.beats.beats.length;
         const durationMin = Math.floor(data.duration / 60);
         const durationSec = Math.floor(data.duration % 60);
+        const lyricsCount = data.lyrics.lines.length;
 
         document.getElementById('preview-bpm').textContent = bpm;
         document.getElementById('preview-beats-count').textContent = beatsCount;
         document.getElementById('preview-duration').textContent = `${durationMin}:${durationSec.toString().padStart(2, '0')}`;
+        document.getElementById('preview-lyrics-count-card').textContent = lyricsCount;
 
-        // 비트 타임라인 (처음 40개)
-        const beatsTimeline = data.beats.beats.slice(0, 40).map(b => {
-            return `Bar ${b.bar} Beat ${b.beat}: ${b.t.toFixed(2)}s`;
-        }).join('\n');
-        document.getElementById('preview-beats-timeline').textContent = beatsTimeline;
+        // 2. 오디오 파형 시각화 (WaveSurfer.js)
+        initializeWaveform(data);
 
-        // 가사 정보
-        const lyricsCount = data.lyrics.lines.length;
-        document.getElementById('preview-lyrics-count').textContent = lyricsCount;
+        // 3. 비트 간격 분포 차트
+        createBeatIntervalChart(data.beats.beats);
 
-        // 가사 목록 (처음 10줄)
-        const lyricsHtml = data.lyrics.lines.slice(0, 10).map(line => {
-            return `<div style="padding:8px; border-bottom:1px solid #ddd;">
-                <div style="font-weight:bold; color:#28a745; margin-bottom:3px;">${line.lineIndex}. ${line.text}</div>
-                <div style="font-size:11px; color:#666;">
-                    시작: ${line.start}s (Beat ${line.sBeat}) → 끝: ${line.end}s (Beat ${line.eBeat})
+        // 4. 가사-비트 매칭 타임라인
+        createLyricsTimelineChart(data.lyrics.lines, data.beats.beats);
+
+        // 5. 가사 목록
+        displayLyricsList(data.lyrics.lines);
+    }
+
+    function initializeWaveform(data) {
+        console.log('🎵 WaveSurfer 초기화');
+
+        // 기존 인스턴스 제거
+        if (wavesurfer) {
+            wavesurfer.destroy();
+        }
+
+        const container = document.getElementById('waveform-container');
+        container.innerHTML = ''; // 초기화
+
+        // WaveSurfer 생성
+        wavesurfer = WaveSurfer.create({
+            container: container,
+            waveColor: '#ddd',
+            progressColor: '#667eea',
+            cursorColor: '#764ba2',
+            barWidth: 2,
+            barRadius: 3,
+            cursorWidth: 2,
+            height: 120,
+            barGap: 1,
+            responsive: true
+        });
+
+        // 오디오 파일 로드 (simpleUploadedFiles.audio 사용)
+        if (simpleUploadedFiles.audio) {
+            const audioUrl = URL.createObjectURL(simpleUploadedFiles.audio);
+            wavesurfer.load(audioUrl);
+
+            wavesurfer.on('ready', () => {
+                console.log('✅ WaveSurfer 준비 완료');
+                // 비트 마커 추가
+                addBeatMarkers(data.beats.beats);
+                // 가사 구간 마커 추가
+                addLyricsRegions(data.lyrics.lines);
+            });
+
+            wavesurfer.on('audioprocess', updatePlaybackTime);
+            wavesurfer.on('seek', updatePlaybackTime);
+        }
+    }
+
+    function addBeatMarkers(beats) {
+        // 비트 마커는 WaveSurfer Regions 플러그인이 필요하므로
+        // 간단하게 CSS로 표시 (또는 canvas overlay)
+        // 여기서는 간단히 구현
+    }
+
+    function addLyricsRegions(lyrics) {
+        // 가사 구간 표시
+        // WaveSurfer Regions 플러그인 사용 시 추가 가능
+    }
+
+    function toggleWaveformPlayback() {
+        if (wavesurfer) {
+            wavesurfer.playPause();
+            const btn = document.getElementById('btn-play-pause');
+            if (wavesurfer.isPlaying()) {
+                btn.textContent = '⏸️ 일시정지';
+                btn.style.background = '#dc3545';
+            } else {
+                btn.textContent = '▶️ 재생';
+                btn.style.background = '#667eea';
+            }
+        }
+    }
+
+    function updatePlaybackTime() {
+        if (!wavesurfer) return;
+
+        const currentTime = wavesurfer.getCurrentTime();
+        const duration = wavesurfer.getDuration();
+
+        const formatTime = (seconds) => {
+            const mins = Math.floor(seconds / 60);
+            const secs = (seconds % 60).toFixed(1);
+            return `${mins.toString().padStart(2, '0')}:${secs.padStart(4, '0')}`;
+        };
+
+        document.getElementById('current-time-display').textContent =
+            `${formatTime(currentTime)} / ${formatTime(duration)}`;
+
+        const progress = (currentTime / duration) * 100;
+        document.getElementById('playback-progress').style.width = progress + '%';
+    }
+
+    function createBeatIntervalChart(beats) {
+        console.log('📊 비트 간격 차트 생성');
+
+        // 비트 간 시간 간격 계산
+        const intervals = [];
+        for (let i = 1; i < beats.length; i++) {
+            intervals.push((beats[i].t - beats[i-1].t) * 1000); // ms로 변환
+        }
+
+        // 간격 분포 계산 (히스토그램)
+        const binCount = 20;
+        const min = Math.min(...intervals);
+        const max = Math.max(...intervals);
+        const binSize = (max - min) / binCount;
+
+        const bins = new Array(binCount).fill(0);
+        const labels = [];
+
+        intervals.forEach(interval => {
+            const binIndex = Math.min(Math.floor((interval - min) / binSize), binCount - 1);
+            bins[binIndex]++;
+        });
+
+        for (let i = 0; i < binCount; i++) {
+            labels.push(`${(min + i * binSize).toFixed(0)}ms`);
+        }
+
+        // 기존 차트 제거
+        if (beatIntervalChart) {
+            beatIntervalChart.destroy();
+        }
+
+        const ctx = document.getElementById('beat-interval-chart');
+        beatIntervalChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: '비트 간격 빈도',
+                    data: bins,
+                    backgroundColor: 'rgba(102, 126, 234, 0.6)',
+                    borderColor: '#667eea',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    title: {
+                        display: true,
+                        text: `평균 간격: ${(intervals.reduce((a,b) => a+b, 0) / intervals.length).toFixed(1)}ms (일정할수록 BPM 안정적)`
+                    }
+                },
+                scales: {
+                    y: { beginAtZero: true, title: { display: true, text: '빈도' } },
+                    x: { title: { display: true, text: '비트 간격 (ms)' } }
+                }
+            }
+        });
+    }
+
+    function createLyricsTimelineChart(lyrics, beats) {
+        console.log('🎤 가사 타임라인 차트 생성');
+
+        // 기존 차트 제거
+        if (lyricsTimelineChart) {
+            lyricsTimelineChart.destroy();
+        }
+
+        const labels = lyrics.slice(0, 15).map(line => `${line.lineIndex}. ${line.text.substring(0, 15)}...`);
+        const startTimes = lyrics.slice(0, 15).map(line => line.start);
+        const durations = lyrics.slice(0, 15).map(line => line.end - line.start);
+
+        const ctx = document.getElementById('lyrics-timeline-chart');
+        lyricsTimelineChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: '가사 길이 (초)',
+                    data: durations,
+                    backgroundColor: 'rgba(40, 167, 69, 0.6)',
+                    borderColor: '#28a745',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                indexAxis: 'y', // 가로 막대
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => {
+                                const idx = context.dataIndex;
+                                return [
+                                    `길이: ${durations[idx].toFixed(1)}초`,
+                                    `시작: ${startTimes[idx]}s`,
+                                    `끝: ${(startTimes[idx] + durations[idx]).toFixed(1)}s`
+                                ];
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: { beginAtZero: true, title: { display: true, text: '길이 (초)' } }
+                }
+            }
+        });
+    }
+
+    function displayLyricsList(lyrics) {
+        const html = lyrics.map(line => {
+            const duration = line.end - line.start;
+            const color = duration > 5 ? '#dc3545' : duration > 3 ? '#ffc107' : '#28a745';
+
+            return `<div style="padding:12px; border-bottom:1px solid #ddd; border-left:4px solid ${color}; margin-bottom:5px; background:white; border-radius:4px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                    <div style="font-weight:bold; color:#333; font-size:14px;">${line.lineIndex}. ${line.text}</div>
+                    <div style="background:${color}; color:white; padding:3px 8px; border-radius:12px; font-size:11px; font-weight:bold;">
+                        ${duration.toFixed(1)}s
+                    </div>
+                </div>
+                <div style="font-size:11px; color:#666; font-family:monospace;">
+                    ⏱️ ${line.start}s ~ ${line.end}s &nbsp;|&nbsp; 🎵 Beat ${line.sBeat} ~ ${line.eBeat}
                 </div>
             </div>`;
         }).join('');
-        document.getElementById('preview-lyrics-list').innerHTML = lyricsHtml;
+
+        document.getElementById('preview-lyrics-list').innerHTML = html;
     }
 
     async function confirmAndRegisterSong() {
@@ -3180,6 +3576,278 @@
         showVisualizationScreen();
         // 곡 목록 새로고침
         loadSongList();
+    }
+
+    // ===== 악보 타임라인 렌더링 =====
+
+    function renderScoreTimeline(data) {
+        console.log('🎼 악보 타임라인 렌더링 시작', data);
+
+        document.getElementById('timeline-loading').style.display = 'none';
+        document.getElementById('score-timeline-content').style.display = 'block';
+
+        const { beats, lyrics, actionTimeline, sections } = data;
+        const duration = beats.audio.durationSec;
+
+        // 섹션 색상 매핑
+        const sectionColors = {
+            'intro': '#667eea',
+            'verse1': '#28a745',
+            'break': '#ffc107',
+            'verse2': '#764ba2'
+        };
+
+        // 패턴 색상 매핑
+        const patternColors = {
+            'P1': '#4facfe',
+            'P2': '#43e97b',
+            'P3': '#fa709a',
+            'P4': '#f093fb'
+        };
+
+        // 1. 상단 축약 타임라인 렌더링
+        renderOverviewTimeline(sections, duration, sectionColors);
+
+        // 2. 중간 상세 타임라인 렌더링
+        renderDetailTimeline(data, sectionColors, patternColors);
+
+        // 3. 드래그 스크롤 기능 추가
+        enableDragScroll();
+    }
+
+    function renderOverviewTimeline(sections, duration, colors) {
+        const container = document.getElementById('overview-sections');
+        if (!container) return;
+
+        container.innerHTML = '';
+
+        if (!sections || sections.length === 0) {
+            container.innerHTML = '<div style="padding:30px; text-align:center; color:#999;">섹션 정보가 없습니다</div>';
+            return;
+        }
+
+        sections.forEach(section => {
+            const startPercent = (section.startTime / duration) * 100;
+            const widthPercent = ((section.endTime - section.startTime) / duration) * 100;
+            const color = colors[section.label] || '#ccc';
+
+            const div = document.createElement('div');
+            div.style.cssText = `
+                position: absolute;
+                left: ${startPercent}%;
+                width: ${widthPercent}%;
+                height: 100%;
+                background: ${color};
+                border-right: 2px solid rgba(255,255,255,0.5);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: white;
+                font-weight: bold;
+                font-size: 14px;
+                cursor: pointer;
+                transition: transform 0.2s;
+            `;
+            div.textContent = section.label.toUpperCase();
+            div.title = `${section.startTime.toFixed(1)}s ~ ${section.endTime.toFixed(1)}s`;
+
+            // 클릭하면 해당 위치로 스크롤
+            div.onclick = () => {
+                const scrollContainer = document.getElementById('detail-timeline-scroll');
+                const targetX = (section.startTime / duration) * 2000;
+                scrollContainer.scrollLeft = targetX - 200;
+            };
+
+            div.onmouseenter = () => div.style.transform = 'translateY(-2px)';
+            div.onmouseleave = () => div.style.transform = 'translateY(0)';
+
+            container.appendChild(div);
+        });
+    }
+
+    function renderDetailTimeline(data, sectionColors, patternColors) {
+        const { beats, lyrics, actionTimeline, sections } = data;
+        const duration = beats.audio.durationSec;
+        const pixelPerSecond = 2000 / duration; // 2000px for total duration
+
+        // 배경 그리드
+        renderGrid(duration, pixelPerSecond);
+
+        // 섹션 레이어
+        renderSectionLayer(sections, duration, pixelPerSecond, sectionColors);
+
+        // 가사 레이어
+        renderLyricsLayer(lyrics.lines, duration, pixelPerSecond);
+
+        // 비트 레이어
+        renderBeatsLayer(beats.beats, duration, pixelPerSecond);
+
+        // 동작 패턴 레이어
+        renderPatternsLayer(actionTimeline, duration, pixelPerSecond, patternColors);
+
+        // 시간축
+        renderTimeAxis(duration, pixelPerSecond);
+    }
+
+    function renderGrid(duration, pixelPerSecond) {
+        const container = document.getElementById('timeline-grid');
+        if (!container) return;
+
+        let html = '';
+        for (let t = 0; t <= duration; t += 5) {
+            const x = t * pixelPerSecond;
+            const opacity = t % 10 === 0 ? 0.3 : 0.1;
+            html += `<div style="position:absolute; left:${x}px; top:0; bottom:0; width:1px; background:rgba(0,0,0,${opacity});"></div>`;
+        }
+        container.innerHTML = html;
+    }
+
+    function renderSectionLayer(sections, duration, pixelPerSecond, colors) {
+        const container = document.getElementById('timeline-sections');
+        if (!container || !sections) return;
+
+        container.innerHTML = sections.map(section => {
+            const x = section.startTime * pixelPerSecond;
+            const width = (section.endTime - section.startTime) * pixelPerSecond;
+            const color = colors[section.label] || '#ccc';
+
+            return `<div style="position:absolute; left:${x}px; width:${width}px; height:100%; background:${color}; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold; border:2px solid white; border-radius:4px; font-size:16px;">
+                ${section.label.toUpperCase()}
+            </div>`;
+        }).join('');
+    }
+
+    function renderLyricsLayer(lyricsLines, duration, pixelPerSecond) {
+        const container = document.getElementById('timeline-lyrics');
+        if (!container || !lyricsLines) return;
+
+        container.innerHTML = lyricsLines.map(line => {
+            const x = line.start * pixelPerSecond;
+            const width = (line.end - line.start) * pixelPerSecond;
+
+            return `<div style="position:absolute; left:${x}px; width:${width}px; height:70px; background:#28a745; color:white; padding:8px; border-radius:6px; border:2px solid white; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; display:flex; flex-direction:column; justify-content:center;" title="${line.text}">
+                <div style="font-weight:bold;">♪ ${line.text.substring(0, 30)}${line.text.length > 30 ? '...' : ''}</div>
+                <div style="font-size:10px; opacity:0.9; margin-top:3px;">${line.start}s ~ ${line.end}s</div>
+            </div>`;
+        }).join('');
+    }
+
+    function renderBeatsLayer(beatsArray, duration, pixelPerSecond) {
+        const container = document.getElementById('timeline-beats');
+        if (!container || !beatsArray) return;
+
+        let html = '';
+        beatsArray.forEach((beat, index) => {
+            const x = beat.t * pixelPerSecond;
+            const isBarStart = beat.beat === 1;
+            const color = isBarStart ? '#dc3545' : '#667eea';
+            const size = isBarStart ? 12 : 8;
+
+            html += `<div style="position:absolute; left:${x-size/2}px; top:25px; width:${size}px; height:${size}px; background:${color}; border-radius:50%; border:${isBarStart ? '2px solid white' : 'none'};" title="Bar ${beat.bar} Beat ${beat.beat} (${beat.t.toFixed(2)}s)"></div>`;
+
+            // Bar 번호 표시 (매 4 bar마다)
+            if (isBarStart && beat.bar % 4 === 1) {
+                html += `<div style="position:absolute; left:${x}px; top:5px; font-size:10px; color:#666; font-weight:bold;">Bar ${beat.bar}</div>`;
+            }
+        });
+
+        container.innerHTML = html;
+    }
+
+    function renderPatternsLayer(timeline, duration, pixelPerSecond, colors) {
+        const container = document.getElementById('timeline-patterns');
+        if (!container || !timeline) return;
+
+        // 패턴 그룹화 (연속된 같은 패턴 합치기)
+        const groups = [];
+        let currentGroup = null;
+
+        timeline.forEach(event => {
+            if (!currentGroup || currentGroup.patternId !== event.patternId) {
+                if (currentGroup) groups.push(currentGroup);
+                currentGroup = {
+                    patternId: event.patternId,
+                    startTime: event.time,
+                    endTime: event.time + (event.duration || 0.5),
+                    description: event.description
+                };
+            } else {
+                currentGroup.endTime = event.time + (event.duration || 0.5);
+            }
+        });
+        if (currentGroup) groups.push(currentGroup);
+
+        container.innerHTML = groups.map(group => {
+            const x = group.startTime * pixelPerSecond;
+            const width = (group.endTime - group.startTime) * pixelPerSecond;
+            const color = colors[group.patternId] || '#ccc';
+
+            return `<div style="position:absolute; left:${x}px; width:${width}px; height:70px; background:${color}; color:white; padding:10px; border-radius:6px; border:2px solid white; display:flex; flex-direction:column; justify-content:center; align-items:center; font-weight:bold; font-size:14px;" title="${group.description}">
+                <div style="font-size:18px;">${group.patternId}</div>
+                <div style="font-size:10px; opacity:0.9; margin-top:3px;">${(group.endTime - group.startTime).toFixed(1)}s</div>
+            </div>`;
+        }).join('');
+    }
+
+    function renderTimeAxis(duration, pixelPerSecond) {
+        const container = document.getElementById('timeline-axis');
+        if (!container) return;
+
+        let html = '';
+        for (let t = 0; t <= duration; t += 10) {
+            const x = t * pixelPerSecond;
+            const mins = Math.floor(t / 60);
+            const secs = Math.floor(t % 60);
+
+            html += `<div style="position:absolute; left:${x}px; top:0;">
+                <div style="width:2px; height:20px; background:#333;"></div>
+                <div style="position:absolute; left:-20px; top:25px; width:40px; text-align:center; font-size:12px; font-weight:bold; color:#333;">${mins}:${secs.toString().padStart(2, '0')}</div>
+            </div>`;
+        }
+
+        container.innerHTML = html;
+    }
+
+    function enableDragScroll() {
+        const scrollContainer = document.getElementById('detail-timeline-scroll');
+        if (!scrollContainer) return;
+
+        let isDown = false;
+        let startX;
+        let scrollLeft;
+
+        scrollContainer.addEventListener('mousedown', (e) => {
+            isDown = true;
+            scrollContainer.style.cursor = 'grabbing';
+            startX = e.pageX - scrollContainer.offsetLeft;
+            scrollLeft = scrollContainer.scrollLeft;
+        });
+
+        scrollContainer.addEventListener('mouseleave', () => {
+            isDown = false;
+            scrollContainer.style.cursor = 'grab';
+        });
+
+        scrollContainer.addEventListener('mouseup', () => {
+            isDown = false;
+            scrollContainer.style.cursor = 'grab';
+        });
+
+        scrollContainer.addEventListener('mousemove', (e) => {
+            if (!isDown) return;
+            e.preventDefault();
+            const x = e.pageX - scrollContainer.offsetLeft;
+            const walk = (x - startX) * 2;
+            scrollContainer.scrollLeft = scrollLeft - walk;
+        });
+
+        // Shift + 휠로 가로 스크롤
+        scrollContainer.addEventListener('wheel', (e) => {
+            if (e.shiftKey) {
+                e.preventDefault();
+                scrollContainer.scrollLeft += e.deltaY;
+            }
+        });
     }
 </script>
 </body>

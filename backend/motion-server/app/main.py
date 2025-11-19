@@ -4,6 +4,7 @@ from logging.config import dictConfig
 from fastapi import FastAPI
 
 from app.api.routes.analyze import router as analyze_router
+from app.api.routes.brandnew import router as brandnew_router
 from app.api.routes.health import router as health_router
 from app.api.routes.pose_sequence_classifier import (
     router as pose_sequence_classifier_router,
@@ -40,6 +41,7 @@ def create_app() -> FastAPI:
     # Routers
     app.include_router(health_router)
     app.include_router(analyze_router)
+    app.include_router(brandnew_router)
     app.include_router(pose_sequence_classifier_router)
 
     @app.get("/")
