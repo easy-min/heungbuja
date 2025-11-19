@@ -8,12 +8,16 @@
 from __future__ import annotations
 
 import argparse
+import logging
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
@@ -24,10 +28,38 @@ class ReferenceSequence:
     sequence_id: int
     landmarks: np.ndarray
 
+def sanitize_landmarks_array(landmarks: np.ndarray) -> np.ndarray:
+    """랜드마크 배열에서 visibility 등 좌표 외 채널을 제거하고 float32로 반환합니다."""
+    if landmarks.ndim != 3:
+        raise ValueError(f"랜드마크 배열은 3차원이어야 합니다. 현재 shape={landmarks.shape}")
+
+    sanitized = np.asarray(landmarks, dtype=np.float32)
+
+    def _is_visibility_channel(channel: np.ndarray) -> bool:
+        # visibility/presence 값은 [0, 1] 범위에 존재한다는 가정 하에 판별
+        finite_vals = channel[np.isfinite(channel)]
+        if finite_vals.size == 0:
+            return False
+        return float(np.nanmin(finite_vals)) >= -1e-3 and float(np.nanmax(finite_vals)) <= 1.0 + 1e-3
+
+    dropped = 0
+    while sanitized.shape[-1] > 2 and _is_visibility_channel(sanitized[..., -1]):
+        sanitized = sanitized[..., :-1]
+        dropped += 1
+
+    if dropped:
+        LOGGER.debug("랜드마크 배열에서 visibility 채널 %d개를 제거했습니다. 결과 shape=%s", dropped, sanitized.shape)
+
+    if sanitized.shape[-1] < 2:
+        raise ValueError("랜드마크 배열에는 최소 2개의 좌표 차원이 필요합니다.")
+
+    return sanitized
+
+
 def _load_npz(data_source: Any) -> Tuple[np.ndarray, dict]:
     """np.load에 전달 가능한 데이터 소스에서 랜드마크와 메타데이터를 로드합니다."""
     with np.load(data_source) as data:
-        landmarks = np.array(data["landmarks"], dtype=np.float32)
+        landmarks = sanitize_landmarks_array(np.array(data["landmarks"], dtype=np.float32))
         metadata = {}
         if "metadata" in data:
             try:

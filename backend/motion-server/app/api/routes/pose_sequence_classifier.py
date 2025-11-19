@@ -16,11 +16,23 @@ from app.services.pose_sequence_classifier import (
     evaluate_query,
     load_npz_bytes,
     load_reference_sequences,
+    sanitize_landmarks_array,
 )
 
 router = APIRouter(prefix="/api/pose-sequences", tags=["pose-sequence"])
 LOGGER = logging.getLogger(__name__)
-BASE_REFERENCE_DIR = Path(__file__).resolve().parents[2] / "services" / "pose_sequences"
+
+_APP_ROOT = Path(__file__).resolve().parents[2]
+_REFERENCE_DIR_CANDIDATES = [
+    _APP_ROOT / "pose_sequences",
+    _APP_ROOT / "services" / "pose_sequences",
+]
+for _candidate in _REFERENCE_DIR_CANDIDATES:
+    if _candidate.exists():
+        BASE_REFERENCE_DIR = _candidate
+        break
+else:
+    BASE_REFERENCE_DIR = _REFERENCE_DIR_CANDIDATES[0]
 
 ACTION_CODE_TO_LABEL = {
     1: "CLAP",
@@ -213,18 +225,12 @@ def _load_query_sequence(payload: PoseSequenceClassificationRequest) -> Tuple[np
 
     if payload.landmarks:
         try:
-            landmarks_array = np.asarray(payload.landmarks, dtype=np.float32)
-        except ValueError as exc:
+            landmarks_array = sanitize_landmarks_array(np.asarray(payload.landmarks, dtype=np.float32))
+        except (ValueError, TypeError) as exc:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="landmarks 필드를 float32 배열로 변환할 수 없습니다.",
             ) from exc
-
-        if landmarks_array.ndim != 3:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="landmarks 배열은 (frames, landmarks, dims) 3차원 형태여야 합니다.",
-            )
 
         metadata = payload.metadata or {}
         if payload.actionCode is not None:
