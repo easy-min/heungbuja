@@ -69,8 +69,7 @@ public class GameService {
     private static final int SESSION_TIMEOUT_MINUTES = 30;
     private static final int JUDGMENT_PERFECT = 3;
     // BPM 기반 타이밍 계산을 위한 비트 수
-    private static final double ACTION_DURATION_BEATS = 2.0; // 기본 동작: 2비트
-    private static final double CENTER_BUFFER_BEATS = 1.0; // 중심 기반 동작: ±1비트
+    private static final double ACTION_DURATION_BEATS = 2.0; // 모든 동작: 2비트 (시작 기반 수집)
     private static final int CLAP_ACTION_CODE = 1; // 손 박수 actionCode
     private static final int ELBOW_ACTION_CODE = 2; // 팔 치기 actionCode
     private static final int EXIT_ACTION_CODE = 6; // 비상구 actionCode
@@ -595,23 +594,11 @@ public class GameService {
         double bpm = gameState.getBpm() != null ? gameState.getBpm() : 100.0; // 기본값 100 BPM
         double secondsPerBeat = 60.0 / bpm;
         double actionDurationSeconds = ACTION_DURATION_BEATS * secondsPerBeat;
-        double centerBufferSeconds = CENTER_BUFFER_BEATS * secondsPerBeat;
 
-        // 프레임 수집: 동작별로 다르게 처리
-        boolean shouldCollect;
-        boolean shouldTrigger;
-
-        if (actionCode == CLAP_ACTION_CODE || actionCode == ELBOW_ACTION_CODE) {
-            // 손 박수, 팔 치기: 중심 기반 수집 (actionTime ± 1비트)
-            shouldCollect = currentPlayTime >= actionTime - centerBufferSeconds &&
-                           currentPlayTime <= actionTime + centerBufferSeconds;
-            shouldTrigger = currentPlayTime > actionTime + centerBufferSeconds;
-        } else {
-            // 다른 동작 (비상구 포함): 시작 기반 수집 (actionTime → actionTime + 2비트)
-            shouldCollect = currentPlayTime >= actionTime &&
-                           currentPlayTime <= actionTime + actionDurationSeconds;
-            shouldTrigger = currentPlayTime > actionTime + actionDurationSeconds;
-        }
+        // 프레임 수집: 모든 동작 시작 기반 수집으로 통일 (actionTime → actionTime + 2비트)
+        boolean shouldCollect = currentPlayTime >= actionTime &&
+                               currentPlayTime <= actionTime + actionDurationSeconds;
+        boolean shouldTrigger = currentPlayTime > actionTime + actionDurationSeconds;
 
         if (shouldCollect) {
             gameSession.getFrameBuffer().put(currentPlayTime, request.getFrameData());
