@@ -20,6 +20,10 @@ import numpy as np
 LOGGER = logging.getLogger(__name__)
 
 
+CANONICAL_LANDMARK_INDICES_22 = tuple(range(11, 33))  # Mediapipe 33포인트에서 얼굴 제외
+CANONICAL_LANDMARK_COUNT = len(CANONICAL_LANDMARK_INDICES_22)
+
+
 @dataclass
 class ReferenceSequence:
     path: Path
@@ -29,7 +33,11 @@ class ReferenceSequence:
     landmarks: np.ndarray
 
 def sanitize_landmarks_array(landmarks: np.ndarray) -> np.ndarray:
-    """랜드마크 배열에서 visibility 등 좌표 외 채널을 제거하고 float32로 반환합니다."""
+    """
+    랜드마크 배열을 정규화 가능한 형태로 정리합니다.
+    - visibility 등 좌표 외 채널 제거
+    - Mediapipe 33포인트 입력 시 몸통 22포인트만 추출
+    """
     if landmarks.ndim != 3:
         raise ValueError(f"랜드마크 배열은 3차원이어야 합니다. 현재 shape={landmarks.shape}")
 
@@ -52,6 +60,16 @@ def sanitize_landmarks_array(landmarks: np.ndarray) -> np.ndarray:
 
     if sanitized.shape[-1] < 2:
         raise ValueError("랜드마크 배열에는 최소 2개의 좌표 차원이 필요합니다.")
+
+    num_landmarks = sanitized.shape[1]
+
+    if num_landmarks == 33:
+        sanitized = sanitized[:, CANONICAL_LANDMARK_INDICES_22, :]
+        LOGGER.debug(
+            "33개 Mediapipe 랜드마크를 몸통 22포인트로 변환했습니다. 결과 shape=%s",
+            sanitized.shape,
+        )
+        num_landmarks = sanitized.shape[1]
 
     return sanitized
 
