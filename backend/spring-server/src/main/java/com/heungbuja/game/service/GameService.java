@@ -69,7 +69,8 @@ public class GameService {
     private static final int SESSION_TIMEOUT_MINUTES = 30;
     private static final int JUDGMENT_PERFECT = 3;
     // BPM 기반 타이밍 계산을 위한 비트 수
-    private static final double ACTION_DURATION_BEATS = 2.0; // 모든 동작: 2비트 (시작 기반 수집)
+    private static final double ACTION_DURATION_BEATS = 1.0; // 모든 동작: 1비트로 단축 (8프레임 수집에 최적화)
+    private static final double NETWORK_LATENCY_OFFSET_SECONDS = 0.2; // 네트워크 지연 보정 감소 (프론트 캡처 + 웹소켓 전송)
     private static final int CLAP_ACTION_CODE = 1; // 손 박수 actionCode
     private static final int ELBOW_ACTION_CODE = 2; // 팔 치기 actionCode
     private static final int EXIT_ACTION_CODE = 6; // 비상구 actionCode
@@ -595,10 +596,21 @@ public class GameService {
         double secondsPerBeat = 60.0 / bpm;
         double actionDurationSeconds = ACTION_DURATION_BEATS * secondsPerBeat;
 
-        // 프레임 수집: 모든 동작 시작 기반 수집으로 통일 (actionTime → actionTime + 2비트)
-        boolean shouldCollect = currentPlayTime >= actionTime &&
-                               currentPlayTime <= actionTime + actionDurationSeconds;
-        boolean shouldTrigger = currentPlayTime > actionTime + actionDurationSeconds;
+        // 네트워크 지연 보정: 프론트 캡처/전송 지연을 고려해 수집을 조금 일찍 시작
+        double collectStartTime = actionTime - NETWORK_LATENCY_OFFSET_SECONDS;
+        double collectEndTime = collectStartTime + actionDurationSeconds;
+
+        // 프레임 수집: 지연 보정 적용
+        boolean shouldCollect = currentPlayTime >= collectStartTime &&
+                               currentPlayTime <= collectEndTime;
+        boolean shouldTrigger = currentPlayTime > collectEndTime;
+
+        // 새로운 동작 시작 시 이전 버퍼 강제 클리어 (이전 동작 프레임 혼입 방지)
+        if (currentPlayTime < collectStartTime - 0.1 && !gameSession.getFrameBuffer().isEmpty()) {
+            log.warn("세션 {}: 수집 구간 밖의 프레임 버퍼 클리어 (actionTime={}, currentPlayTime={})",
+                    sessionId, actionTime, currentPlayTime);
+            gameSession.getFrameBuffer().clear();
+        }
 
         if (shouldCollect) {
             gameSession.getFrameBuffer().put(currentPlayTime, request.getFrameData());
