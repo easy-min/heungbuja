@@ -1,0 +1,32 @@
+.song-list-page {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background-color: var(--color-secondary); /* 노랑 배경 */
+  padding: 40px 130px;
+}
+
+.song-list__date-title {
+  font-size: 4rem;
+  font-weight: 900;
+  text-align: left;
+  color: var(--color-text);
+  margin-top: 20px;
+  margin-bottom: 35px;
+}
+
+.song-list__date-title p {
+  text-shadow:
+    4px 4px 6px var(--color-primary),
+    0 0 8px rgba(0, 0, 0, 0.18);
+}
+
+.song-list__container {
+  margin-top: 12px;
+}
+
+.song-list__loading {
+  font-size: 1.8rem;
+}

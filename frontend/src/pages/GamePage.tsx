@@ -10,6 +10,7 @@ import type  { FeedbackMessage, GameEndResponse, GameWsMessage } from '@/types/g
 import { useGameStore } from '@/store/gameStore';
 import { gameEndApi } from '@/api/game';
 import  VoiceButton from '@/components/VoiceButton'
+import LoadingDots from '@/components/icons/LoadingDots';
 import './GamePage.css';
 
 function GamePage() {
@@ -81,7 +82,7 @@ function GamePage() {
       setRedirectReason('wsError');       // 이동은 별도 effect에서 지연 처리
     },
     onDisconnect: () => {
-      if (forceStopRef.current) return;
+      if (forceStopRef.current || hasNavigatedRef.current) return;
       // 최초 연결 이후 끊김: 배너만 띄우고 기다리면 stomp가 자동 재연결
       setWsMessage('연결이 끊어졌습니다. 재시도 중…');
     },
@@ -439,6 +440,7 @@ function GamePage() {
   // 웹소켓 연결 확인
   useEffect(() => {
     if (forceStopRef.current) return;
+    if (hasNavigatedRef.current) return;
     if (stopRequested) return;
     if (isConnected || redirectReason) {
       if (isConnected) setWsMessage(null);
@@ -788,6 +790,11 @@ function GamePage() {
   async function goToResultOnce() {
     if (hasNavigatedRef.current) return;
     hasNavigatedRef.current = true;
+
+    forceStopRef.current = true;
+    setWsMessage(null);
+    setRedirectReason(null);
+
     stopMonitoring();
     stopCamera();
     stopStream();
@@ -921,13 +928,20 @@ function GamePage() {
 
   return (
     <>
+      {/* 카운트 시작 전: 로딩 점만 전체 화면에 표시 */}
+      {!isCounting && !isGameStarted && (
+        <div className="game-loading-overlay">
+          <LoadingDots className="game-loading-dots" />
+        </div>
+      )}
+
       {isCounting && (
         <div className="countdown-overlay">
           <div className="countdown-bubble">{count > 0 ? count : 'Go!'}</div>
         </div>
       )}
 
-      {wsMessage && (
+      {wsMessage && (isCounting || isGameStarted) && (
         <div className="ws-message-overlay">
           <div className="ws-message-bubble">{wsMessage}</div>
         </div>

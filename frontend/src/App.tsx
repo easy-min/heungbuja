@@ -1,17 +1,18 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import HomePage from './pages/HomePage';
 import GamePage from './pages/GamePage';
 import TutorialPage from './pages/TutorialPage';
 import ResultPage from './pages/ResultPage';
 import SongPage from './pages/SongPage';
-import ProtectedRoute from './components/ProtectedRoute';
-import './index.css';
-import './App.css';
-import { useEffect, useState } from 'react';
-import { checkIfRaspberryPi } from './utils/deviceDetector';
 import RaspberryLoginPage from './pages/RaspberryLoginPage';
 import WebLoginPage from './pages/WebLoginPage';
+import SongListPage from './pages/SongListPage';
+import ProtectedRoute from './components/ProtectedRoute';
+import { checkIfRaspberryPi } from './utils/deviceDetector';
 import { useEnvironmentStore } from './store/environmentStore';
+import './index.css';
+import './App.css';
 
 function App() {
     const [isChecking, setIsChecking] = useState<boolean>(true);
@@ -57,6 +58,7 @@ function App() {
 
           {/* Protected Routes - 로그인 필수 */}
           <Route path="/home" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
+          <Route path="/list" element={<ProtectedRoute><SongListPage /></ProtectedRoute>} />
           <Route path="/listening" element={<ProtectedRoute><SongPage /></ProtectedRoute>} />
           <Route path="/tutorial" element={<ProtectedRoute><TutorialPage /></ProtectedRoute>} />
           <Route path="/game/:songId" element={<ProtectedRoute><GamePage /></ProtectedRoute>} />

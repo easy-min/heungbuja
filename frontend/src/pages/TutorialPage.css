@@ -1,54 +1,276 @@
 .tutorial-page {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-
   height: 100vh;
   width: 100vw;
-
-  background-color: var(--color-bg);
+  background: var(--color-bg);
 }
 
-.tutorial-page p {
-  font-size: 2.2rem;
+/* 상단 단계 인디케이터 */
+.tutorial-steps {
+  margin-top: 40px;
+  display: flex;
+  gap: 150px;
+  justify-content: center;
+  align-items: center;
+}
+
+.tutorial-step-circle {
+  width: 80px;
+  height: 80px;
+  border-radius: 999px;
+  font-size: 2.4rem;
   font-weight: 800;
-  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease,
+    box-shadow 0.3s ease,
+    transform 0.3s ease;
 }
 
-.info-msg {
-  font-size: 1.3rem;
-  font-weight: 500;
-  color: var(--color-text);
-  margin-top: 10px;
-  margin-bottom: 30px;
-}
-
-/* === 버튼 기본 스타일 === */
-.play-btn {
-  width: 120px;
-  height: 120px;
-  border: none;
-  border-radius: 20px;
+.tutorial-step-circle--active {
   background-color: var(--color-primary);
-  cursor: pointer;
-  position: relative;
-  box-shadow:
-    6px 6px 12px rgba(0, 0, 0, 0.25), /* 바닥 그림자 */
-    -6px -6px 12px rgba(255, 255, 255, 0.4); /* 윗면 빛 반사 */
-  transition: all 0.2s ease;
+  color: var(--color-bg);
+  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.18);
+  transform: translateY(-4px);
 }
 
-/* === 삼각형 아이콘 === */
-.play-icon {
-  width: 0;
-  height: 0;
-  border-left: 40px solid var(--color-secondary);
-  border-top: 25px solid transparent;
-  border-bottom: 25px solid transparent;
-  position: absolute;
-  left: 50%;
+.tutorial-step-circle--inactive {
+  background-color: rgba(255, 80, 53, 0.12);
+  color: rgba(0, 0, 0, 0.25);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.06);
+}
+
+/* 공통 메인 레이아웃 */
+.tutorial-layout {
+  flex: 1;
+  display: flex;
+  width: 100%;
+  padding: 0 60px;
+  align-items: center;
+  justify-content: center;
+  gap: 60px;
+  transition: padding-bottom 0.4s ease;
+}
+
+.tutorial-layout--step1 {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;  /* 세로 중앙 */
+  align-items: center;      /* 가로 중앙 */
+  padding: 0;               /* 여백 제거 */
+}
+
+.tutorial-layout--step23 {
+  align-items: center;
+  padding-bottom: 0;
+}
+
+/* 1단계 텍스트 – 정중앙 + 살짝 위 */
+.tutorial-title--center {
+  text-align: center;
+  max-width: 560px;
+  margin: -60px 0 0 0;   /* 중앙보다 60px 위로 이동 */
+}
+
+/* 카메라 영역 – 항상 고정된 너비 유지 */
+.tutorial-camera-wrapper {
+  flex: 0 0 auto;
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+/* 단계별 상태 */
+.camera-state-hidden {  
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.camera-state-show-step2 {
+  opacity: 1;
+  transform: translateY(0);   /* 2단계 출현 */
+}
+
+.camera-state-show-step3 {
+  opacity: 1;
+  transform: translateY(-8px); /* ⬅ 약간 다른 transform으로 애니메이션 강제 트리거 */
+}
+
+/* 1단계에서 카메라만 부드럽게 숨기기 (자리 유지) */
+.tutorial-camera-wrapper--hidden {
+  opacity: 0;
+  transform: translateY(10px);
+  pointer-events: none;
+}
+
+/* 외곽 프레임: secondary 컬러 (예시 이미지의 노란 테두리) */
+.tutorial-camera-outer {
+  padding: 18px;
+  border-radius: 40px;
+  background: var(--color-secondary);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.16);
+}
+
+/* 실제 비디오 영역 */
+.tutorial-camera-frame {
+  width: 300px;
+  max-width: 40vw;
+  aspect-ratio: 3 / 4;
+  border-radius: 24px;
+  overflow: hidden;
+  background: #000;
+}
+
+.tutorial-camera-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1); /* 거울 효과 */
+}
+
+/* 안내 문구 공통 스타일 */
+.tutorial-title {
+  font-size: 2.4rem;
+  font-weight: 800;
+  line-height: 1.4;
+  color: var(--color-text);
+  max-width: 520px;
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+/* 1단계 텍스트: 화면 중앙 아래쪽에서 살짝 올라오는 느낌 */
+.tutorial-title--center {
+  text-align: center;
+}
+
+/* 2·3단계 텍스트: 카메라 오른쪽, 중앙 정렬(혹은 left로 바꿔도 됨) */
+.tutorial-title--side {
+  text-align: center;
+}
+
+/* 단계 전환 시 텍스트 자연스럽게 이동하도록 기본 효과 */
+.tutorial-layout--step1 .tutorial-title {
+  transform: translateY(10px);
+  opacity: 1;
+}
+
+.tutorial-layout--step23 .tutorial-title {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.tutorial-camera-loading {
+  transform: scale(1.5);
+}
+
+.tutorial-camera-loading .dot {
+  background-color: var(--color-primary);
+}
+
+/* ========== 단계 전환 체크 애니메이션 ========== */
+
+.step-check {
+  position: fixed;
   top: 50%;
-  transform: translate(-40%, -50%);
-  filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.2));
+  left: 50%;
+  z-index: 50;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+/* 바깥 연한 링 */
+.step-check__outer {
+  width: 190px;
+  height: 190px;
+  border-radius: 50%;
+  background: #e2f9ee;   /* 더 연한 초록톤 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: step-check-ring 2s ease-out forwards;  /* 0.9s -> 2s */
+}
+
+/* 안쪽 진한 원 */
+.step-check__inner {
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  background: #2fd27d;   /* #1e9c5e 보다 연하고 쨍한 초록 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: step-check-pop 2s ease-out forwards;   /* 0.9s -> 2s */
+}
+
+/* 체크 아이콘 */
+.step-check__mark {
+  color: #ffffff;
+  font-size: 72px;
+  font-weight: 900;
+  animation: step-check-mark 2s ease-out forwards;  /* 0.9s -> 2s */
+}
+
+/* 바깥 링: 살짝 퍼지면서 사라지는 느낌 */
+@keyframes step-check-ring {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  30% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  70% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.15);
+    opacity: 0;
+  }
+}
+
+/* 안쪽 원: 톡 튀었다가 살짝 되돌아오는 바운스 */
+@keyframes step-check-pop {
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  35% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+  55% {
+    transform: scale(0.96);
+  }
+  75% {
+    transform: scale(1.02);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+/* 체크 마크: 약간 늦게 나타나서 또렷해지는 느낌 */
+@keyframes step-check-mark {
+  0% {
+    transform: scale(0.3) rotate(-10deg);
+    opacity: 0;
+  }
+  30% {
+    transform: scale(1.05) rotate(0deg);
+    opacity: 1;
+  }
+  70% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0;
+  }
 }
