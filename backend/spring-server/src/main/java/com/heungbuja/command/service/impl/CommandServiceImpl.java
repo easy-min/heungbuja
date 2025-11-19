@@ -147,7 +147,6 @@ public class CommandServiceImpl implements CommandService {
             // 모드 관련 (프론트가 관리하므로 TTS 응답만)
             case MODE_HOME -> handleModeChange(user, Intent.MODE_HOME, PlaybackMode.HOME);
             case MODE_LISTENING -> handleModeChange(user, Intent.MODE_LISTENING, PlaybackMode.LISTENING);
-            case MODE_EXERCISE -> handleGameStart(user, intentResult);
             case MODE_EXERCISE_NO_SONG -> handleGameListScreen(user);
             case MODE_EXERCISE_END -> handleGameEnd(user);
 
@@ -356,17 +355,6 @@ public class CommandServiceImpl implements CommandService {
                 .songInfo(null)
                 .screenTransition(screenTransition)
                 .build();
-    }
-
-    /**
-     * 특정 노래로 게임 시작 처리
-     */
-    private CommandResponse handleGameStart(User user, IntentResult intentResult) {
-        log.info("특정 노래로 게임 시작 요청: userId={}", user.getId());
-
-        // TODO: intentResult에서 노래 정보 추출 후 게임 시작
-        // 현재는 임시로 게임 목록으로 보냄
-        return handleGameListScreen(user);
     }
 
     /**
