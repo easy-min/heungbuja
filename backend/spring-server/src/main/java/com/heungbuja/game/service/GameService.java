@@ -1177,9 +1177,9 @@ public class GameService {
 
 
     private int determineLevel(double averageScore) {
-        if (averageScore >= 80) return 3;
-        if (averageScore >= 60) return 2;
-        return 1;
+        if (averageScore >= 50) return 3;  // 50점 이상 → 레벨 3 (더 느슨하게!)
+        if (averageScore >= 30) return 2;  // 30점 이상 → 레벨 2
+        return 1;                          // 30점 미만 → 레벨 1
     }
 
     // (신규) 실시간 피드백 발송 헬퍼 메소드
