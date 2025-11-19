@@ -86,6 +86,16 @@ public class GameController {
         }
     }
 
+    /**
+     * 게임 가능한 노래 목록 조회 API (최대 5곡)
+     * @return 게임 가능한 노래 목록
+     */
+    @GetMapping("/list")
+    public ResponseEntity<List<com.heungbuja.game.dto.GameSongListResponse>> getGameSongList() {
+        List<com.heungbuja.game.dto.GameSongListResponse> songList = gameService.getAvailableGameSongs(5);
+        return ResponseEntity.ok(songList);
+    }
+
     // --- ▼ (테스트용 코드) AI 서버 연동을 테스트하기 위한 임시 API 엔드포인트 ---
 //    @GetMapping("/test-ai")
 //    public Mono<ResponseEntity<String>> testAiEndpoint() {

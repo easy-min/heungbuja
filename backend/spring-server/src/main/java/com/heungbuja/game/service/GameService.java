@@ -68,7 +68,7 @@ public class GameService {
     /** Redis 세션 만료 시간 (분) */
     private static final int SESSION_TIMEOUT_MINUTES = 30;
     private static final int JUDGMENT_PERFECT = 3;
-    private static final double JUDGMENT_BUFFER_SECONDS = 0.6; // 앞뒤로 0.6초의 여유 시간 (총 1.2초, 학습 데이터와 동일)
+    private static final double ACTION_DURATION_SECONDS = 1.2; // 1개 동작 지속 시간 (학습 데이터와 동일: 2비트 = 1.2초)
 
     // --- Redis Key 접두사 상수 ---
     private static final String GAME_STATE_KEY_PREFIX = "game_state:";
@@ -568,14 +568,14 @@ public class GameService {
         ActionTimelineEvent currentAction = timeline.get(nextActionIndex);
         double actionTime = currentAction.getTime();
 
-        // 프레임 수집
-        if (currentPlayTime >= actionTime - JUDGMENT_BUFFER_SECONDS &&
-                currentPlayTime <= actionTime + JUDGMENT_BUFFER_SECONDS) {
+        // 프레임 수집: 동작 시작부터 1.2초 동안 (학습 데이터와 동일)
+        if (currentPlayTime >= actionTime &&
+                currentPlayTime <= actionTime + ACTION_DURATION_SECONDS) {
             gameSession.getFrameBuffer().put(currentPlayTime, request.getFrameData());
         }
 
-        // 판정 트리거
-        if (currentPlayTime > actionTime + JUDGMENT_BUFFER_SECONDS) {
+        // 판정 트리거: 동작 종료 후
+        if (currentPlayTime > actionTime + ACTION_DURATION_SECONDS) {
             if (!gameSession.getFrameBuffer().isEmpty()) {
 
                 // --- ▼ (핵심 수정) 2번에 1번만 AI 서버를 호출하도록 변경 ---
