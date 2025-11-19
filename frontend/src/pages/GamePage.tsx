@@ -1,98 +1,282 @@
 import { useRef, useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useCamera } from '@/hooks/useCamera';
-import { useFrameCapture } from '@/hooks/useFrameCapture';
+import { useFrameStreamer } from '@/hooks/useFrameStreamer';
 import { useMusicMonitor } from '@/hooks/useMusicMonitor';
-import { useSegmentUpload } from '@/hooks/useSegmentUpload';
-import { generateSessionId } from '@/utils/gameHelpers';
+// import { useLyricsSync } from '@/hooks/useLyricsSync';
+import { useGameWs } from '@/hooks/useGameWs';
+import { useActionTimelineSync } from '@/hooks/useActionTimelineSync';
+import type  { FeedbackMessage, GameEndResponse, GameWsMessage } from '@/types/game';
+import { useGameStore } from '@/store/gameStore';
+import { gameEndApi } from '@/api/game';
+import  VoiceButton from '@/components/VoiceButton'
 import './GamePage.css';
 
 function GamePage() {
-  // URL 파라미터
-  const { songId } = useParams<{ songId: string }>();
   const navigate = useNavigate();
 
-  // Refs
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+  // === 상태 / 참조 ===
+  const motionVideoRef = useRef<HTMLVideoElement | null>(null); // 동작 영상
+  const videoRef = useRef<HTMLVideoElement | null>(null);       // 카메라 영상
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const startTimerRef = useRef<number | null>(null);
-  // 상태
-  const [isGameStarted, setIsGameStarted] = useState(false);
-  const [currentSegment, setCurrentSegment] = useState(0);
-  const [sessionId] = useState(() => generateSessionId());
-  const [testMode] = useState(true);  // ✅ testMode 설정
+  const captureTimeoutsRef = useRef<number[]>([]);
+  const countdownTimerRef = useRef<number | null>(null);
+  const hasNavigatedRef = useRef(false);
+  const songBpmRef = useRef<number>(120);
+  const currentSectionRef = useRef<'intro' | 'break' | 'verse1' | 'verse2'>('break');
+  const announcedSectionRef = useRef<SectionKey | null>(null);
+  const verse2LevelRef = useRef<'level1' | 'level2' | 'level3'>('level2');
+  const forceStopRef = useRef(false);
 
-  // 카메라 훅
+  const currentPatternSeqRef = useRef<PatternKey[] | null>(null);
+  const currentPatternIndexRef = useRef<number>(0);
+  const currentPatternKeyRef = useRef<PatternKey | null>(null);
+
+  const [isCounting, setIsCounting] = useState(false);
+  const [count, setCount] = useState(5);
+  const [isGameStarted, setIsGameStarted] = useState(false);
+  // const [lyrics, setLyrics] = useState<LyricLine[]>([]);
+  const [sectionMessage, setSectionMessage] = useState<string | null>(null);
+  const [wsMessage, setWsMessage] = useState<string | null>(null);
+  const [redirectReason, setRedirectReason] = useState<null | 'wsError' | 'timeout'>(null);
+  const [lastFeedback, setLastFeedback] = useState<FeedbackMessage['data'] | null>(null);
+  const feedbackHideTimerRef = useRef<number | null>(null);
+  const [verse2Level, setVerse2Level] = useState<'level1' | 'level2' | 'level3'>('level2');
+
+  const { connect, disconnect, sendFrame, isConnected } = useGameWs({
+    onError: () => {
+      if (forceStopRef.current) return;
+      setWsMessage('웹소켓 연결 실패');   // 문구 먼저 노출
+      setRedirectReason('wsError');       // 이동은 별도 effect에서 지연 처리
+    },
+    onDisconnect: () => {
+      if (forceStopRef.current) return;
+      // 최초 연결 이후 끊김: 배너만 띄우고 기다리면 stomp가 자동 재연결
+      setWsMessage('연결이 끊어졌습니다. 재시도 중…');
+    },
+    onFeedback: (msg: GameWsMessage) => {
+      if (msg.type === 'LEVEL_DECISION') {
+        const { nextLevel } = msg.data;
+        console.log(msg.data);
+
+        const levelKey = (`level${nextLevel}` as 'level1' | 'level2' | 'level3');
+        verse2LevelRef.current = levelKey;
+        setVerse2Level(levelKey);
+
+        if (currentSectionRef.current === 'verse2') {
+          switchSectionVideo('verse2', levelKey);
+        }
+        return;
+      }
+
+      if (feedbackHideTimerRef.current) {
+        clearTimeout(feedbackHideTimerRef.current);
+        feedbackHideTimerRef.current = null;
+      }
+      // console.log('[피드백] ', msg.data.judgment);
+
+      setLastFeedback(msg.data);
+
+      feedbackHideTimerRef.current = window.setTimeout(() => {
+        setLastFeedback(null);
+        feedbackHideTimerRef.current = null;
+      }, 1000);
+    },
+  });
+
+  const { isCapturing, start: startStream, stop: stopStream } = useFrameStreamer({
+    videoRef, audioRef, canvasRef,
+  });
   const { stream, isReady, error, startCamera, stopCamera } = useCamera();
 
-  // 음악 모니터링 훅
   const {
-    barGroups,
-    currentSegmentIndex,
-    isMonitoring,
-    loadSongData,
-    startMonitoring,
-    stopMonitoring,
-  } = useMusicMonitor({
-    audioRef,
-    onSegmentStart: handleSegmentStart,
-    onSegmentEnd: handleSegmentEnd,
-    onAllComplete: handleAllComplete,
-  });
-
-  // 프레임 캡처 훅
-  const {
-    isCapturing,
-    startCapture,
-    stopCapture,
-  } = useFrameCapture({
-    videoRef,
-    audioRef,
-    canvasRef,
-  });
-
-  // 세그먼트 업로드 훅
-  const {
-    uploadQueue,
-    isUploading,
-    queueSegmentUpload,
-  } = useSegmentUpload({
     sessionId,
-    songId: songId || 'test-song',
-    musicTitle: '당돌한 여자',
-    verse: 1,
-    testMode,  // ✅ testMode state 사용
-    onUploadSuccess: handleUploadSuccess,
-    onUploadError: handleUploadError,
+    songTitle,
+    songArtist,
+    audioUrl,
+    //videoUrls, // 필요 시 사용
+    bpm,
+    duration,
+    sectionInfo,
+    segmentInfo,
+    // lyricsInfo,
+    verse1Timeline,
+    verse2Timelines,
+    stopRequested,
+    clear,
+    sectionPatterns,
+  } = useGameStore();
+
+  // const { current: currentLyric, next: nextLyric, isInstrumental } =
+  //   useLyricsSync(audioRef, lyrics, { prerollSec: 0.04 });
+
+  const currentActionName = useActionTimelineSync({
+    audioRef,
+    currentSectionRef,
+    verse1Timeline,
+    verse2Timelines,
+    sectionInfo,
+    verse2Level,
   });
 
-  // 컴포넌트 마운트
-  useEffect(() => {
-    console.log('🎮 GamePage 마운트');
-    console.log('📋 Session ID:', sessionId);
-    console.log('🎵 Song ID:', songId);
+  // === 영상 메타 ===
+  const pub = (p: string) => `${import.meta.env.BASE_URL}${p}`;
 
-    // 카메라 시작
-    startCamera();
+  const VIDEO_META = {
+    intro:  { src: pub('break.mp4'),      bpm: 100,  loopBeats: 8  },
+    break:  { src: pub('break.mp4'),      bpm: 100,  loopBeats: 8  },
+  } as const;
 
-    // JSON 로드
-    loadSongData('/당돌한여자_섹션추가.json');
+  const PATTERN_META: Record<PatternKey, { src: string; bpm: number; loopBeats: number }> = {
+    P1: { src: pub('P1.mp4'), bpm: 98.6, loopBeats: 16 },
+    P2: { src: pub('P2.mp4'), bpm: 98.3, loopBeats: 16 },
+    P3: { src: pub('P3.mp4'), bpm: 99, loopBeats: 16 },
+    P4: { src: pub('P4.mp4'), bpm: 99, loopBeats: 16 },
+  };
 
-    // ✅ 수정: 언마운트/정리 useEffect 내
-    return () => {
-      console.log('🎮 GamePage 언마운트');
-      if (startTimerRef.current !== null) {
-        clearTimeout(startTimerRef.current);
-        startTimerRef.current = null;
+  type SectionKey = 'intro' | 'break' | 'verse1' | 'verse2';
+  type PatternKey = 'P1' | 'P2' | 'P3' | 'P4';
+
+  // === 수동 루프 파라미터 ===
+  const LOOP_EPS = 0.02;     // 경계 여유
+  const LOOP_RESTART = 0.06; // 되감을 위치(싱크 보정)
+
+  function getPatternSequenceForSection(
+    section: SectionKey,
+    levelForVerse2: 'level1' | 'level2' | 'level3',
+  ): PatternKey[] | null {
+    if (!sectionPatterns) return null;
+
+    if (section === 'verse1') {
+      return (sectionPatterns.verse1 ?? []) as PatternKey[];
+    }
+
+    if (section === 'verse2') {
+      const arr = sectionPatterns.verse2?.[levelForVerse2] ?? [];
+      return arr as PatternKey[];
+    }
+
+    // intro, break 는 패턴 없이 단일 영상
+    return null;
+  }
+
+  const getLoopLenSec = (section: SectionKey): number => {
+    // verse1 / verse2는 현재 패턴 기준으로 길이 계산
+    if (section === 'verse1' || section === 'verse2') {
+      const key = currentPatternKeyRef.current;
+      if (key) {
+        const meta = PATTERN_META[key];
+        return (60 / meta.bpm) * meta.loopBeats;
       }
-      stopCamera();
-      stopMonitoring();
-      if (audioRef.current) audioRef.current.pause();
+      // 패턴이 아직 선택 안 된 경우, 안전한 기본값 반환
+      return 1;
+    }
+
+    // 여기까지 내려오면 section 은 intro | break
+    const simpleSection: 'intro' | 'break' =
+      section === 'intro' ? 'intro' : 'break';
+
+    const meta = VIDEO_META[simpleSection];
+    return (60 / meta.bpm) * meta.loopBeats;
+  };
+
+  // === 모니터링 (섹션 감지 → 영상 전환) ===
+  const { loadFromGameStart, startMonitoring, stopMonitoring } = useMusicMonitor({
+    audioRef,
+    onSectionEnter: (label) => {
+      const map = { intro: 'intro', break: 'break', verse1: 'verse1', verse2: 'verse2' } as const;
+      const nextSection = map[label] ?? 'break';
+      switchSectionVideo(nextSection);
+
+      if (nextSection !== announcedSectionRef.current) {
+        announcedSectionRef.current = nextSection;
+        if (nextSection === 'intro') {
+          setSectionMessage("노래에 맞춰 캐릭터의 동작을 따라해주세요!");
+          setTimeout(() => setSectionMessage(null), 8000);
+        }
+        if (nextSection === 'break') {
+          let msg = '';
+
+          switch (verse2LevelRef.current) {
+            case 'level1':
+              msg = '잘 하고 계세요! 조금만 더 힘내세요!';
+              break;
+            case 'level2':
+              msg = '잘 따라하셔서 2절은 한 단계 높은 동작으로 바꿔볼게요!';
+              break;
+            case 'level3':
+              msg = '멋진 실력이에요! 2절은 최상 난이도로 함께해요!';
+              break;
+            default:
+              msg = '';
+          }
+
+          if (msg) {
+            setSectionMessage(msg);
+            window.setTimeout(() => setSectionMessage(null), 12000);
+          }
+        }
+      }
+    },
+  });
+
+  // 웹소켓 연결 확인
+  useEffect(() => {
+    if (forceStopRef.current) return;
+    if (stopRequested) return;
+    if (isConnected || redirectReason) {
+      if (isConnected) setWsMessage(null);
+      return;
+    }
+    setWsMessage('웹소켓 연결 중…');
+    const timer = window.setTimeout(() => {
+      if (forceStopRef.current) return;
+      if (stopRequested) return;
+      setWsMessage('연결이 지연되어 튜토리얼로 이동합니다.');
+      setRedirectReason('timeout');
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [isConnected, redirectReason, stopRequested]);
+
+  // 안내 문구를 화면에 보여준 다음 1.2초 뒤 라우팅
+  useEffect(() => {
+    if (forceStopRef.current) return;
+    if (!redirectReason || stopRequested) return;
+    const timer = window.setTimeout(() => {
+      navigate('/tutorial', { replace: true });
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [redirectReason, navigate, stopRequested]);
+
+
+  // 자동 카운트다운
+  useEffect(() => {
+    const readyToStart = !!(isReady && audioRef.current?.src && isConnected);
+    if (readyToStart && !isGameStarted && !isCounting && !countdownTimerRef.current) {
+      startCountdown();
+    }
+  }, [isReady, isGameStarted, isCounting, isConnected]);
+
+  // 노래 끝 → 결과로
+  useEffect(() => {
+    const audio = audioRef.current;
+    const mv = motionVideoRef.current;
+    if (!audio || !mv) return;
+
+    const handleEnded = () => {
+      mv.pause();
+      mv.currentTime = 0;
+      goToResultOnce();
+    };
+
+    audio.addEventListener('ended', handleEnded);
+    return () => {
+      audio.removeEventListener('ended', handleEnded);
     };
   }, []);
 
-  // 카메라 스트림 연결
+  // === 카메라 스트림 연결 ===
   useEffect(() => {
     if (stream && videoRef.current && !videoRef.current.srcObject) {
       videoRef.current.srcObject = stream;
@@ -100,219 +284,505 @@ function GamePage() {
     }
   }, [stream]);
 
-  // 캔버스 크기 설정
+  // === Canvas 크기 ===
   useEffect(() => {
-    if (videoRef.current && canvasRef.current) {
-      const video = videoRef.current;
-      video.addEventListener('loadedmetadata', () => {
-        if (canvasRef.current) {
-          canvasRef.current.width = video.videoWidth || 320;
-          canvasRef.current.height = video.videoHeight || 240;
-          console.log(`🎨 Canvas 크기: ${canvasRef.current.width}x${canvasRef.current.height}`);
-        }
-      });
-    }
+    const video = videoRef.current;
+    if (!video || !canvasRef.current) return;
+
+    const onMeta = () => {
+      if (!canvasRef.current) return;
+      canvasRef.current.width = video.videoWidth || 320;
+      canvasRef.current.height = video.videoHeight || 240;
+    };
+    video.addEventListener('loadedmetadata', onMeta);
+    return () => video.removeEventListener('loadedmetadata', onMeta);
   }, []);
 
-  // 세그먼트 인덱스 업데이트
   useEffect(() => {
-    setCurrentSegment(currentSegmentIndex + 1);
-  }, [currentSegmentIndex]);
+    if (!stopRequested) return;
+    void handleForceStop();
+  }, [stopRequested]);
 
-  // 이벤트 핸들러
-  function handleTestStart() {
-    if (!audioRef.current || !isReady) {
-      console.warn('⚠️  카메라 또는 오디오가 준비되지 않았습니다');
+  // === 섹션별 영상 전환 ===
+  function switchSectionVideo(
+    next: SectionKey,
+    overrideLevel?: 'level1' | 'level2' | 'level3',
+  ) {
+    const mv = motionVideoRef.current;
+    const au = audioRef.current;
+    if (!mv) return;
+
+    currentSectionRef.current = next;
+
+    // verse2 난이도 결정
+    const levelToUse =
+      next === 'verse2'
+        ? (overrideLevel ?? verse2LevelRef.current)
+        : verse2LevelRef.current;
+
+    // intro / break → 기존 방식
+    if (next === 'intro' || next === 'break') {
+      currentPatternSeqRef.current = null;
+      currentPatternIndexRef.current = 0;
+      currentPatternKeyRef.current = null;
+
+      const { src, bpm: videoBpm } = VIDEO_META[next];
+      const songBpm = songBpmRef.current || 120;
+      const shouldPlayNow = !!au && !au.paused;
+      const needSrcSwap = mv.src !== src;
+
+      const applyAndPlay = async () => {
+        mv.loop = false;
+        mv.pause();
+        mv.playbackRate = songBpm / videoBpm;
+        mv.currentTime = LOOP_RESTART;
+        if (shouldPlayNow) await mv.play().catch(() => {});
+      };
+
+      if (needSrcSwap) {
+        mv.src = src;
+        mv.load();
+        if (mv.readyState < 1) {
+          mv.addEventListener('loadedmetadata', applyAndPlay, { once: true });
+        } else {
+          void applyAndPlay();
+        }
+      } else {
+        void applyAndPlay();
+      }
       return;
     }
 
-    console.log('🎬 테스트 시작');
-    audioRef.current.play();
-    startMonitoring();
-    setIsGameStarted(true);
+    // verse1 / verse2 → 패턴 배열 기반
+    const seq = getPatternSequenceForSection(next, levelToUse);
+    currentPatternSeqRef.current = seq;
+    currentPatternIndexRef.current = 0;
+
+    const firstPattern = seq && seq.length > 0 ? seq[0] : null;
+    const shouldPlayNow = !!au && !au.paused;
+
+    if (firstPattern) {
+      void playPatternVideo(firstPattern, shouldPlayNow);
+    } else {
+      // 패턴이 비어 있는 경우 안전하게 아무것도 하지 않음
+      console.warn('섹션 패턴이 비어 있습니다:', next, levelToUse);
+    }
   }
 
-  function handleTestStop() {
-    console.log('⏹ 테스트 중지');
+  async function playPatternVideo(
+    pattern: PatternKey,
+    videoShouldFollowAudio: boolean,
+  ) {
+    const mv = motionVideoRef.current;
+    const au = audioRef.current;
+    if (!mv) return;
+
+    const { src, bpm: videoBpm } = PATTERN_META[pattern];
+    const songBpm = songBpmRef.current || 120;
+
+    currentPatternKeyRef.current = pattern;
+
+    const needSrcSwap = mv.src !== src;
+
+    const applyAndPlay = async () => {
+      mv.loop = false;
+      mv.pause();
+      mv.playbackRate = songBpm / videoBpm;
+      mv.currentTime = LOOP_RESTART;
+      if (videoShouldFollowAudio && au && !au.paused) {
+        await mv.play().catch(() => {});
+      }
+    };
+
+    if (needSrcSwap) {
+      mv.src = src;
+      mv.load();
+      if (mv.readyState < 1) {
+        mv.addEventListener('loadedmetadata', applyAndPlay, { once: true });
+      } else {
+        void applyAndPlay();
+      }
+    } else {
+      void applyAndPlay();
+    }
+  }
+
+  // === 수동 루프 러너(한 번만 설치) ===
+  useEffect(() => {
+    const mv = motionVideoRef.current;
+    if (!mv) return;
+
+    let raf = 0;
+
+    const advancePatternIfNeeded = () => {
+      const seq = currentPatternSeqRef.current;
+      if (!seq || seq.length === 0) {
+        // 패턴 모드가 아니면 그냥 현재 영상만 루프
+        mv.currentTime = LOOP_RESTART;
+        if (mv.paused) { mv.play().catch(() => {}); }
+        return;
+      }
+
+      // 다음 패턴 index 계산 (마지막이면 0으로)
+      const nextIndex = (currentPatternIndexRef.current + 1) % seq.length;
+      currentPatternIndexRef.current = nextIndex;
+      const nextPattern = seq[nextIndex];
+
+      const au = audioRef.current;
+      const shouldPlayNow = !!au && !au.paused;
+
+      void playPatternVideo(nextPattern, shouldPlayNow);
+    };
+
+    const tick = () => {
+      raf = requestAnimationFrame(tick);
+      if (mv.readyState < 2) return;
+
+      const section = currentSectionRef.current;
+      const nominal = getLoopLenSec(section);
+      const dur = Number.isFinite(mv.duration) ? mv.duration : nominal;
+      const loopEnd = Math.min(nominal, dur);
+
+      if (mv.currentTime >= loopEnd - LOOP_EPS) {
+        if (section === 'verse1' || section === 'verse2') {
+          advancePatternIfNeeded();
+        } else {
+          // intro / break: 기존처럼 동일 영상 루프
+          mv.currentTime = LOOP_RESTART;
+          if (mv.paused) { mv.play().catch(() => {}); }
+        }
+      }
+    };
+
+    const onEnded = () => {
+      // 비정상적으로 ended 이벤트가 와도 현재 섹션/패턴에 맞게 처리
+      const section = currentSectionRef.current;
+      if (section === 'verse1' || section === 'verse2') {
+        advancePatternIfNeeded();
+      } else {
+        mv.currentTime = LOOP_RESTART;
+        mv.play().catch(() => {});
+      }
+    };
+
+    mv.addEventListener('ended', onEnded);
+    raf = requestAnimationFrame(tick);
+
+    return () => {
+      mv.removeEventListener('ended', onEnded);
+      cancelAnimationFrame(raf);
+    };
+  }, []);
+
+  // === 게임 시작 ===
+  async function beginGame() {
+    if (!isConnected || !audioRef.current || !isReady) return;
+    startMonitoring();
+
+    // 오디오 먼저 재생
+    await audioRef.current.play().catch(e => console.warn('audio play err', e));
+
+    scheduleRangeCaptures(); // 구간 캡처/스트리밍 시작
+  }
+
+  // === 구간 캡처 스케줄링(서버 segmentInfo 사용) ===
+  function scheduleRangeCaptures() {
+    const audio = audioRef.current;
+    if (!audio || !segmentInfo) return;
+
+    clearCaptureTimeouts();
+
+    const sid = sessionId!;
+
+    const verse1 = segmentInfo.verse1cam;
+    const verse2 = segmentInfo.verse2cam;
+    const segments = [
+      verse1 ? { key: 'verse1' as const, start: verse1.startTime, end: verse1.endTime } : null,
+      verse2 ? { key: 'verse2' as const, start: verse2.startTime, end: verse2.endTime } : null,
+    ].filter(Boolean) as Array<{ key: 'verse1' | 'verse2'; start: number; end: number }>;
+
+    segments.forEach(({ start, end }) => {
+      if (end <= start) return;
+
+      const now = audio.currentTime;
+      const delayMs = Math.max(0, (start - now) * 1000);
+
+      const timeoutId = window.setTimeout(() => {
+        const cur = audio.currentTime;
+        if (cur >= end) return;
+
+        const effectiveStart = Math.max(cur, start);
+      startStream(effectiveStart, end, (blob, { t /*, idx*/ }) => {
+        void sendFrame({ sessionId: sid, blob, currentPlayTime: t });
+      });
+      }, delayMs);
+
+      captureTimeoutsRef.current.push(timeoutId);
+    });
+  }
+
+  function clearCaptureTimeouts() {
+    captureTimeoutsRef.current.forEach(id => clearTimeout(id));
+    captureTimeoutsRef.current = [];
+  }
+
+  // === 카운트다운 ===
+  function startCountdown() {
+    if (isGameStarted || isCounting || !isConnected ) return;
+    setIsCounting(true);
+    setCount(5);
+
+    countdownTimerRef.current = window.setInterval(() => {
+      setCount((prev) => {
+        const next = prev - 1;
+        if (next <= 0) {
+          clearInterval(countdownTimerRef.current!);
+          countdownTimerRef.current = null;
+          setIsCounting(false);
+          setIsGameStarted(true);
+          void beginGame();
+          return 0;
+        }
+        return next;
+      });
+    }, 1000);
+  }
+
+  // === 종료 시 결과 페이지 이동 ===
+  async function goToResultOnce() {
+    if (hasNavigatedRef.current) return;
+    hasNavigatedRef.current = true;
+    stopMonitoring();
+    stopCamera();
+    stopStream();
+    clearCaptureTimeouts();
+    disconnect();
     if (audioRef.current) {
+      audioRef.current.onerror = null;
       audioRef.current.pause();
     }
+
+    const res: GameEndResponse = await gameEndApi();
+
+    navigate('/result', {
+      state: {
+        finalScore: res.finalScore,
+        message: res.message,
+      },
+    });
+  }
+
+  function cleanupGameResources() {
     stopMonitoring();
-    setIsGameStarted(false);
-  }
-
-  // ✅ 수정: 오디오 현재시간 기준으로 예약 호출
-  function handleSegmentStart(segmentIndex: number) {
-    console.log(`▶️  세그먼트 ${segmentIndex + 1} 시작`);
-    const group = barGroups[segmentIndex];
-    const audio = audioRef.current;
-    if (!group || !audio) return;
-
-    const now = audio.currentTime;
-    const preRoll = 0.04; // 40ms 정도 앞당겨 시작해 지터 흡수
-    const delayMs = Math.max(0, (group.startTime - now - preRoll) * 1000);
-
-    // 이전 예약이 남아있으면 취소
-    if (startTimerRef.current !== null) {
-      clearTimeout(startTimerRef.current);
-      startTimerRef.current = null;
+    stopCamera();
+    stopStream();
+    clearCaptureTimeouts();
+    disconnect();
+    if (audioRef.current) {
+      audioRef.current.onerror = null;
+      audioRef.current.pause();
     }
-
-    startTimerRef.current = window.setTimeout(() => {
-      console.log('⏱ 예약 캡처 시작', { delayMs, nowAtFire: audio.currentTime.toFixed(3) });
-      startCapture(group.startTime, group.endTime);
-      startTimerRef.current = null;
-    }, delayMs);
+    const mv = motionVideoRef.current;
+    if (mv) {
+      mv.pause();
+      mv.currentTime = 0;   // 필요하면 처음 프레임으로
+    }
   }
 
-  function handleSegmentEnd(segmentIndex: number, frames: any[]) {
-      console.log(`⏹ 세그먼트 ${segmentIndex + 1} 종료`);
-      if (startTimerRef.current !== null) {
-        clearTimeout(startTimerRef.current);
-        startTimerRef.current = null;
+  async function handleForceStop() {
+    forceStopRef.current = true;
+    cleanupGameResources();
+    setRedirectReason(null);
+    setWsMessage(null);
+    clear();
+  }
+
+  function mapJudgment(judgment: 1 | 2 | 3) {
+    switch (judgment) {
+      case 3:
+        return { label: 'PERFECT', labelKo: '완벽해요!', level: 'perfect' as const };
+      case 2:
+        return { label: 'GOOD', labelKo: '좋아요!', level: 'good' as const };
+      case 1:
+      default:
+        return { label: 'SOSO', labelKo: '조금 더!', level: 'soso' as const };
+    }
+  }
+
+  // function formatTime(sec: number) {
+  //   const s = Math.floor(sec);
+  //   const mm = String(Math.floor(s / 60)).padStart(2, '0');
+  //   const ss = String(s % 60).padStart(2, '0');
+  //   return `${mm}:${ss}`;
+  // }
+
+
+  // === 초기화: store 기반으로만 세팅 ===
+  useEffect(() => {
+    // let cancelled = false;
+    (async () => {
+      try {
+        startCamera();
+
+        // 필수 데이터 가드
+        if (!audioUrl || !bpm || !duration || !sectionInfo || !sessionId) {
+          console.warn('필수 게임 데이터가 없습니다. 튜토리얼로 이동합니다.');
+          navigate('/tutorial', { replace: true });
+          return;
+        }
+
+        // 오디오 소스
+        if (audioRef.current) {
+          const localAudio = pub(audioUrl);
+          audioRef.current.src = localAudio;
+          audioRef.current.onerror = () => {
+            const el = audioRef.current;
+            if (!el || !audioUrl) return;
+
+            el.src = audioUrl;
+            el.load();
+          };
+          audioRef.current.load();
+        }
+
+        // 가사/메타
+        // setLyrics(lyricsInfo.lines ?? []);
+        songBpmRef.current = bpm;
+
+        // useMusicMonitor가 기대하는 timeline 형태로 매핑
+        const timeline = {
+          introStartTime: sectionInfo.introStartTime ?? 0,
+          verse1StartTime: sectionInfo.verse1StartTime ?? 0,
+          breakStartTime: sectionInfo.breakStartTime ?? 0,
+          verse2StartTime: sectionInfo.verse2StartTime ?? 0,
+        };
+
+        connect(sessionId);
+        forceStopRef.current = false;
+
+        await loadFromGameStart({ bpm, duration, timeline });
+        switchSectionVideo('break');
+      } catch (e) {
+        console.error('게임 시작 초기화 실패:', e);
       }
-    // 캡처 중지 및 프레임 가져오기
-    const capturedFrames = stopCapture();
-    
-    console.log(`📦 세그먼트 ${segmentIndex + 1} 프레임: ${capturedFrames.length}개`);
+    })();
 
-    // 업로드 큐에 추가
-    if (capturedFrames.length > 0) {
-      queueSegmentUpload({
-        index: segmentIndex,
-        frames: capturedFrames,
-      });
-    } else {
-      console.warn(`⚠️  세그먼트 ${segmentIndex + 1}에 프레임이 없습니다`);
-    }
-  }
+    return () => {
+      // cancelled = true;
+      stopCamera();
+      stopMonitoring();
+      stopStream();
+      clearCaptureTimeouts();
+      if (audioRef.current) {
+        audioRef.current.onerror = null;
+        audioRef.current.pause();
+      }
+    };
+  }, []);
 
-  function handleAllComplete() {
-    console.log('🎉 모든 세그먼트 완료!');
-    setIsGameStarted(false);
-    
-    // 나중에 결과 페이지로 이동
-    // navigate('/result');
-  }
-
-  function handleUploadSuccess(segmentIndex: number, response?: any) {
-    console.log(`✅ 세그먼트 ${segmentIndex} 업로드 성공`, response);
-  }
-
-  function handleUploadError(segmentIndex: number, error: Error) {
-    console.error(`❌ 세그먼트 ${segmentIndex} 업로드 실패:`, error);
-  }
-// useEffect(() => {
-//   console.log('🔍 barGroups:', barGroups);
-//   if (barGroups.length > 0) {
-//     console.log('🔍 세그먼트 1:', barGroups[0]);
-//   }
-// }, [barGroups]);
-
-// useEffect(() => {
-//   if (!audioRef.current || !isGameStarted) return;
-  
-//   const interval = setInterval(() => {
-//     console.log('🎵 음악 시간:', audioRef.current?.currentTime.toFixed(2));
-//   }, 1000);
-  
-//   return () => clearInterval(interval);
-// }, [isGameStarted]);
   return (
-    <div className="game-page">
-      {/* 상단: 좌우 분할 */}
-      <div className="video-container">
-        {/* 왼쪽: 캐릭터 영상 자리 */}
-        <div className="character-section">
-          <div className="placeholder">
-            <h2>캐릭터 영상 자리</h2>
-          </div>
+    <>
+      {isCounting && (
+        <div className="countdown-overlay">
+          <div className="countdown-bubble">{count > 0 ? count : 'Go!'}</div>
         </div>
-
-        {/* 오른쪽: 카메라 */}
-        <div className="camera-section">
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            className="camera-video"
-          />
-          <canvas ref={canvasRef} className="capture-canvas" />
-          
-          {/* 세그먼트 정보 */}
-          <div className="segment-info">
-            <span className="segment-number">
-              세그먼트 {currentSegment}/6
-            </span>
-            {isCapturing && (
-              <span className="capturing-badge">📹 캡처 중</span>
-            )}
-            {isUploading && (
-              <span className="uploading-badge">📤 업로드 중</span>
-            )}
-          </div>
-
-          {/* 에러 표시 */}
-          {error && (
-            <div className="error-message">
-              ❌ {error}
-            </div>
-          )}
-
-          {/* 카메라 준비 중 */}
-          {!isReady && !error && (
-            <div className="loading-message">
-              📹 카메라 준비 중...
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* 하단: 가사 자리 */}
-      <div className="lyrics-container">
-        <div className="placeholder">
-          <h3>가사 자리</h3>
-        </div>
-      </div>
-
-      {/* 오디오 (항상 렌더링, testMode일 때만 보임) */}
-      <audio
-        ref={audioRef}
-        src="/당돌한여자.mp3"
-        style={{ display: testMode ? 'block' : 'none' }}
-      />
-
-      {/* 테스트용 컨트롤 */}
-      {testMode && (
-        <div className="test-controls">
-          <div className="button-group">
-            <button
-              onClick={handleTestStart}
-              disabled={isGameStarted || !isReady}
-              className="btn-start"
-            >
-              🎬 테스트 시작
-            </button>
-            <button
-              onClick={handleTestStop}
-              disabled={!isGameStarted}
-              className="btn-stop"
-            >
-              ⏹ 테스트 중지
-            </button>
-          </div>
-
-          <div className="debug-info">
-            <div>카메라: {isReady ? '✅ 준비' : '⏳ 대기'}</div>
-            <div>세그먼트: {barGroups.length}개 로드</div>
-            <div>모니터링: {isMonitoring ? '✅ 진행 중' : '⏸ 대기'}</div>
-            <div>캡처: {isCapturing ? '✅ 진행 중' : '⏸ 대기'}</div>
-            <div>업로드 큐: {uploadQueue.length}개</div>
+      )}
+      {sectionMessage && (
+        <div className="section-message-overlay">
+          <div className="section-message-bubble">
+            {sectionMessage}
           </div>
         </div>
       )}
-    </div>
+      {wsMessage && (
+        <div className="ws-message-overlay">
+          <div className="ws-message-bubble">{wsMessage}</div>
+        </div>
+      )}
+
+      <div className="game-page">
+        <div className='top-container'>
+          <div className='song-info'>
+            <div className="game-song-title">{songTitle}</div>
+            <div className="game-song-artist">{songArtist}</div>
+          </div>
+          <div className="audio-bar">
+            <audio
+              controls
+              ref={audioRef}
+              className="audio-player"
+            />
+          </div>
+        </div>
+        {/* 메인 영역: 좌(캐릭터) / 우(카메라) */}
+        <div className="game-main">
+
+          {/* 왼쪽: 카메라 + 피드백 */}
+          <div className="left-container">
+            <div className="left__main">
+              <div className="camera-section">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="camera-video"
+                />
+                <canvas ref={canvasRef} className="capture-canvas" />
+
+                <div className="segment-info">
+                  {isCapturing && <span className="capturing-badge">📹 동작 인식 중</span>}
+                </div>
+
+                {error && <div className="error-message">❌ {error}</div>}
+                {!isReady && !error && (
+                  <div className="loading-message">📹 카메라 준비 중...</div>
+                )}
+              </div>
+
+              <div className="feedback-section">
+                {lastFeedback ? (
+                  (() => {
+                    const { judgment } = lastFeedback;
+                    const mapped = mapJudgment(judgment);
+                    return (
+                      <div className={`feedback-badge feedback-${mapped.level}`}>
+                        <div className="feedback-main-text">{mapped.labelKo}</div>
+                      </div>
+                    );
+                  })()
+                ) : (
+                  <span className="feedback-placeholder" />
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* 오른쪽: 캐릭터 */}
+          <div className="right__main">
+            <div className="character-section">
+              <div className="motion-video-wrapper">
+                <video
+                  ref={motionVideoRef}
+                  preload="auto"
+                  muted
+                  playsInline
+                  src={VIDEO_META.break.src}
+                  className="motion-video"
+                />
+              </div>
+              {currentActionName && (
+                <div className="action-label-overlay">
+                  {currentActionName}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <VoiceButton />
+        </div>
+      </div>
+    </>
   );
 }
 

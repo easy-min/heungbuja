@@ -1,169 +1,121 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { type BarGroup, type SongData, type Frame } from '@/types';
-import { calculateBarGroups } from '@/utils';
+import type { SongTimeline } from '@/types/game';
 import { GAME_CONFIG } from '@/utils/constants';
+
+type LoadFromGameStartArgs = {
+  bpm: number;
+  duration: number;
+  timeline: SongTimeline;
+};
+
+interface SectionTime {
+  label: 'intro' | 'break' | 'verse1' | 'verse2';
+  startTime: number;
+  endTime: number;
+}
 
 interface UseMusicMonitorProps {
   audioRef: React.RefObject<HTMLAudioElement | null>;
-  onSegmentStart?: (segmentIndex: number) => void;
-  onSegmentEnd?: (segmentIndex: number, frames: Frame[]) => void;
-  onAllComplete?: () => void;
+  onSectionEnter?: (label: SectionTime['label']) => void;
 }
 
-interface UseMusicMonitorReturn {
-  barGroups: BarGroup[];
-  currentSegmentIndex: number;
-  isMonitoring: boolean;
-  loadSongData: (jsonPath: string) => Promise<void>;
-  startMonitoring: () => void;
-  stopMonitoring: () => void;
+// ---- helpers ----
+function buildSectionTimesFromAnchors(duration: number, timeline: SongTimeline): SectionTime[] {
+  const pts = [
+    { label: 'intro' as const,  start: timeline.introStartTime },
+    { label: 'verse1' as const, start: timeline.verse1StartTime },
+    { label: 'break' as const,  start: timeline.breakStartTime },
+    { label: 'verse2' as const, start: timeline.verse2StartTime },
+  ]
+    .filter(p => typeof p.start === 'number' && !isNaN(p.start))
+    .sort((a, b) => a.start - b.start);
+
+  return pts.map((p, i) => ({
+    label: p.label,
+    startTime: p.start,
+    endTime: pts[i + 1]?.start ?? duration,
+  }));
 }
 
-export const useMusicMonitor = ({
-  audioRef,
-  onSegmentStart,
-  onSegmentEnd,
-  onAllComplete,
-}: UseMusicMonitorProps): UseMusicMonitorReturn => {
-  const [barGroups, setBarGroups] = useState<BarGroup[]>([]);
-  const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0);
-  const [isMonitoring, setIsMonitoring] = useState(false);
+// ---- hook ----
+export const useMusicMonitor = (props: UseMusicMonitorProps) => {
+  const { audioRef, onSectionEnter } = props;
+  const [sectionTimes, setSectionTimes] = useState<SectionTime[]>([]);
 
   const animationFrameIdRef = useRef<number | null>(null);
-  const hasStartedRef = useRef<boolean>(false);
-  const currentSegmentIndexRef = useRef<number>(0);
+  const currentSectionIdxRef = useRef(-1);
+  const sectionTimesRef = useRef<SectionTime[]>([]);
 
-  /**
-   * JSON 데이터 로드 및 세그먼트 계산
-   */
-  const loadSongData = useCallback(async (jsonPath: string): Promise<void> => {
-    try {
-      console.log('📥 JSON 데이터 로드 중...', jsonPath);
-      
-      const response = await fetch(jsonPath);
-      const data: SongData = await response.json();
+  const detectSectionAt = (t: number) => {
+    const secs = sectionTimesRef.current;
+    if (!secs.length) return;
+    const eps = GAME_CONFIG.EPS;
+    const curIdx = currentSectionIdxRef.current;
 
-      if (!data.beats || data.beats.length === 0) {
-        throw new Error('beats 데이터가 없습니다');
-      }
+    if (curIdx >= 0 && curIdx < secs.length &&
+        t >= secs[curIdx].startTime - eps &&
+        t <  secs[curIdx].endTime   - eps) return;
 
-      // 세그먼트 시간 계산
-      const groups = calculateBarGroups(data.beats, data.sections || []);
-      setBarGroups(groups);
-      
-      console.log('✅ 세그먼트 계산 완료:', groups);
-    } catch (err) {
-      console.error('❌ JSON 로드 실패:', err);
-      throw err;
+    const found = secs.findIndex(s => t >= s.startTime - eps && t < s.endTime + eps);
+    if (found !== -1 && found !== currentSectionIdxRef.current) {
+      currentSectionIdxRef.current = found;
+      // console.log('🎬 Section Entered:', secs[found].label, secs[found]);
+      onSectionEnter?.(secs[found].label);
     }
-  }, []);
+  };
 
-  /**
-   * 모니터링 중지
-   */
-  const stopMonitoring = useCallback((): void => {
-    setIsMonitoring(false);
-    
+  useEffect(() => { sectionTimesRef.current = sectionTimes; }, [sectionTimes]);
+
+  const stopMonitoring = useCallback(() => {
     if (animationFrameIdRef.current !== null) {
       cancelAnimationFrame(animationFrameIdRef.current);
       animationFrameIdRef.current = null;
     }
-    
-    console.log('⏸ 음악 모니터링 중지');
   }, []);
-  /**
-   * 모니터링 시작
-   */
-  const startMonitoring = useCallback((): void => {
-  // console.log('🟢 startMonitoring 호출됨');  // ✅ 추가
-  // console.log('🔍 audioRef.current:', audioRef.current);  // ✅ 추가
-  // console.log('🔍 barGroups.length:', barGroups.length);  // ✅ 추가
 
-    if (!audioRef.current || barGroups.length === 0) {
-      console.warn('⚠️  모니터링 시작 실패: audio 또는 barGroups 없음');
+  const startMonitoring = useCallback(() => {
+    if (!audioRef.current) {
+      console.warn('⚠️ audioRef 없음');
       return;
     }
+    currentSectionIdxRef.current = -1;
 
-    setIsMonitoring(true);
-    setCurrentSegmentIndex(0);
-    currentSegmentIndexRef.current = 0;
-    hasStartedRef.current = false;
+    const tick = () => {
+      if (animationFrameIdRef.current === null) return;
+      const au = audioRef.current;
+      if (!au) return;
 
-    console.log('👀 음악 모니터링 시작');
-      console.log('🔍 첫 세그먼트:', barGroups[0]);  // ✅ 추가
+      detectSectionAt(au.currentTime);
 
-    /**
-     * requestAnimationFrame 기반 타이밍 체크
-     */
-    const checkTiming = () => {
-      //  console.log('🔄 checkTiming 호출됨');  // ✅ 추가
-      
-       if (animationFrameIdRef.current === null) return;
-
-      if (!audioRef.current) {
-      console.log('❌ audioRef.current 없음');  // ✅ 추가
-      return;
-    }
-      const currentTime = audioRef.current.currentTime;
-      const group = barGroups[currentSegmentIndexRef.current];
-      // console.log(`⏰ currentTime: ${currentTime.toFixed(2)}, segmentIndex: ${currentSegmentIndexRef.current}, group:`, group);  // ✅ 추가
-
-      if (!group) {
-        // 모든 세그먼트 완료
-        console.log('🎉 모든 세그먼트 완료');
-        stopMonitoring();
-        onAllComplete?.();
-        return;
-      }
- // 세그먼트 시작 감지
-  // console.log(`🔍 체크: hasStarted=${hasStartedRef.current}, currentTime=${currentTime.toFixed(2)} >= ${group.startTime.toFixed(2)} - ${GAME_CONFIG.EPS}`);  // ✅ 추가
- 
-      // 세그먼트 시작 감지
-      if (
-        !hasStartedRef.current &&
-        currentTime >= group.startTime - GAME_CONFIG.EPS &&
-        currentTime < group.endTime - GAME_CONFIG.EPS
-      ) {
-        hasStartedRef.current = true;
-        console.log(`▶️  세그먼트 ${group.segmentIndex} 시작 (${currentTime.toFixed(2)}s)`);
-        onSegmentStart?.(currentSegmentIndexRef.current);
-      }
-
-      // 세그먼트 종료 감지
-      if (hasStartedRef.current && currentTime >= group.endTime - GAME_CONFIG.EPS) {
-        hasStartedRef.current = false;
-        console.log(`⏹ 세그먼트 ${group.segmentIndex} 종료 (${currentTime.toFixed(2)}s)`);
-        onSegmentEnd?.(currentSegmentIndexRef.current, []);
-
-        // 다음 세그먼트로 이동
-        currentSegmentIndexRef.current += 1;
-        setCurrentSegmentIndex(currentSegmentIndexRef.current);
-      }
-
-      animationFrameIdRef.current = requestAnimationFrame(checkTiming);
+      // 세그먼트 기능이 필요하면 여기에서 추가
+      animationFrameIdRef.current = requestAnimationFrame(tick);
     };
+    animationFrameIdRef.current = requestAnimationFrame(tick);
+  }, [audioRef]);
 
-    animationFrameIdRef.current = requestAnimationFrame(checkTiming);
-  }, [audioRef, barGroups, onSegmentStart, onSegmentEnd, onAllComplete, stopMonitoring]);
-
-
-  /**
-   * 컴포넌트 언마운트 시 정리
-   */
   useEffect(() => {
+    const au = audioRef.current;
+    if (!au) return;
+    const onTime = () => detectSectionAt(au.currentTime);
+    au.addEventListener('timeupdate', onTime);
+    au.addEventListener('seeked', onTime);
+    au.addEventListener('play', onTime);
     return () => {
-      stopMonitoring();
+      au.removeEventListener('timeupdate', onTime);
+      au.removeEventListener('seeked', onTime);
+      au.removeEventListener('play', onTime);
     };
-  }, [stopMonitoring]);
+  }, [audioRef, onSectionEnter]);
+
+  useEffect(() => () => stopMonitoring(), [stopMonitoring]);
+
+  const loadFromGameStart = useCallback(async ({duration, timeline }: LoadFromGameStartArgs) => {
+    setSectionTimes(buildSectionTimesFromAnchors(duration, timeline));
+  }, []);
 
   return {
-    barGroups,
-    currentSegmentIndex,
-    isMonitoring,
-    loadSongData,
     startMonitoring,
     stopMonitoring,
+    loadFromGameStart,
   };
-
-  
 };

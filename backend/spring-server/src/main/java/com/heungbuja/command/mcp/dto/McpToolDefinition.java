@@ -249,6 +249,35 @@ public class McpToolDefinition {
     }
 
     /**
+     * 헬퍼 메서드: start_game_with_song Tool 정의
+     * 특정 노래로 게임을 시작 (노래 검색 + 게임 시작을 한 번에 처리)
+     */
+    public static McpToolDefinition startGameWithSongTool() {
+        return McpToolDefinition.builder()
+                .name("start_game_with_song")
+                .description("특정 노래로 게임(체조)을 시작합니다. 노래 검색과 게임 시작을 한 번에 처리합니다.")
+                .parameters(ParameterSchema.builder()
+                        .type("object")
+                        .properties(Map.of(
+                                "userId", PropertyDefinition.builder()
+                                        .type("integer")
+                                        .description("사용자 ID")
+                                        .build(),
+                                "title", PropertyDefinition.builder()
+                                        .type("string")
+                                        .description("노래 제목")
+                                        .build(),
+                                "artist", PropertyDefinition.builder()
+                                        .type("string")
+                                        .description("가수명 (선택적)")
+                                        .build()
+                        ))
+                        .required(List.of("userId"))
+                        .build())
+                .build();
+    }
+
+    /**
      * 모든 Tool 정의 반환
      */
     public static List<McpToolDefinition> getAllTools() {
@@ -259,7 +288,8 @@ public class McpToolDefinition {
                 getCurrentContextTool(),
                 handleEmergencyTool(),
                 changeModeTool(),
-                startGameTool()
+                startGameTool(),
+                startGameWithSongTool()
         );
     }
 }

@@ -1,8 +1,19 @@
-// ===== 설정 =====
-const VIDEO_BPM = 112;                         // 영상(실측) BPM
-const LOOP_BEATS = 8;
-const LOOP_LEN  = (60 / VIDEO_BPM) * LOOP_BEATS; // ≈ 4.2333s
-const START_OFFSET = 0.0; // 영상 시작 지연(초) - 박 시점 이후 0.15s
+// ==============================
+// main.js (전체 코드) — 섹션 전환 시 영상 처음부터, 노래 끝나면 영상도 멈춤
+// ==============================
+
+// ===== 전역 설정 =====
+const START_OFFSET = 0.0; // 오디오-비디오 시작 오프셋(초)
+
+// 🎬 섹션별 메타(파일, 영상 BPM, 루프 박자 수)
+//  - 모든 영상이 100BPM이면 bpm: 100으로 통일
+//  - 루프가 8박 기준이면 loopBeats: 8 (필요 시 섹션별로 수정)
+const VIDEO_META = {
+  intro: { src: 'part1.mp4', bpm: 100, loopBeats: 16 },
+  break: { src: 'part1.mp4', bpm: 100, loopBeats: 16 },
+  part1: { src: 'part1.mp4', bpm: 100, loopBeats: 16 },
+  part2: { src: 'part2_level2.mp4', bpm: 100, loopBeats: 16 },
+};
 
 // ===== 요소 =====
 const video     = document.getElementById('motion');
@@ -16,32 +27,58 @@ const btnBeat3     = document.getElementById('btnBeat3');
 const btnBeat4     = document.getElementById('btnBeat4');
 const btnBar2Beat1 = document.getElementById('btnBar2Beat1');
 
+// === 가사 DOM
+const $lyPrev = document.getElementById('lyricPrev');
+const $lyCurr = document.getElementById('lyricCurrent');
+const $lyNext = document.getElementById('lyricNext');
+
 // ===== 상태 =====
 let audioCtx, mediaSrc;
 let SONG_BPM = 131.9055;      // JSON에서 갱신
-let baseRate = 1.0;           // = SONG_BPM / VIDEO_BPM
-let beats = [];               // [{i,bar,beat,t}, ...]
-let t0 = 0;                   // 오디오 시계 기준 "영상 시작 시각"
+let beats = [];               // [{i,bar,beat,t}, ...] (t: 초)
+let sections = [];            // [{label,startBeat,endBeat,startBar,endBar,lineRange}, ...]
+let t0 = 0;                   // 오디오 기준 "영상 0초" 시각
+let currentSection = null;    // 'intro' | 'break' | 'part1' | 'part2'
+let syncActive = false;       // 싱크 루프 on/off
 
-// --- 유틸 ---
+// 가사
+let lyrics = [];              // [{line,start,end}]
+let lyricIdx = -1;
+
+// 위상 앵커(섹션 전환 시 '영상은 0초부터'를 보이되, 내부 동기화 기준을 재설정)
+let phaseAnchor = 0;
+
+// ===== 유틸 =====
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const getSelectedMp3 = () => musicSel.value.trim();
 const baseName = (filename) => filename.replace(/\.[^/.]+$/, '');
-const jsonUrlFromMp3 = (mp3) => encodeURI(`${baseName(mp3)}.json`); // 공백/한글 안전
+const jsonUrlFromMp3 = (mp3) => encodeURI(`${baseName(mp3)}.json`);
+const lyricsJsonUrlFromMp3 = (mp3) => encodeURI(`${baseName(mp3)}_가사.json`);
 
-// 선택된 음원으로 오디오 src 교체
+// 현재 섹션 메타 + 파생값
+function getVideoMeta(section = currentSection) {
+  return VIDEO_META[section] ?? VIDEO_META.part1;
+}
+function getLoopLenSec(section = currentSection) {
+  const { bpm, loopBeats } = getVideoMeta(section);
+  return (60 / bpm) * loopBeats;
+}
+function getBaseRate(section = currentSection) {
+  const { bpm } = getVideoMeta(section);
+  return SONG_BPM / bpm; // 노래 BPM / 해당 섹션 영상 BPM
+}
+
+// ===== 오디오 소스 교체 =====
 function applySelectedAudio() {
   const mp3 = getSelectedMp3();
   audioEl.pause();
-  // audio <source>를 직접 바꾸지 않아도 audio.src로 교체 가능
   audioEl.src = encodeURI(mp3);
-  audioEl.load();                      // 소스 교체 반영
-  // 시작 위치 초기화
+  audioEl.load();
   audioEl.currentTime = 0;
   console.log(`[AUDIO] source -> ${mp3}`);
 }
 
-// JSON 로드 (선택된 mp3와 동일한 이름의 json)
+// ===== 비트/섹션 JSON 로드 =====
 async function loadBeatGrid() {
   const jsonUrl = jsonUrlFromMp3(getSelectedMp3());
   try {
@@ -51,172 +88,19 @@ async function loadBeatGrid() {
 
     SONG_BPM = data?.tempoMap?.[0]?.bpm ?? SONG_BPM;
     beats    = Array.isArray(data?.beats) ? data.beats : [];
-    baseRate = SONG_BPM / VIDEO_BPM;
+    sections = Array.isArray(data?.sections) ? data.sections : [];
 
-    console.log(`[LOAD] ${jsonUrl} -> SONG_BPM=${SONG_BPM.toFixed(3)} baseRate=${baseRate.toFixed(4)} beats=${beats.length}`);
+    console.log(`[LOAD] ${jsonUrl} -> SONG_BPM=${SONG_BPM.toFixed(3)} beats=${beats.length} sections=${sections.length}`);
   } catch (e) {
     console.warn(`[LOAD] ${jsonUrl} 읽기 실패. 기본값 사용`, e);
-    // 최소 동작을 위해 기본값 유지
     beats = [];
-    baseRate = SONG_BPM / VIDEO_BPM;
+    sections = [];
   }
 }
 
-// 싱크 루프 (오디오=마스터, 비디오=추종)
-function startSyncLoop() {
-  const KP = 0.35;        // 미세 추종 강도
-  const MICRO = 0.03;     // 프레임당 보정 상한(초)
-
-  const shortestSignedDelta = (a, b, period) => {
-    let d = a - b;
-    if (d >  period / 2) d -= period;
-    if (d < -period / 2) d += period;
-    return d;
-  };
-
-  const loop = () => {
-    const audioElapsed = Math.max(0, audioCtx.currentTime - t0);
-    const idealPhase   = (audioElapsed * (VIDEO_BPM / SONG_BPM)) % LOOP_LEN; // 0~LOOP_LEN
-    const actualPhase  = video.currentTime % LOOP_LEN;
-    const drift        = shortestSignedDelta(idealPhase, actualPhase, LOOP_LEN);
-
-    const microAdjust  = clamp(drift * KP, -MICRO, MICRO);
-    video.playbackRate = baseRate + microAdjust * 0.8;
-
-    video.requestVideoFrameCallback(loop);
-  };
-  video.requestVideoFrameCallback(loop);
-}
-
-// 공통: 오디오/비디오 준비 + 특정 시각(targetTimeSec)에 영상 0초 시작
-async function armStartAt(targetTimeSec) {
-  await loadBeatGrid();
-
-  // 오디오 라우팅
-  if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    await audioCtx.resume();
-  }
-  if (!mediaSrc) {
-    mediaSrc = audioCtx.createMediaElementSource(audioEl);
-    mediaSrc.connect(audioCtx.destination);
-  }
-
-  // 오디오 재생 (현재 위치 유지)
-  if (audioEl.paused) await audioEl.play();
-
-  // 비디오 준비
-  video.pause();
-  video.currentTime = 0;
-  video.playbackRate = baseRate;
-
-  // 오디오 엘리먼트 시간 기준 딜레이 계산
-  const targetWithOffset = targetTimeSec + START_OFFSET;
-  const nowEl = audioEl.currentTime;
-  const delaySec = Math.max(0, targetWithOffset - nowEl);
-  const startAtAudioCtxTime = audioCtx.currentTime + delaySec;
-
-  // 기준 시각 저장: "이때 영상이 0초에서 시작했다"로 간주
-  t0 = startAtAudioCtxTime;
-
-  const startVideo = () => {
-    video.play().then(() => startSyncLoop());
-  };
-
-  // 느슨한 예약 + 근접 폴링
-  if (delaySec > 0.03) {
-    setTimeout(() => {
-      const guard = () => {
-        const remain = startAtAudioCtxTime - audioCtx.currentTime;
-        if (remain <= 0.005) startVideo();
-        else requestAnimationFrame(guard);
-      };
-      requestAnimationFrame(guard);
-    }, (delaySec - 0.03) * 1000);
-  } else {
-    startVideo();
-  }
-
-  console.log(`[ARMED] now=${nowEl.toFixed(3)}s → start@${targetTimeSec.toFixed(3)}s, baseRate=${baseRate.toFixed(4)}`);
-}
-
-// ---- 찾기 함수들 ----
-
-// 1) 특정 마디/박(t) 찾기 (정확히 그 bar/beat)
-function findBarBeatTime(bar, beat) {
-  const bb = beats.find(b => b.bar === bar && b.beat === beat);
-  return bb ? bb.t : null;
-}
-
-// 2) "현재 이후"의 특정 박(2/3/4박) 찾기 (마디 무관, 다음으로 다가오는 해당 박)
-function findNextBeatNumberTime(beatNum) {
-  const now = audioEl.currentTime;
-  let next = beats.find(b => b.t >= now && b.beat === beatNum);
-  if (!next) next = beats.find(b => b.t >= now); // 폴백
-  return next ? next.t : null;
-}
-
-// ---- 이벤트: 음원 선택 시 소스/JSON 동기 교체 ----
-musicSel.addEventListener('change', async () => {
-  applySelectedAudio();
-  await loadBeatGrid();
-  // 선택만 바꾸면 자동 재생하지 않고 대기
-});
-
-// ---- 버튼 핸들러 ----
-btnBar1Beat1.addEventListener('click', async () => {
-  await loadBeatGrid();
-  const t = findBarBeatTime(1, 1) ?? (beats[0]?.t ?? 0);
-  armStartAt(t);
-});
-
-btnBeat2.addEventListener('click', async () => {
-  await loadBeatGrid();
-  const t = findNextBeatNumberTime(2) ?? (beats[0]?.t ?? 0);
-  armStartAt(t);
-});
-
-btnBeat3.addEventListener('click', async () => {
-  await loadBeatGrid();
-  const t = findNextBeatNumberTime(3) ?? (beats[0]?.t ?? 0);
-  armStartAt(t);
-});
-
-btnBeat4.addEventListener('click', async () => {
-  await loadBeatGrid();
-  const t = findNextBeatNumberTime(4) ?? (beats[0]?.t ?? 0);
-  armStartAt(t);
-});
-
-btnBar2Beat1.addEventListener('click', async () => {
-  await loadBeatGrid();
-  const t = findBarBeatTime(2, 1);
-  armStartAt(t ?? (beats.find(b => b.beat===1)?.t ?? 0));
-});
-
-// 초기 상태: select의 기본값 반영
-applySelectedAudio();
-loadBeatGrid();
-
-// === 가사 동기화 =========================================
-// 가사 DOM
-const $lyPrev = document.getElementById('lyricPrev');
-const $lyCurr = document.getElementById('lyricCurrent');
-const $lyNext = document.getElementById('lyricNext');
-
-// 상태
-let lyrics = []; // [{ line, start, end }, ...]
-let lyricIdx = -1;
-
-// MP3 파일명 -> _가사.json 경로로 변환
-function lyricsJsonUrlFromMp3(mp3FileName) {
-  const base = mp3FileName.replace(/\.[^/.]+$/, ''); // 확장자 제거
-  return `${base}_가사.json`;
-}
-
-// 다양한 스키마를 수용해 통일된 배열 [{line,start,end}]로 변환
+// ===== 가사 로드 =====
 function normalizeLyricsPayload(data) {
-  // 1) 우리 포맷: { lines: [{text,start,end}, ...] }
+  // 1) { lines: [{text,start,end}, ...] }
   if (Array.isArray(data?.lines)) {
     return data.lines.map(it => ({
       line: String(it.text ?? it.line ?? '').trim(),
@@ -224,7 +108,7 @@ function normalizeLyricsPayload(data) {
       end: Number(it.end ?? (Number(it.start ?? 0) + 2))
     }));
   }
-  // 2) 예전 포맷: { lyricsTimeline: { items: [{ line,start,end }, ...] } }
+  // 2) { lyricsTimeline: { items: [{ line,start,end }, ...] } }
   if (Array.isArray(data?.lyricsTimeline?.items)) {
     return data.lyricsTimeline.items.map(it => ({
       line: String(it.line ?? it.text ?? '').trim(),
@@ -243,36 +127,27 @@ function normalizeLyricsPayload(data) {
   return [];
 }
 
-// JSON에서 _가사 파일 로드 (loadBeatGrid 내부를 살짝 확장)
-const _origLoadBeatGrid = loadBeatGrid;
-loadBeatGrid = async function patchedLoadBeatGrid() {
-  await _origLoadBeatGrid();
-
-  const mp3 = getSelectedMp3();               // 기존 함수 그대로 사용
-  const jsonUrl = lyricsJsonUrlFromMp3(mp3);  // ✅ _가사.json 로드
-
+async function loadLyrics() {
+  const jsonUrl = lyricsJsonUrlFromMp3(getSelectedMp3());
   try {
     const res = await fetch(jsonUrl, { cache: 'no-store' });
     if (!res.ok) throw new Error(`fetch ${jsonUrl} ${res.status}`);
-    const data = await res.json();
 
-    // 포맷 통일
+    const data = await res.json();
     const items = normalizeLyricsPayload(data);
     lyrics = items
-      .filter(it => it.line) // 빈 줄 제거
+      .filter(it => it.line)
       .sort((a, b) => a.start - b.start);
 
     lyricIdx = -1;
 
     if (lyrics.length === 0) {
-      // 비어있으면 안내
       $lyPrev.textContent = '';
       $lyCurr.textContent = '가사 정보가 없어요';
       $lyCurr.classList.add('lyrics-empty');
       $lyNext.textContent = '';
     } else {
       $lyCurr.classList.remove('lyrics-empty');
-      // 처음 상태 렌더
       renderLyricsAt(0);
     }
     console.log(`[LYRICS] loaded ${lyrics.length} lines from ${jsonUrl}`);
@@ -285,8 +160,9 @@ loadBeatGrid = async function patchedLoadBeatGrid() {
     $lyCurr.classList.add('lyrics-empty');
     $lyNext.textContent = '';
   }
-};
+}
 
+// ===== 가사 렌더링 =====
 function findLyricIndex(t) {
   if (!lyrics.length) return -1;
   let i = lyricIdx >= 0 ? lyricIdx : 0;
@@ -294,9 +170,8 @@ function findLyricIndex(t) {
   while (i > 0 && lyrics[i].start > t) i--;
   while (i + 1 < lyrics.length && lyrics[i + 1].start <= t) i++;
 
-  if (lyrics[i].start <= t && t < (lyrics[i].end ?? (lyrics[i].start + 2))) {
-    return i;
-  }
+  if (lyrics[i].start <= t && t < (lyrics[i].end ?? (lyrics[i].start + 2))) return i;
+
   for (let k = 0; k < lyrics.length; k++) {
     const L = lyrics[k];
     if (L.start <= t && t < (L.end ?? (L.start + 2))) return k;
@@ -326,16 +201,285 @@ function renderLyricsAt(t) {
   $lyNext.textContent = lyrics[idx + 1]?.line ?? '';
 }
 
-// 오디오 시간 변화에 맞춰 렌더
-audioEl.addEventListener('timeupdate', () => {
-  renderLyricsAt(audioEl.currentTime);
-});
-audioEl.addEventListener('seeked', () => {
-  renderLyricsAt(audioEl.currentTime);
-});
-musicSel.addEventListener('change', () => {
+// ===== 박/섹션 유틸 =====
+// 현재 오디오 시간 → 전체 박 번호(1..)
+function getCurrentBeatNumber(nowSec = audioEl.currentTime) {
+  if (!beats.length) return 1;
+  // 이진 탐색
+  let lo = 0, hi = beats.length - 1, ans = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (beats[mid].t <= nowSec) { ans = mid; lo = mid + 1; }
+    else hi = mid - 1;
+  }
+  return (ans >= 0 ? ans + 1 : 1); // 1-based index
+}
+
+// 박 번호 → 섹션 라벨
+function sectionByBeat(beatNum) {
+  if (!sections.length) return null;
+  return sections.find(s => beatNum >= s.startBeat && beatNum <= s.endBeat)?.label ?? null;
+}
+
+// 오디오 경과 → '원시' 영상 위상(초) (앵커 적용 전)
+function computeRawPhase(section = currentSection) {
+  if (!audioCtx) return 0;
+  const { bpm } = getVideoMeta(section);
+  const loopLen = getLoopLenSec(section);
+  const audioElapsed = Math.max(0, audioCtx.currentTime - t0);
+  const videoPhase = audioElapsed * (bpm / SONG_BPM);
+  return videoPhase % loopLen;
+}
+
+// 앵커 적용한 이상적 위상: 섹션 전환 시 항상 0부터 보이도록 보정
+function computeIdealPhase(section = currentSection) {
+  const loopLen = getLoopLenSec(section);
+  const raw = computeRawPhase(section);
+  // (raw - anchor)를 0..loopLen 양수로 정규화
+  let p = raw - phaseAnchor;
+  while (p < 0) p += loopLen;
+  while (p >= loopLen) p -= loopLen;
+  return p;
+}
+
+// 현재 시점 기준으로 이상적 위상이 0이 되도록 앵커 재설정
+function reanchorPhase(section = currentSection) {
+  phaseAnchor = computeRawPhase(section);
+}
+
+// ===== 섹션 전환: 영상 소스 교체 + 루프 보강 =====
+let _switching = false;
+async function ensureVideoForSection(label) {
+  if (!label) return;
+  if (currentSection === label && video.dataset.section === label) return;
+  if (_switching) return;
+  _switching = true;
+
+  const { src } = getVideoMeta(label);
+
+  // 섹션 바뀌는 '현재' 시점을 앵커로 기록 → 새 섹션은 0초부터 보이게
+  reanchorPhase(label);
+
+  const onLoaded = new Promise(resolve => {
+    const handler = () => { video.removeEventListener('loadedmetadata', handler); resolve(); };
+    video.addEventListener('loadedmetadata', handler, { once: true });
+  });
+
+  // 일부 브라우저에서 loop 플래그 유실/이벤트 꼬임 방지
+  video.pause();
+  video.removeAttribute('src');
+  video.load();
+
+  video.src = encodeURI(src);
+  video.dataset.section = label;
+
+  // 🔁 루프 보장 (break 포함)
+  video.loop = true;
+  video.onended = () => {
+    // 일반적으로 loop가 켜져 있어 호출되지 않지만, 환경에 따라 안전장치
+    try {
+      video.currentTime = 0; // 새 요구사항: 전환 후/루프 시 항상 처음부터
+      video.play();
+    } catch {}
+  };
+
+  video.load();
+  await onLoaded;
+
+  try { video.currentTime = 0; } catch {}       // ⬅️ 전환 시 항상 첫 프레임부터
+  try {
+    video.playbackRate = getBaseRate(label);
+    await video.play();
+  } catch {}
+
+  currentSection = label;
+  _switching = false;
+  console.log(`[VIDEO] section=${label} src=${src} startAt=0 rate=${getBaseRate(label).toFixed(3)}`);
+}
+
+// ===== 싱크 루프 (오디오=마스터, 비디오=추종) =====
+function startSyncLoop() {
+  const KP = 0.35;
+  const MICRO = 0.03;
+  syncActive = true;
+
+  const shortestSignedDelta = (a, b, period) => {
+    let d = a - b;
+    if (d >  period / 2) d -= period;
+    if (d < -period / 2) d += period;
+    return d;
+  };
+
+  const loop = () => {
+    if (!syncActive) return; // 노래가 끝나면 루프 중지
+
+    const loopLen = getLoopLenSec();               // 현재 섹션 기준
+    const idealPhase   = computeIdealPhase();      // 0~loopLen (섹션 전환 시 0부터)
+    const actualPhase  = (video.currentTime % loopLen); // 0~loopLen
+    const drift        = shortestSignedDelta(idealPhase, actualPhase, loopLen);
+    const microAdjust  = clamp(drift * KP, -MICRO, MICRO);
+
+    // 섹션별 기준 재생속도에 미세 보정
+    video.playbackRate = getBaseRate() + microAdjust * 0.8;
+
+    // 섹션 감시(저비용)
+    const beatNum = getCurrentBeatNumber(audioEl.currentTime);
+    const targetSection = sectionByBeat(beatNum);
+    if (targetSection && targetSection !== currentSection) {
+      ensureVideoForSection(targetSection);
+    }
+
+    // 드물게 loop 끊김 시 수동 래핑(세이프가드)
+    if (video.duration && video.currentTime >= video.duration - 0.02) {
+      try {
+        video.currentTime = 0; // 요구사항: 항상 처음부터
+      } catch {}
+    }
+
+    video.requestVideoFrameCallback(loop);
+  };
+  video.requestVideoFrameCallback(loop);
+}
+
+// ===== 오디오/비디오 무장 + 특정 시각에 맞춰 시작 =====
+async function armStartAt(targetTimeSec) {
+  await loadBeatGrid();
+
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    await audioCtx.resume();
+  }
+  if (!mediaSrc) {
+    mediaSrc = audioCtx.createMediaElementSource(audioEl);
+    mediaSrc.connect(audioCtx.destination);
+  }
+
+  if (audioEl.paused) await audioEl.play();
+
+  // 시작 시점 섹션 미리 로드
+  let startBeat = 1;
+  if (beats.length) {
+    const idx = (typeof beats.findLastIndex === 'function')
+      ? beats.findLastIndex(b => b.t <= targetTimeSec)
+      : (() => { let i=-1; for (let k=0;k<beats.length;k++) if (beats[k].t<=targetTimeSec) i=k; return i; })();
+    startBeat = idx >= 0 ? idx + 1 : 1;
+  }
+  const startSection = sectionByBeat(startBeat) || 'part1';
+
+  // 시작 시점에 맞춰 앵커 재설정 → 영상 0초부터
+  reanchorPhase(startSection);
+  await ensureVideoForSection(startSection);
+
+  // 오디오 기준 예약
+  const targetWithOffset = targetTimeSec + START_OFFSET;
+  const nowEl = audioEl.currentTime;
+  const delaySec = Math.max(0, targetWithOffset - nowEl);
+  const startAtAudioCtxTime = audioCtx.currentTime + delaySec;
+  t0 = startAtAudioCtxTime;
+
+  const startVideo = () => {
+    try { video.currentTime = 0; } catch {} // ⬅️ 시작도 0초부터
+    video.playbackRate = getBaseRate(startSection);
+    video.play().then(() => startSyncLoop());
+  };
+
+  if (delaySec > 0.03) {
+    setTimeout(() => {
+      const guard = () => {
+        const remain = startAtAudioCtxTime - audioCtx.currentTime;
+        if (remain <= 0.005) startVideo();
+        else requestAnimationFrame(guard);
+      };
+      requestAnimationFrame(guard);
+    }, (delaySec - 0.03) * 1000);
+  } else {
+    startVideo();
+  }
+
+  console.log(`[ARMED] now=${nowEl.toFixed(3)}s → start@${targetTimeSec.toFixed(3)}s, section=${startSection}, rate=${getBaseRate(startSection).toFixed(3)}`);
+}
+
+// ===== 찾기 함수들 =====
+function findBarBeatTime(bar, beat) {
+  const bb = beats.find(b => b.bar === bar && b.beat === beat);
+  return bb ? bb.t : null;
+}
+function findNextBeatNumberTime(beatNum) {
+  const now = audioEl.currentTime;
+  let next = beats.find(b => b.t >= now && b.beat === beatNum);
+  if (!next) next = beats.find(b => b.t >= now);
+  return next ? next.t : null;
+}
+
+// ===== 이벤트 바인딩 =====
+musicSel.addEventListener('change', async () => {
+  applySelectedAudio();
+  await loadBeatGrid();
+  await loadLyrics();
+
+  const initialSection = sectionByBeat(1) || 'part1';
+  reanchorPhase(initialSection);           // 초기에도 0초부터 보이도록
+  await ensureVideoForSection(initialSection);
+
+  // 가사 패널 초기 메시지
   $lyPrev.textContent = '';
   $lyCurr.textContent = '(가사를 불러오는 중…)';
   $lyCurr.classList.add('lyrics-empty');
   $lyNext.textContent = '';
+});
+
+btnBar1Beat1.addEventListener('click', async () => {
+  await loadBeatGrid();
+  const t = findBarBeatTime(1, 1) ?? (beats[0]?.t ?? 0);
+  armStartAt(t);
+});
+btnBeat2.addEventListener('click', async () => {
+  await loadBeatGrid();
+  const t = findNextBeatNumberTime(2) ?? (beats[0]?.t ?? 0);
+  armStartAt(t);
+});
+btnBeat3.addEventListener('click', async () => {
+  await loadBeatGrid();
+  const t = findNextBeatNumberTime(3) ?? (beats[0]?.t ?? 0);
+  armStartAt(t);
+});
+btnBeat4.addEventListener('click', async () => {
+  await loadBeatGrid();
+  const t = findNextBeatNumberTime(4) ?? (beats[0]?.t ?? 0);
+  armStartAt(t);
+});
+btnBar2Beat1.addEventListener('click', async () => {
+  await loadBeatGrid();
+  const t = findBarBeatTime(2, 1);
+  armStartAt(t ?? (beats.find(b => b.beat===1)?.t ?? 0));
+});
+
+// 오디오 시간 변화 → 가사/섹션 재확인
+audioEl.addEventListener('timeupdate', () => {
+  renderLyricsAt(audioEl.currentTime);
+  const sec = sectionByBeat(getCurrentBeatNumber(audioEl.currentTime));
+  if (sec && sec !== currentSection) ensureVideoForSection(sec);
+});
+
+// ✅ 노래가 끝나면 영상도 멈춤
+audioEl.addEventListener('ended', () => {
+  syncActive = false;        // 싱크 루프 중단
+  try { video.pause(); } catch {}
+  try { video.currentTime = 0; } catch {}
+  console.log('[AUDIO] ended → video paused & reset to 0');
+});
+
+// 시킹 시 가사/섹션 재확인
+audioEl.addEventListener('seeked', () => {
+  renderLyricsAt(audioEl.currentTime);
+  const sec = sectionByBeat(getCurrentBeatNumber(audioEl.currentTime));
+  if (sec && sec !== currentSection) ensureVideoForSection(sec);
+});
+
+// ===== 초기화 =====
+applySelectedAudio();
+Promise.all([loadBeatGrid(), loadLyrics()]).then(async () => {
+  const initialSection = sectionByBeat(1) || 'part1';
+  reanchorPhase(initialSection);
+  await ensureVideoForSection(initialSection);
 });

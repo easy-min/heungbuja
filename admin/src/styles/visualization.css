@@ -1,0 +1,668 @@
+/* ============================================
+   곡 시각화 페이지 기본 스타일
+   ============================================ */
+
+.viz-page {
+  min-height: 100vh;
+  background: #f9fafb;
+  padding: 20px;
+}
+
+/* 재생 컨트롤만 화면에 고정시키는 래퍼 */
+.viz-controls-sticky {
+  position: sticky;
+  /* 상단 여백: 상단 페이지 헤더(대시보드로 돌아가기 + 곡 선택) 높이를 고려해서 조정 */
+  top: 70px;              /* 필요에 따라 60~100px 사이로 맞춰 보세요 */
+  z-index: 20;
+  background: #ffffff;
+  /* 위·아래와 자연스럽게 이어지도록 보더/섀도우는 상황 보고 조정 */
+}
+
+
+.viz-page-header {
+  max-width: 1200px;
+  margin: 0 auto 30px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.viz-song-selector-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.viz-song-selector-wrapper label {
+  font-weight: 600;
+  color: #333;
+}
+
+.viz-song-select {
+  min-width: 400px;
+  padding: 10px 14px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 15px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.viz-song-select:focus {
+  outline: none;
+  border-color: #3182f6;
+  box-shadow: 0 0 0 3px rgba(49, 130, 246, 0.1);
+}
+
+.viz-content {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.viz-loading,
+.viz-empty-state,
+.viz-placeholder {
+  text-align: center;
+  padding: 80px 20px;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.viz-loading p,
+.viz-empty-state p {
+  font-size: 16px;
+  color: #666;
+}
+
+.viz-placeholder {
+  background: white;
+  border: 2px dashed #e5e7eb;
+}
+
+.viz-placeholder h2 {
+  color: #191f28;
+  margin-bottom: 20px;
+}
+
+.viz-placeholder p {
+  color: #666;
+  margin: 8px 0;
+}
+
+/* ============================================
+   시각화 컨테이너
+   ============================================ */
+
+.viz-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  background: white;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+/* ============================================
+   헤더
+   ============================================ */
+
+.viz-header {
+  background: white;
+  padding: 40px 50px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.viz-header h1 {
+  font-size: 28px;
+  margin-bottom: 8px;
+  color: #191f28;
+  font-weight: 700;
+}
+
+.viz-song-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 20px;
+}
+
+.viz-song-title {
+  font-size: 22px;
+  font-weight: 600;
+  color: #4e5968;
+}
+
+.viz-song-meta {
+  display: flex;
+  gap: 20px;
+  font-size: 15px;
+  color: #8b95a1;
+}
+
+/* ============================================
+   재생 컨트롤
+   ============================================ */
+
+.viz-controls {
+  padding: 24px 50px;
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.viz-controls-playback {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.viz-btn {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 600;
+  font-family: inherit;
+}
+
+.viz-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.viz-btn-primary {
+  background: #3182f6;
+  color: white;
+}
+
+.viz-btn-primary:hover:not(:disabled) {
+  background: #1b64da;
+}
+
+.viz-btn-secondary {
+  background: #f2f4f6;
+  color: #4e5968;
+}
+
+.viz-btn-secondary:hover:not(:disabled) {
+  background: #e5e8eb;
+}
+
+/* 레벨 선택 */
+.viz-level-selector {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.viz-level-btn {
+  padding: 10px 20px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  background: white;
+  font-size: 14px;
+  font-weight: 600;
+  color: #4e5968;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.viz-level-btn:hover {
+  border-color: #3182f6;
+  color: #3182f6;
+}
+
+.viz-level-btn.active {
+  background: #3182f6;
+  border-color: #3182f6;
+  color: white;
+}
+
+/* ============================================
+   섹션
+   ============================================ */
+
+.viz-section {
+  padding: 40px 50px;
+  background: white;
+}
+
+.viz-current-section {
+  text-align: center;
+  margin-bottom: 32px;
+  padding: 24px;
+  background: #f9fafb;
+  border-radius: 16px;
+  border: 1px solid #e5e7eb;
+}
+
+.viz-section-name {
+  font-size: 20px;
+  font-weight: 700;
+  color: #191f28;
+  margin-bottom: 8px;
+}
+
+.viz-time-display {
+  font-size: 32px;
+  font-weight: 700;
+  color: #3182f6;
+  letter-spacing: 1px;
+}
+
+/* ============================================
+   진행바 (Progress Bar)
+   ============================================ */
+
+.viz-progress-container {
+  margin-bottom: 32px;
+}
+
+.viz-progress-wrapper {
+  position: relative;
+  width: 100%;
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.viz-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #3182f6, #1b64da);
+  border-radius: 4px;
+  transition: width 0.1s linear;
+}
+
+.viz-section-markers {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 12px;
+  padding: 0 4px;
+}
+
+.viz-section-marker {
+  font-size: 12px;
+  color: #8b95a1;
+  text-align: center;
+  line-height: 1.4;
+}
+
+/* ============================================
+   가사 표시 (Karaoke Lyrics)
+   ============================================ */
+
+.viz-lyrics-karaoke {
+  text-align: center;
+  margin-bottom: 32px;
+  padding: 32px;
+  background: linear-gradient(135deg, #f9fafb 0%, #f2f4f6 100%);
+  border-radius: 16px;
+  border: 1px solid #e5e7eb;
+}
+
+.viz-current-lyric {
+  font-size: 28px;
+  font-weight: 700;
+  color: #191f28;
+  margin-bottom: 16px;
+  min-height: 42px;
+  line-height: 1.5;
+}
+
+.viz-next-lyric {
+  font-size: 15px;
+  color: #8b95a1;
+  margin-bottom: 16px;
+  min-height: 22px;
+}
+
+.viz-lyric-progress {
+  width: 100%;
+  height: 4px;
+  background: #e5e7eb;
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 20px;
+}
+
+.viz-lyric-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #3182f6, #1b64da);
+  border-radius: 2px;
+  transition: width 0.1s linear;
+}
+
+/* ============================================
+   동작 표시 (Action Indicator)
+   ============================================ */
+
+.viz-action-indicator {
+  text-align: center;
+  padding: 24px;
+  background: white;
+  border-radius: 16px;
+  border: 2px solid #e5e7eb;
+  transition: all 0.3s;
+}
+
+.viz-action-indicator.active {
+  border-color: #3182f6;
+  box-shadow: 0 0 0 4px rgba(49, 130, 246, 0.1);
+  animation: actionPulse 0.5s ease-out;
+}
+
+.viz-action-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+  filter: grayscale(0.3);
+}
+
+.viz-action-indicator.active .viz-action-icon {
+  filter: grayscale(0);
+  animation: iconBounce 0.5s ease-out;
+}
+
+.viz-action-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #4e5968;
+}
+
+.viz-action-indicator.active .viz-action-name {
+  color: #3182f6;
+}
+
+@keyframes actionPulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes iconBounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+/* ============================================
+   메트로놈 (Metronome)
+   ============================================ */
+
+.viz-metronome {
+  margin-bottom: 32px;
+}
+
+.viz-metronome-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #191f28;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.viz-metronome-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 8px;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.viz-beat {
+  aspect-ratio: 1;
+  background: #f9fafb;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.viz-beat.bar-start {
+  border-color: #3182f6;
+  border-width: 3px;
+}
+
+.viz-beat.active {
+  background: linear-gradient(135deg, #3182f6, #1b64da);
+  border-color: #3182f6;
+  box-shadow: 0 0 20px rgba(49, 130, 246, 0.4);
+  animation: beatPulse 0.3s ease-out;
+  transform: scale(1.1);
+}
+
+.viz-beat-number {
+  font-size: 20px;
+  font-weight: 700;
+  color: #4e5968;
+}
+
+.viz-beat.active .viz-beat-number {
+  color: white;
+}
+
+.viz-beat-bar {
+  font-size: 10px;
+  color: #8b95a1;
+  margin-top: 4px;
+}
+
+.viz-beat.active .viz-beat-bar {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+@keyframes beatPulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1.1);
+  }
+}
+
+/* ============================================
+   타임라인 (Timeline)
+   ============================================ */
+
+.viz-timeline {
+  margin-top: 32px;
+}
+
+.viz-timeline-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #191f28;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.viz-timeline-list {
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 16px;
+  border: 1px solid #e5e7eb;
+}
+
+.viz-timeline-empty {
+  text-align: center;
+  padding: 40px;
+  color: #8b95a1;
+}
+
+/* 가사 섹션 */
+.viz-lyric-section {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+  border: 2px solid #e5e7eb;
+  transition: all 0.3s;
+}
+
+.viz-lyric-section:last-child {
+  margin-bottom: 0;
+}
+
+.viz-lyric-section.active {
+  border-color: #3182f6;
+  box-shadow: 0 0 0 4px rgba(49, 130, 246, 0.1);
+}
+
+.viz-lyric-section-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.viz-lyric-section-time {
+  font-size: 13px;
+  color: #10b981;
+  font-weight: 600;
+}
+
+.viz-lyric-section-text {
+  font-size: 16px;
+  font-weight: 700;
+  color: #191f28;
+  flex: 1;
+  min-width: 200px;
+}
+
+.viz-lyric-section-meta {
+  font-size: 13px;
+  color: #8b95a1;
+}
+
+/* 동작 칩들 */
+.viz-lyric-section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.viz-action-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: #f9fafb;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.viz-action-chip.active {
+  background: white;
+  border-color: #3182f6;
+  box-shadow: 0 0 0 3px rgba(49, 130, 246, 0.1);
+  transform: scale(1.05);
+}
+
+.viz-action-chip-icon {
+  font-size: 18px;
+}
+
+.viz-action-chip-name {
+  font-weight: 600;
+  color: #4e5968;
+}
+
+.viz-action-chip.active .viz-action-chip-name {
+  color: #3182f6;
+}
+
+.viz-action-chip-index {
+  font-size: 12px;
+  color: #8b95a1;
+  font-weight: 500;
+}
+
+/* 반응형 */
+@media (max-width: 768px) {
+  .viz-page-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .viz-song-selector-wrapper {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .viz-song-select {
+    min-width: 100%;
+  }
+
+  .viz-current-lyric {
+    font-size: 22px;
+  }
+
+  .viz-action-icon {
+    font-size: 40px;
+  }
+
+  .viz-metronome-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .viz-beat-number {
+    font-size: 16px;
+  }
+
+  .viz-beat-bar {
+    font-size: 9px;
+  }
+
+  .viz-timeline-list {
+    max-height: 300px;
+  }
+
+  .viz-lyric-section-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .viz-lyric-section-text {
+    font-size: 14px;
+    min-width: 100%;
+  }
+
+  .viz-action-chip {
+    font-size: 13px;
+    padding: 6px 10px;
+  }
+
+  .viz-action-chip-icon {
+    font-size: 16px;
+  }
+}

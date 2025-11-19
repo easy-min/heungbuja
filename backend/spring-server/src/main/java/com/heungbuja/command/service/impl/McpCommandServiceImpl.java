@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.heungbuja.command.dto.CommandRequest;
 import com.heungbuja.command.dto.CommandResponse;
+import com.heungbuja.performance.annotation.MeasurePerformance;
 import com.heungbuja.command.mcp.McpToolService;
 import com.heungbuja.command.mcp.dto.McpToolCall;
 import com.heungbuja.command.mcp.dto.McpToolDefinition;
@@ -49,11 +50,13 @@ public class McpCommandServiceImpl implements CommandService {
     private final GptService gptService;
     private final McpToolService mcpToolService;
     private final ConversationContextService conversationContextService;
+    private final com.heungbuja.session.service.SessionStateService sessionStateService;
     private final TtsService ttsService;
     private final VoiceCommandRepository voiceCommandRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
+    @MeasurePerformance(component = "Command")
     @Transactional(noRollbackFor = {CustomException.class, Exception.class})
     public CommandResponse processTextCommand(CommandRequest request) {
         User user = userService.findById(request.getUserId());
@@ -168,6 +171,32 @@ public class McpCommandServiceImpl implements CommandService {
      * Tool 선택을 위한 프롬프트 생성
      */
     private String buildToolSelectionPrompt(String userMessage, String contextInfo, Long userId) {
+        // 응급 상황 진행 중인지 체크
+        boolean isEmergencyInProgress = sessionStateService.isEmergency(userId);
+        String emergencyWarning = "";
+
+        if (isEmergencyInProgress) {
+            log.warn("⚠️ 응급 신호 진행 중 명령 입력: userId={}, text='{}'", userId, userMessage);
+            emergencyWarning = """
+
+                    ⚠️⚠️⚠️ 매우 중요: 현재 응급 신고가 진행 중입니다! ⚠️⚠️⚠️
+
+                    사용자가 "괜찮아"류 표현을 하면 반드시 cancel_emergency만 호출하세요:
+                    - "괜찮아", "괜찮습니다", "괜찮아요", "아니야", "아니에요", "취소", "취소해" → cancel_emergency만!
+
+                    사용자가 "안괜찮아"류 표현을 하면 반드시 confirm_emergency만 호출하세요:
+                    - "안괜찮아", "안 괜찮아", "빨리 신고", "신고해", "위급해", "심각해" → confirm_emergency만!
+
+                    사용자가 다시 응급 키워드를 말하면:
+                    - "살려줘", "도와줘", "아파" 등 → handle_emergency (중복 신고 = 즉시 확정)
+
+                    ⚠️ 주의: "괜찮아 XXX해줘" 같은 복합 명령도 cancel_emergency만 호출! XXX는 무시!
+
+                    """;
+        } else {
+            log.debug("일반 상황 명령 입력: userId={}, text='{}'", userId, userMessage);
+        }
+
         // Tools 설명
         String toolsDescription = """
                 [사용 가능한 Tools]
@@ -202,29 +231,53 @@ public class McpCommandServiceImpl implements CommandService {
                      * userId (필수): 사용자 ID
 
                 5. handle_emergency
-                   - 설명: 응급 상황 감지 및 신고
+                   - 설명: **최초** 응급 상황 감지 및 신고 생성
                    - 파라미터:
                      * userId (필수): 사용자 ID
                      * keyword (필수): 응급 키워드
                      * fullText (필수): 전체 발화 텍스트
+                   - 사용 시점: "살려줘", "도와줘", "아파요" 등 응급 키워드를 **처음** 말할 때
+                   - 참고: 응급 신고가 이미 진행 중이라면 즉시 확정됨
 
-                6. change_mode
+                6. cancel_emergency
+                   - 설명: 진행 중인 응급 신고 취소
+                   - 파라미터:
+                     * userId (필수): 사용자 ID
+                   - 사용 시점: 응급 신고 진행 중 사용자가 괜찮다고 응답할 때
+                   - 인식 키워드: "괜찮아", "괜찮습니다", "괜찮아요", "괜찮네요", "아니야", "아니에요", "취소", "취소해", "잘못 눌렀어", "실수야", "실수였어"
+
+                7. confirm_emergency
+                   - 설명: **진행 중인** 응급 신고를 즉시 확정 (60초 대기 건너뛰기)
+                   - 파라미터:
+                     * userId (필수): 사용자 ID
+                   - 사용 시점: 응급 신고 진행 중 "안 괜찮아", "안괜찮아", "빨리 신고해", "신고해", "위급해", "심각해" 등으로 응답할 때
+                   - ⚠️ 주의: handle_emergency와 명확히 구분! confirm_emergency는 **이미 신고가 진행 중**일 때만 사용
+
+                8. change_mode
                    - 설명: 모드 변경 (홈, 감상, 체조)
                    - 파라미터:
                      * userId (필수): 사용자 ID
                      * mode (필수): HOME, LISTENING, EXERCISE 중 하나
 
-                7. start_game
-                   - 설명: 게임(체조)을 시작합니다. 노래에 맞춰 동작을 따라하는 3-5분 게임입니다.
+                9. start_game
+                   - 설명: 게임(체조)을 시작합니다. 현재 선택된 노래 또는 랜덤 노래로 시작합니다.
                    - 파라미터:
                      * userId (필수): 사용자 ID
-                     * songId: 게임에 사용할 노래 ID (선택적, 안무 정보가 있는 노래만 가능)
+                     * songId: 게임에 사용할 노래 ID (선택적)
+
+                10. start_game_with_song
+                   - 설명: 특정 노래로 게임(체조)을 시작합니다. 노래 검색과 게임 시작을 한 번에 처리합니다.
+                   - 파라미터:
+                     * userId (필수): 사용자 ID
+                     * title: 노래 제목
+                     * artist: 가수명 (선택적)
+                   - 사용 시점: 사용자가 "특정 노래로 체조/게임/운동"을 요청할 때
                 """;
 
         return String.format("""
                 당신은 노인을 위한 음성 인터페이스 AI입니다.
                 사용자의 음성 명령을 분석하여 적절한 Tool을 선택하세요.
-
+                %s
                 [현재 상황]
                 %s
 
@@ -233,32 +286,157 @@ public class McpCommandServiceImpl implements CommandService {
                 [사용자 명령]
                 "%s"
 
-                [지침]
-                - 사용자 요청을 이해하고 필요한 Tool(들)을 선택하세요
-                - 복잡한 요청은 여러 Tool을 순차적으로 호출할 수 있습니다
-                - userId는 %d로 설정하세요
-                - 반드시 JSON 형식으로만 응답하세요
+                [명령 분석 절차]
+                STEP 1: 사용자 명령에서 키워드 추출
+                  - 노래 이름이 있는가? (가수명, 곡명 등)
+                  - 체조/게임/운동 키워드가 있는가?
+                  - 재생 키워드가 있는가? (틀어/들려/듣고)
 
-                [응답 형식]
+                STEP 2: 패턴 결정
+                  ⚠️⚠️⚠️ 매우 중요: 하나의 명령에는 반드시 하나의 Tool만 호출! ⚠️⚠️⚠️
+                  ⚠️ 특히 응급 상황에서는 절대 여러 Tool 호출 금지!
+
+                  - 패턴 A (노래로 체조): 노래 이름 + "체조/게임/운동" → start_game_with_song (한 번에!)
+                  - 패턴 B (노래만 듣기): 노래 이름 + "틀어/들려/듣고" → search_song만
+                  - 패턴 C (랜덤 체조): "체조/게임/운동"만 → start_game만
+                  - 패턴 D (응급 취소): "괜찮아" 포함 → cancel_emergency만! (뒤에 다른 말이 있어도 무시!)
+                  - 패턴 E (응급 확정): "안괜찮아" 포함 → confirm_emergency만!
+
+                STEP 3: Tool 호출 생성
+                  - 패턴에 맞는 Tool 정확히 하나만 호출
+                  - 응급 상황에서 "괜찮아 XXX해줘"는 cancel_emergency만 호출! XXX 무시!
+
+                [패턴 A 예시: 노래로 체조 - start_game_with_song 사용]
+                "당돌한 여자로 체조하고 싶어" → start_game_with_song(title="당돌한 여자")
+                "당돌한 여자로 게임해줘" → start_game_with_song(title="당돌한 여자")
+                "서주경의 당돌한 여자로 운동할래" → start_game_with_song(artist="서주경", title="당돌한 여자")
+
+                [패턴 B 예시: 노래만 듣기 - search_song 사용]
+                "당돌한 여자 틀어줘" → search_song(title="당돌한 여자")
+                "당돌한 여자 들려줘" → search_song(title="당돌한 여자")
+                "당돌한 여자 듣고 싶어" → search_song(title="당돌한 여자")
+
+                [패턴 C 예시: 랜덤 체조 - start_game 사용]
+                "체조하고 싶어" → start_game()
+                "게임할래" → start_game()
+
+                [패턴 D 예시: 응급 상황 처리]
+                ⚠️ 응급 Tool 구분 규칙:
+                - handle_emergency: 처음 응급 키워드를 말할 때 (신고 생성)
+                - cancel_emergency: 신고 진행 중 취소 의사를 밝힐 때
+                - confirm_emergency: 신고 진행 중 확정 의사를 밝힐 때
+
+                시나리오 1 (최초 응급 신고):
+                "살려줘" → handle_emergency(keyword="살려줘", fullText="살려줘")
+                "아파요 도와주세요" → handle_emergency(keyword="아파요", fullText="아파요 도와주세요")
+
+                시나리오 2 (신고 진행 중 - 취소):
+                (이미 신고 진행 중) "괜찮아" → cancel_emergency()
+                (이미 신고 진행 중) "괜찮습니다" → cancel_emergency()
+                (이미 신고 진행 중) "괜찮아요" → cancel_emergency()
+                (이미 신고 진행 중) "아니야" → cancel_emergency()
+                (이미 신고 진행 중) "취소해" → cancel_emergency()
+                (이미 신고 진행 중) "잘못 눌렀어" → cancel_emergency()
+
+                시나리오 3 (신고 진행 중 - 즉시 확정):
+                (이미 신고 진행 중) "안괜찮아" → confirm_emergency()
+                (이미 신고 진행 중) "빨리 신고해" → confirm_emergency()
+                (이미 신고 진행 중) "신고해줘" → confirm_emergency()
+
+                시나리오 4 (신고 진행 중 - 중복 응급 키워드 = 즉시 확정):
+                (이미 신고 진행 중) "도와줘" → handle_emergency(keyword="도와줘", fullText="도와줘")
+                → 시스템이 자동으로 기존 신고를 즉시 확정 처리
+
+                [JSON 예시]
+                입력: "당돌한 여자로 체조하고 싶어"
+                응답:
                 {
                   "tool_calls": [
-                    {
-                      "name": "search_song",
-                      "arguments": {
-                        "userId": 1,
-                        "artist": "태진아"
-                      }
-                    }
+                    {"name": "start_game_with_song", "arguments": {"userId": 1, "title": "당돌한 여자"}}
                   ]
                 }
 
-                만약 Tool을 호출할 필요가 없으면:
+                입력: "당돌한 여자 들려줘"
+                응답:
                 {
-                  "tool_calls": []
+                  "tool_calls": [
+                    {"name": "search_song", "arguments": {"userId": 1, "title": "당돌한 여자"}}
+                  ]
                 }
 
-                JSON만 출력하세요 (다른 설명 금지):
-                """, contextInfo, toolsDescription, userMessage, userId);
+                입력: "체조하고 싶어"
+                응답:
+                {
+                  "tool_calls": [
+                    {"name": "start_game", "arguments": {"userId": 1}}
+                  ]
+                }
+
+                입력: "살려줘" (최초 응급 신고)
+                응답:
+                {
+                  "tool_calls": [
+                    {"name": "handle_emergency", "arguments": {"userId": 1, "keyword": "살려줘", "fullText": "살려줘"}}
+                  ]
+                }
+
+                입력: "안괜찮아" (신고 진행 중)
+                응답:
+                {
+                  "tool_calls": [
+                    {"name": "confirm_emergency", "arguments": {"userId": 1}}
+                  ]
+                }
+
+                입력: "괜찮아" (신고 진행 중)
+                응답:
+                {
+                  "tool_calls": [
+                    {"name": "cancel_emergency", "arguments": {"userId": 1}}
+                  ]
+                }
+
+                입력: "괜찮습니다" (신고 진행 중)
+                응답:
+                {
+                  "tool_calls": [
+                    {"name": "cancel_emergency", "arguments": {"userId": 1}}
+                  ]
+                }
+
+                입력: "아니야" (신고 진행 중)
+                응답:
+                {
+                  "tool_calls": [
+                    {"name": "cancel_emergency", "arguments": {"userId": 1}}
+                  ]
+                }
+
+                입력: "괜찮아 체조해줘" (신고 진행 중 - 복합 명령)
+                응답:
+                {
+                  "tool_calls": [
+                    {"name": "cancel_emergency", "arguments": {"userId": 1}}
+                  ]
+                }
+                ⚠️ 주의: "체조해줘"는 무시하고 cancel_emergency만 호출!
+
+                입력: "괜찮아요 노래 틀어줘" (신고 진행 중 - 복합 명령)
+                응답:
+                {
+                  "tool_calls": [
+                    {"name": "cancel_emergency", "arguments": {"userId": 1}}
+                  ]
+                }
+                ⚠️ 주의: "노래 틀어줘"는 무시하고 cancel_emergency만 호출!
+
+                [응답 형식]
+                - userId는 %d로 설정
+                - 반드시 JSON만 출력 (설명 금지)
+                - tool_calls는 배열이지만 대부분 하나의 Tool만 호출
+
+                JSON만 출력:
+                """, emergencyWarning, contextInfo, toolsDescription, userMessage, userId);
     }
 
     /**
@@ -317,6 +495,26 @@ public class McpCommandServiceImpl implements CommandService {
      * Tool을 호출하지 않고 GPT가 직접 응답한 경우
      */
     private CommandResponse handleDirectGptResponse(User user, String text) {
+        // 응급 상황 진행 중인지 체크
+        boolean isEmergencyInProgress = sessionStateService.isEmergency(user.getId());
+
+        if (isEmergencyInProgress) {
+            // 응급 신고 진행 중일 때는 상태 안내
+            log.info("응급 신고 진행 중 애매한 응답: userId={}, text='{}'", user.getId(), text);
+
+            String responseText = "신고가 진행되고 있습니다. 괜찮으시면 '괜찮아'라고, 정말 위급하시면 '안 괜찮아'라고 말씀해주세요";
+
+            saveVoiceCommand(user, text, Intent.EMERGENCY);
+
+            return CommandResponse.builder()
+                    .success(true)
+                    .intent(Intent.EMERGENCY)  // 응급 상황 유지
+                    .responseText(responseText)
+                    .ttsAudioUrl(null)  // TTS는 Controller에서 처리
+                    .build();
+        }
+
+        // 일반 상황
         String prompt = String.format("""
                 사용자 요청: "%s"
 
@@ -326,6 +524,8 @@ public class McpCommandServiceImpl implements CommandService {
                 - 반드시 1문장으로만 답변하세요
                 - 10단어 이내로 짧게 답변하세요
                 - 어르신이 이해하기 쉽게 답변하세요
+                - "죄송합니다. 이해하지 못했습니다" 또는 "다시 말씀해주세요" 형태로만 답변하세요
+                - "유료 광고", "시청해주셔서 감사합니다", "구독", "좋아요" 같은 문구는 절대 사용하지 마세요
                 """, text);
 
         var gptResponse = gptService.chat(prompt);
@@ -346,15 +546,21 @@ public class McpCommandServiceImpl implements CommandService {
     /**
      * 응답 생성
      * ttsUrl은 사용하지 않음 (Controller에서 synthesizeBytes()로 직접 처리)
+     *
+     * 중요: 마지막 Tool 결과를 우선 처리하기 위해 역순으로 순회합니다.
+     * 예: search_song → start_game 호출 시, start_game 결과가 우선 처리됩니다.
      */
     private CommandResponse buildResponse(String responseText, String ttsUrl, List<McpToolResult> toolResults) {
-        // Tool 결과에 따라 응답 생성
-        for (McpToolResult result : toolResults) {
+        // Tool 결과에 따라 응답 생성 (역순 순회: 마지막 Tool 우선 처리)
+        log.debug("buildResponse 시작: toolResults 개수={}", toolResults.size());
+        for (int i = toolResults.size() - 1; i >= 0; i--) {
+            McpToolResult result = toolResults.get(i);
+            log.debug("Tool 결과 처리 중 [{}]: toolName={}, success={}", i, result.getToolName(), result.isSuccess());
             // search_song: 노래 재생 → LISTENING 모드로 화면 전환
             if ("search_song".equals(result.getToolName()) && result.getSongInfo() != null) {
                 return CommandResponse.builder()
                         .success(true)
-                        .intent(Intent.UNKNOWN)
+                        .intent(Intent.SELECT_BY_ARTIST)  // ✅ 노래 검색 Intent
                         .responseText(responseText)
                         .ttsAudioUrl(null)  // TTS는 Controller에서 처리
                         .songInfo(result.getSongInfo())
@@ -376,7 +582,7 @@ public class McpCommandServiceImpl implements CommandService {
 
                 return CommandResponse.builder()
                         .success(true)
-                        .intent(Intent.UNKNOWN)
+                        .intent(Intent.MODE_EXERCISE)  // ✅ 게임 시작 Intent
                         .responseText(responseText)
                         .ttsAudioUrl(null)  // TTS는 Controller에서 처리
                         .screenTransition(CommandResponse.ScreenTransition.builder()
@@ -387,20 +593,148 @@ public class McpCommandServiceImpl implements CommandService {
                         .build();
             }
 
-            // change_mode: 명시적 모드 전환
+            // start_game_with_song: 특정 노래로 게임 시작 → EXERCISE 모드로 화면 전환
+            if ("start_game_with_song".equals(result.getToolName()) && result.getData() != null) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> gameData = (Map<String, Object>) result.getData();
+
+                return CommandResponse.builder()
+                        .success(true)
+                        .intent(Intent.MODE_EXERCISE)  // ✅ 게임 시작 Intent
+                        .responseText(responseText)
+                        .ttsAudioUrl(null)  // TTS는 Controller에서 처리
+                        .screenTransition(CommandResponse.ScreenTransition.builder()
+                                .targetScreen("/game")
+                                .action("START_GAME")
+                                .data(gameData)  // sessionId, audioUrl, beatInfo 등 포함
+                                .build())
+                        .build();
+            }
+
+            // control_playback: 재생 제어
+            if ("control_playback".equals(result.getToolName())) {
+                Intent playbackIntent = mapPlaybackActionToIntent(result.getData());
+                return CommandResponse.builder()
+                        .success(true)
+                        .intent(playbackIntent)  // ✅ MUSIC_PAUSE, MUSIC_RESUME 등
+                        .responseText(responseText)
+                        .ttsAudioUrl(null)
+                        .build();
+            }
+
+            // handle_emergency: 응급 상황
+            if ("handle_emergency".equals(result.getToolName())) {
+                return CommandResponse.builder()
+                        .success(true)
+                        .intent(Intent.EMERGENCY)  // ✅ 응급 Intent
+                        .responseText(responseText)
+                        .ttsAudioUrl(null)
+                        .build();
+            }
+
+            // cancel_emergency: 응급 취소
+            if ("cancel_emergency".equals(result.getToolName())) {
+                log.info("✅ cancel_emergency 처리: responseText='{}'", responseText);
+                return CommandResponse.builder()
+                        .success(true)
+                        .intent(Intent.EMERGENCY_CANCEL)  // ✅ 응급 취소 Intent
+                        .responseText(responseText)
+                        .ttsAudioUrl(null)
+                        .build();
+            }
+
+            // confirm_emergency: 응급 즉시 확정
+            if ("confirm_emergency".equals(result.getToolName())) {
+                return CommandResponse.builder()
+                        .success(true)
+                        .intent(Intent.EMERGENCY_CONFIRM)  // ✅ 응급 확정 Intent
+                        .responseText(responseText)
+                        .ttsAudioUrl(null)
+                        .build();
+            }
+
+            // change_mode: 모드 전환
             if ("change_mode".equals(result.getToolName())) {
-                // TODO: change_mode에서 어떤 모드로 전환할지 정보 가져오기
-                // 현재는 일반 응답으로 처리
+                Intent modeIntent = mapModeToIntent(result.getData());
+                return CommandResponse.builder()
+                        .success(true)
+                        .intent(modeIntent)  // ✅ MODE_HOME, MODE_LISTENING, MODE_EXERCISE
+                        .responseText(responseText)
+                        .ttsAudioUrl(null)
+                        .screenTransition(buildModeTransition(modeIntent))
+                        .build();
             }
         }
 
         // 일반 응답 (화면 전환 없음)
+        log.warn("⚠️ 매칭되는 Tool이 없음 - Intent.UNKNOWN 반환: responseText='{}'", responseText);
         return CommandResponse.builder()
                 .success(true)
                 .intent(Intent.UNKNOWN)
                 .responseText(responseText)
                 .ttsAudioUrl(null)  // TTS는 Controller에서 처리
                 .build();
+    }
+
+    /**
+     * Playback action을 Intent로 매핑
+     */
+    private Intent mapPlaybackActionToIntent(Object data) {
+        if (data instanceof Map) {
+            String action = (String) ((Map<?, ?>) data).get("action");
+            if (action != null) {
+                return switch (action.toUpperCase()) {
+                    case "PAUSE" -> Intent.MUSIC_PAUSE;
+                    case "RESUME" -> Intent.MUSIC_RESUME;
+                    case "NEXT" -> Intent.MUSIC_NEXT;
+                    case "STOP" -> Intent.MUSIC_STOP;
+                    default -> Intent.UNKNOWN;
+                };
+            }
+        }
+        return Intent.UNKNOWN;
+    }
+
+    /**
+     * Mode를 Intent로 매핑
+     */
+    private Intent mapModeToIntent(Object data) {
+        if (data instanceof Map) {
+            String mode = (String) ((Map<?, ?>) data).get("mode");
+            if (mode != null) {
+                return switch (mode.toUpperCase()) {
+                    case "HOME" -> Intent.MODE_HOME;
+                    case "LISTENING" -> Intent.MODE_LISTENING;
+                    case "EXERCISE" -> Intent.MODE_EXERCISE;
+                    default -> Intent.UNKNOWN;
+                };
+            }
+        }
+        return Intent.UNKNOWN;
+    }
+
+    /**
+     * Mode에 따른 화면 전환 생성
+     */
+    private CommandResponse.ScreenTransition buildModeTransition(Intent modeIntent) {
+        return switch (modeIntent) {
+            case MODE_HOME -> CommandResponse.ScreenTransition.builder()
+                    .targetScreen("/home")
+                    .action("GO_HOME")
+                    .data(Map.of())
+                    .build();
+            case MODE_LISTENING -> CommandResponse.ScreenTransition.builder()
+                    .targetScreen("/listening")
+                    .action("GO_LISTENING")
+                    .data(Map.of())
+                    .build();
+            case MODE_EXERCISE -> CommandResponse.ScreenTransition.builder()
+                    .targetScreen("/exercise")
+                    .action("GO_EXERCISE")
+                    .data(Map.of())
+                    .build();
+            default -> null;
+        };
     }
 
     /**

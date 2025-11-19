@@ -1,0 +1,128 @@
+.home-page {
+  width: 100%;
+  min-height: 100vh;
+  background-color: var(--color-secondary);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+}
+
+.home-container {
+  width: 100%;
+  max-width: 1200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3rem;
+}
+
+.home-title {
+  font-size: 4rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.button-container {
+  display: flex;
+  gap: 4.5rem;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.home-button {
+  background-color: white;
+  border: 20px solid transparent;
+  border-radius: 30px;
+  padding: 2.5rem;
+  width: 350px;
+  height: 370px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.home-button:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  border-color: var(--color-primary);
+}
+
+.home-button:active {
+  transform: translateY(-4px);
+}
+
+.button-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  height: 100%;
+}
+
+.character-image {
+  width: 200px;
+  height: 200px;
+  object-fit: contain;
+}
+
+.button-text {
+  font-size: 2.75rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+/* 반응형 디자인 */
+@media (max-width: 768px) {
+  .home-title {
+    font-size: 3rem;
+  }
+
+  .button-container {
+    flex-direction: column;
+    gap: 2rem;
+  }
+
+  .home-button {
+    width: 240px;
+    height: 280px;
+  }
+
+  .character-image {
+    width: 140px;
+    height: 140px;
+  }
+
+  .button-text {
+    font-size: 1.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .home-page {
+    padding: 1rem;
+  }
+
+  .home-title {
+    font-size: 2.5rem;
+  }
+
+  .home-button {
+    width: 200px;
+    height: 240px;
+    padding: 1.5rem;
+  }
+
+  .character-image {
+    width: 120px;
+    height: 120px;
+  }
+
+  .button-text {
+    font-size: 1.25rem;
+  }
+}

@@ -1,0 +1,200 @@
+.voice-button-wrapper {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.voice-button {
+  /* 위치 고정 - wrapper로 이동 */
+  position: relative;
+  
+  /* 크기 */
+  width: 70px;
+  height: 70px;
+  
+  /* 스타일 */
+  background-color: var(--color-primary);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  
+  /* 그림자 */
+  box-shadow: 0 4px 12px rgba(255, 80, 53, 0.3);
+  
+  /* 애니메이션 */
+  transition: all 0.3s ease;
+  
+  /* 아이콘 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.voice-button:disabled {
+  cursor: not-allowed;
+}
+
+.voice-button:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 20px rgba(255, 80, 53, 0.4);
+}
+
+.voice-button:active {
+  transform: scale(0.95);
+}
+
+/* 녹음 중 상태 */
+.voice-button.recording {
+  background-color: var(--color-accent);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* 업로드 중 상태 */
+.voice-button.uploading {
+  background-color: #999;
+  cursor: wait;
+}
+
+/* Pulse 애니메이션 */
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 4px 12px rgba(230, 38, 79, 0.3);
+  }
+  50% {
+    transform: scale(1.1);
+    box-shadow: 0 8px 24px rgba(230, 38, 79, 0.6);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 마이크 아이콘 */
+.mic-icon {
+  width: 32px;
+  height: 32px;
+  color: white;
+}
+
+/* 카운트다운 */
+.countdown {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  width: 32px;
+  height: 32px;
+  background-color: white;
+  color: var(--color-primary);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  animation: countdown-pulse 1s ease-in-out infinite;
+}
+
+@keyframes countdown-pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.15);
+  }
+}
+
+/* 에러 메시지 */
+.error-message {
+  background-color: #ff4444;
+  color: white;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(255, 68, 68, 0.3);
+  max-width: 200px;
+  text-align: center;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 반응형 - 모바일 */
+@media (max-width: 768px) {
+  .voice-button-wrapper {
+    bottom: 1.5rem;
+    right: 1.5rem;
+  }
+
+  .voice-button {
+    width: 60px;
+    height: 60px;
+  }
+  
+  .mic-icon {
+    width: 28px;
+    height: 28px;
+  }
+
+  .countdown {
+    width: 28px;
+    height: 28px;
+    font-size: 1rem;
+  }
+
+  .error-message {
+    font-size: 0.8rem;
+    padding: 0.6rem 0.8rem;
+    max-width: 180px;
+  }
+}
+
+@media (max-width: 480px) {
+  .voice-button-wrapper {
+    bottom: 1rem;
+    right: 1rem;
+  }
+
+  .voice-button {
+    width: 56px;
+    height: 56px;
+  }
+  
+  .mic-icon {
+    width: 24px;
+    height: 24px;
+  }
+
+  .countdown {
+    width: 26px;
+    height: 26px;
+    font-size: 0.9rem;
+    top: -8px;
+    right: -8px;
+  }
+
+  .error-message {
+    font-size: 0.75rem;
+    padding: 0.5rem 0.7rem;
+    max-width: 160px;
+  }
+}
