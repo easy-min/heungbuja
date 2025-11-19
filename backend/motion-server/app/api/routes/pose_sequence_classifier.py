@@ -127,19 +127,11 @@ def _is_clap_like(sequence: np.ndarray) -> bool:
     # hands should move toward each other then apart; ensure at least one strong convergence
     convergence_strength = wrist_range
 
-    left_shoulder = normalized[:, LEFT_SHOULDER_IDX]
-    right_shoulder = normalized[:, RIGHT_SHOULDER_IDX]
-    shoulder_height = (left_shoulder[:, 1] + right_shoulder[:, 1]) / 2.0
-    wrist_height = (left_wrist[:, 1] + right_wrist[:, 1]) / 2.0
-    height_diff = float(np.mean(shoulder_height - wrist_height))
-
     if min_wrist_distance > 0.28:
         return False
     if mean_wrist_distance > 0.50:
         return False
     if convergence_strength < 0.18:
-        return False
-    if height_diff > 0.18:
         return False
     return True
 
