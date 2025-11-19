@@ -1,13 +1,13 @@
 """
-MediaPipe 포즈 랜드마크 기반 동작 시퀀스 추출 스크립트
+MediaPipe 포즈 랜드마크 기반 동작 시퀀스 추출 스크립트 (brandNewTrain용)
 
-data/이니셜/동작/ 폴더에 저장된 프레임 이미지들을 불러와
-각 시퀀스(예: clap_seq001_frame1~8)에 대한 포즈 랜드마크를 추출한 뒤
+extracted_data/이니셜/동작/ 폴더에 저장된 _backup.jpg 프레임 이미지들을 불러와
+각 시퀀스(예: clap_seq001_frame1~8_backup.jpg)에 대한 포즈 랜드마크를 추출한 뒤
 압축된 NumPy (.npz) 파일로 저장합니다.
 
 사용 예시:
-    python pose_sequence_extractor.py --data_dir ./data --output_dir ./pose_sequences
-    python pose_sequence_extractor.py --data_dir ./data --persons JSY YHS --actions CLAP
+    python pose_sequence_extractor.py --data_dir ./extracted_data --output_dir ./pose_sequences
+    python pose_sequence_extractor.py --data_dir ./extracted_data --persons JSY YHS --actions CLAP
 """
 
 from __future__ import annotations
@@ -26,8 +26,9 @@ import numpy as np
 from PIL import Image
 
 
+# 원본 .jpg 파일 사용 (회전 보정된 이미지)
 SEQ_PATTERN = re.compile(
-    r"(?P<base>.+)_seq(?P<seq>\d+)_frame(?P<frame>\d+)_backup\.(?P<ext>jpg|jpeg|png)$",
+    r"(?P<base>.+)_seq(?P<seq>\d+)_frame(?P<frame>\d+)\.(?P<ext>jpg|jpeg|png)$",
     re.IGNORECASE,
 )
 
@@ -48,11 +49,15 @@ def collect_sequences(
     action_dir: Path,
 ) -> Dict[int, List[Tuple[int, Path]]]:
     """
-    action_dir 내 이미지 파일을 시퀀스ID/프레임ID별로 그룹화합니다.
+    action_dir 내 .jpg 이미지 파일을 시퀀스ID/프레임ID별로 그룹화합니다.
+    (_backup.jpg는 제외)
     """
     sequences: Dict[int, List[Tuple[int, Path]]] = defaultdict(list)
-    for image_path in sorted(action_dir.glob("*")):
+    for image_path in sorted(action_dir.glob("*.jpg")):
         if not image_path.is_file():
+            continue
+        # _backup.jpg는 건너뛰기
+        if "_backup" in image_path.stem:
             continue
         match = SEQ_PATTERN.match(image_path.name)
         if not match:
@@ -161,6 +166,13 @@ def extract_pose_sequences(
     mp_pose = mp.solutions.pose
     results: List[SequenceResult] = []
 
+    print(f"\n{'='*70}")
+    print(f"🔍 _backup.jpg 파일에서 포즈 랜드마크 추출 시작")
+    print(f"{'='*70}")
+    print(f"입력 폴더: {data_dir}")
+    print(f"출력 폴더: {output_dir}")
+    print(f"{'='*70}\n")
+
     with mp_pose.Pose(
         static_image_mode=True,
         model_complexity=model_complexity,
@@ -184,6 +196,8 @@ def extract_pose_sequences(
                 if not sequences:
                     print(f"⚠️  시퀀스를 찾을 수 없습니다: {action_dir}")
                     continue
+
+                print(f"\n📂 {person_name}/{action_name}: {len(sequences)}개 시퀀스 처리 중...")
 
                 for sequence_id, frames in sequences.items():
                     if len(frames) != frames_per_sample:
@@ -238,10 +252,11 @@ def extract_pose_sequences(
                                 saved_path=saved_path,
                             )
                         )
-                        print(
-                            f"✓ 저장 완료: {person_name}/{action_name} "
-                            f"seq{sequence_id:03d} → {saved_path}"
-                        )
+
+                        # 진행 상황 표시 (10개마다)
+                        if len(results) % 100 == 0:
+                            print(f"  ✓ {len(results)}개 시퀀스 처리 완료...")
+
                     except FileExistsError as error:
                         print(f"⚠️  {error}")
 
@@ -250,13 +265,13 @@ def extract_pose_sequences(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="MediaPipe를 이용한 포즈 시퀀스 (.npz) 추출 스크립트",
+        description="MediaPipe를 이용한 포즈 시퀀스 (.npz) 추출 스크립트 (brandNewTrain용)",
     )
     parser.add_argument(
         "--data_dir",
         type=str,
         required=True,
-        help="프레임 이미지가 저장된 입력 디렉토리 (예: ./data)",
+        help="프레임 이미지가 저장된 입력 디렉토리 (예: ./extracted_data)",
     )
     parser.add_argument(
         "--output_dir",
@@ -321,15 +336,20 @@ def main() -> None:
         for result in results:
             summary[result.person][result.action] += 1
 
-        print("\n📊 추출 요약")
+        print(f"\n{'='*70}")
+        print("📊 추출 요약")
+        print(f"{'='*70}")
+        total = 0
         for person, actions in sorted(summary.items()):
             print(f"[{person}]")
             for action, count in sorted(actions.items()):
                 print(f"  - {action}: {count}개")
+                total += count
+        print(f"\n총 {total}개 시퀀스 추출 완료")
+        print(f"{'='*70}\n")
     else:
         print("⚠️  저장된 시퀀스가 없습니다.")
 
 
 if __name__ == "__main__":
     main()
-
