@@ -125,36 +125,22 @@ class MotionGCNCNN(nn.Module):
 class PoseExtractor:
     """Mediapipe Pose를 활용한 2D 관절 좌표 추출기."""
 
-    # 선택한 랜드마크 인덱스 (총 22개)
-    SELECTED_LANDMARKS = [
-        mp.solutions.pose.PoseLandmark.LEFT_SHOULDER,
-        mp.solutions.pose.PoseLandmark.LEFT_ELBOW,
-        mp.solutions.pose.PoseLandmark.LEFT_WRIST,
-        mp.solutions.pose.PoseLandmark.LEFT_THUMB,
-        mp.solutions.pose.PoseLandmark.LEFT_PINKY,
-        mp.solutions.pose.PoseLandmark.LEFT_HIP,
-        mp.solutions.pose.PoseLandmark.LEFT_KNEE,
-        mp.solutions.pose.PoseLandmark.LEFT_ANKLE,
-        mp.solutions.pose.PoseLandmark.LEFT_HEEL,
-        mp.solutions.pose.PoseLandmark.LEFT_FOOT_INDEX,
-        mp.solutions.pose.PoseLandmark.MOUTH_LEFT,
-        mp.solutions.pose.PoseLandmark.NOSE,
-        mp.solutions.pose.PoseLandmark.RIGHT_SHOULDER,
-        mp.solutions.pose.PoseLandmark.RIGHT_ELBOW,
-        mp.solutions.pose.PoseLandmark.RIGHT_WRIST,
-        mp.solutions.pose.PoseLandmark.RIGHT_THUMB,
-        mp.solutions.pose.PoseLandmark.RIGHT_PINKY,
-        mp.solutions.pose.PoseLandmark.RIGHT_HIP,
-        mp.solutions.pose.PoseLandmark.RIGHT_KNEE,
-        mp.solutions.pose.PoseLandmark.RIGHT_ANKLE,
-        mp.solutions.pose.PoseLandmark.RIGHT_HEEL,
-        mp.solutions.pose.PoseLandmark.RIGHT_FOOT_INDEX,
-    ]
+    # ========================================================================
+    # ⚠️ CRITICAL: Must match train_gcn_cnn.py preprocessing exactly!
+    # ========================================================================
+    # MediaPipe returns 33 landmarks (0-32)
+    # train_gcn_cnn.py uses USED_LANDMARK_INDICES = list(range(11, 33))
+    # This corresponds to landmarks 11-32 (22 landmarks, excluding face 0-10)
+    # ========================================================================
 
-    ROOT_INDICES = [
-        SELECTED_LANDMARKS.index(mp.solutions.pose.PoseLandmark.LEFT_HIP),
-        SELECTED_LANDMARKS.index(mp.solutions.pose.PoseLandmark.RIGHT_HIP),
-    ]
+    # MediaPipe HIP indices in full 33-landmark array
+    # train_gcn_cnn.py: HIP_INDICES = (23, 24)
+    FULL_LEFT_HIP_IDX = 23
+    FULL_RIGHT_HIP_IDX = 24
+
+    # Landmarks to extract (indices 11-32 from MediaPipe 33-landmark array)
+    # This matches train_gcn_cnn.py's USED_LANDMARK_INDICES = list(range(11, 33))
+    USED_LANDMARK_INDICES = list(range(11, 33))  # 22 landmarks
 
     def __init__(self) -> None:
         self._pose = mp.solutions.pose.Pose(
@@ -165,35 +151,53 @@ class PoseExtractor:
         )
 
     def extract(self, image: np.ndarray) -> np.ndarray:
+        """
+        Extract and normalize keypoints using EXACT same method as training.
+
+        Returns: (22, 2) normalized keypoints matching train_gcn_cnn.py preprocessing
+        """
         results = self._pose.process(image)
         if not results.pose_landmarks:
-            return np.zeros((len(self.SELECTED_LANDMARKS), 2), dtype=np.float32)
+            return np.zeros((len(self.USED_LANDMARK_INDICES), 2), dtype=np.float32)
 
         landmarks = results.pose_landmarks.landmark
-        coords = []
-        for idx in self.SELECTED_LANDMARKS:
-            lm = landmarks[idx]
-            coords.append((lm.x, lm.y))
-        keypoints = np.array(coords, dtype=np.float32)
-        return self._normalize(keypoints)
 
-    def _normalize(self, keypoints: np.ndarray) -> np.ndarray:
-        if not np.any(keypoints):
-            return keypoints
+        # ========================================================================
+        # Step 1: Extract ALL 33 landmarks first (matching training preprocessing)
+        # ========================================================================
+        all_coords = np.array(
+            [(lm.x, lm.y) for lm in landmarks],
+            dtype=np.float32
+        )  # (33, 2)
 
-        valid_points = keypoints[self.ROOT_INDICES]
-        if np.all(valid_points == 0):
-            center = np.mean(keypoints, axis=0)
-        else:
-            center = np.mean(valid_points, axis=0)
+        # ========================================================================
+        # Step 2: Center using pelvis (average of left/right hip) from FULL array
+        # This matches train_gcn_cnn.py:75-76
+        # pelvis = (coords[:, HIP_INDICES[0], :] + coords[:, HIP_INDICES[1], :]) / 2.0
+        # coords = coords - pelvis[:, None, :]
+        # ========================================================================
+        pelvis = (all_coords[self.FULL_LEFT_HIP_IDX] + all_coords[self.FULL_RIGHT_HIP_IDX]) / 2.0
+        all_coords = all_coords - pelvis  # (33, 2) centered
 
-        keypoints -= center
+        # ========================================================================
+        # Step 3: Select USED_LANDMARK_INDICES (11-32) - 22 landmarks
+        # This matches train_gcn_cnn.py:78
+        # body_coords = coords[:, USED_LANDMARK_INDICES, :]
+        # ========================================================================
+        body_coords = all_coords[self.USED_LANDMARK_INDICES]  # (22, 2)
 
-        max_distance = np.linalg.norm(keypoints, axis=1).max()
-        if max_distance > 0:
-            keypoints /= max_distance
+        # ========================================================================
+        # Step 4: Normalize by max norm of selected landmarks
+        # This matches train_gcn_cnn.py:79-82
+        # max_range = np.max(np.linalg.norm(body_coords, axis=-1, ord=2))
+        # body_coords = body_coords / max_range
+        # ========================================================================
+        max_range = np.max(np.linalg.norm(body_coords, axis=-1, ord=2))
+        if max_range < 1e-6:
+            max_range = 1.0
+        body_coords = body_coords / max_range
 
-        return keypoints
+        return body_coords.astype(np.float32)
 
 
 class MotionInferenceService:
@@ -249,6 +253,12 @@ class MotionInferenceService:
             sampled_frames
         )
 
+        # 🔍 디버깅: 입력 데이터 확인
+        LOGGER.info("🔍 디버깅 - Keypoint sequence shape: %s", keypoint_sequence.shape)
+        LOGGER.info("🔍 디버깅 - Keypoint stats - mean: %.4f, std: %.4f, min: %.4f, max: %.4f",
+                   keypoint_sequence.mean(), keypoint_sequence.std(),
+                   keypoint_sequence.min(), keypoint_sequence.max())
+
         input_tensor = torch.from_numpy(keypoint_sequence).unsqueeze(0)  # (1, T, N, 2)
         input_tensor = input_tensor.to(self.device)
 
@@ -257,6 +267,11 @@ class MotionInferenceService:
             logits = self.model(input_tensor)
             inference_time_ms = (perf_counter() - inference_start) * 1000
             probabilities = torch.softmax(logits, dim=-1).cpu().numpy()[0]
+
+            # 🔍 디버깅: 모델 출력 확인
+            LOGGER.info("🔍 디버깅 - Logits: %s", logits.cpu().numpy()[0])
+            LOGGER.info("🔍 디버깅 - Probabilities: %s", probabilities)
+            LOGGER.info("🔍 디버깅 - Class mapping: %s", self.id_to_label)
 
         decode_time_ms = decode_time_s * 1000
         pose_time_ms = pose_time_s * 1000
@@ -292,12 +307,22 @@ class MotionInferenceService:
         # ========================================================================
         # ⚠️ CRITICAL: Convert model index back to DB actionCode when returning
         # ========================================================================
-        # If target_action_code was provided, return it as-is (already DB format)
-        # If not provided, convert model's best_idx (0-based) to DB actionCode (1-based)
+        # Model class_index → DB actionCode 역매핑
+        CLASS_INDEX_TO_ACTION_CODE = {
+            0: 1,  # CLAP → 손 박수
+            1: 2,  # ELBOW → 팔 치기
+            2: 4,  # STRETCH → 팔 뻗기
+            3: 5,  # TILT → 기우뚱
+            4: 6,  # EXIT → 비상구
+            5: 7,  # UNDERARM → 겨드랑이박수
+            6: 9,  # STAY → 가만히 있음
+        }
         # ========================================================================
-        resolved_action_code = (
-            target_action_code if target_action_code is not None else best_idx + 1
-        )
+        if target_action_code is not None:
+            resolved_action_code = target_action_code
+        else:
+            # 모델의 best_idx를 올바른 actionCode로 변환
+            resolved_action_code = CLASS_INDEX_TO_ACTION_CODE.get(best_idx, best_idx + 1)
 
         return InferenceResult(
             predicted_label=predicted_label,
@@ -474,12 +499,30 @@ class MotionInferenceService:
 
     @staticmethod
     def _decode_base64_image(data: str) -> np.ndarray:
+        """
+        Decode base64 image and apply EXIF orientation correction.
+
+        EXIF orientation tags can indicate image rotation/flip.
+        If not corrected, MediaPipe will extract landmarks from rotated image,
+        causing misaligned predictions.
+        """
         try:
             image_data = base64.b64decode(data)
         except base64.binascii.Error as exc:
             raise ValueError("Base64 디코딩에 실패했습니다.") from exc
 
+        # ========================================================================
+        # ⚠️ CRITICAL: Apply EXIF orientation correction
+        # ========================================================================
+        # PIL's ImageOps.exif_transpose() auto-rotates based on EXIF orientation
+        # This ensures consistency with training data preprocessing
+        # ========================================================================
+        from PIL import ImageOps
         with Image.open(BytesIO(image_data)) as img:
+            img = ImageOps.exif_transpose(img)
+            if img is None:
+                # If exif_transpose returns None (no EXIF), reload original
+                img = Image.open(BytesIO(image_data))
             rgb_image = img.convert("RGB")
             return np.array(rgb_image)
 

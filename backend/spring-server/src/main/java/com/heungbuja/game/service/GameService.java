@@ -63,6 +63,7 @@ public class GameService {
     // --- 동작 코드와 이름을 매핑하는 캐시 ---
     private final Map<Integer, String> actionCodeToNameMap = new HashMap<>();
 
+
     // --- 상수 정의 ---
     /** Redis 세션 만료 시간 (분) */
     private static final int SESSION_TIMEOUT_MINUTES = 30;
@@ -673,8 +674,29 @@ public class GameService {
                 .frames(frames)
                 .build();
 
+        // --- ▼ (핵심 추가) 요청 본문을 JSON 문자열로 변환하여 로그로 출력 ---
+//        try {
+//            String firstFrameSnippet = "N/A"; // 프레임이 없는 경우를 대비한 기본값
+//            if (frames != null && !frames.isEmpty()) {
+//                String firstFrame = frames.get(0);
+//                // 첫 프레임의 최대 100자까지만 잘라서 보여줌
+//                firstFrameSnippet = firstFrame;
+//            }
+//
+//            // 로그용 객체를 만들지 않고, 주요 정보만 직접 로그에 포함
+//            log.info(" > AI 서버 요청 Body: actionCode={}, actionName='{}', frameCount={}, firstFrame='{}'",
+//                    requestBody.getActionCode(),
+//                    requestBody.getActionName(),
+//                    requestBody.getFrameCount(),
+//                    firstFrameSnippet);
+//
+//        } catch (Exception e) {
+//            log.error(" > AI 서버 요청 Body 로그를 생성하는 데 실패했습니다.", e);
+//        }
+        // --- ▲ -------------------------------------------------------- ▲ ---
+
         aiWebClient.post()
-                .uri("/api/ai/analyze")
+                .uri("/api/pose-sequences/classify")
                 .bodyValue(requestBody)
                 .retrieve()
                 .bodyToMono(AiJudgmentResponse.class)

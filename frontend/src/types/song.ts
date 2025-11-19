@@ -8,3 +8,10 @@ export interface SongInfo {
   audioUrl: string;
   mode: 'LISTENING' | 'EXERCISE';
 }
+
+export type Song = {
+  id: number;
+  rank: number;
+  title: string;
+  artist: string;
+};

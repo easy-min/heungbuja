@@ -1,0 +1,40 @@
+.song-item {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 25px;
+}
+
+/* 왼쪽 번호 */
+.song-item__rank {
+  font-size: 3.5rem;
+  font-weight: 900;
+  color: var(--color-primary);
+  width: 60px;
+  text-align: center;
+}
+
+/* 오른쪽 카드 */
+.song-item__card {
+  flex: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  /* gap: 30px; */
+  padding: 18px 50px;
+  border-radius: 999px;
+  background: var(--color-bg);
+  box-shadow: 0 12px 18px rgba(0, 0, 0, 0.18);
+}
+
+.song-item__title {
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.song-item__artist {
+  font-size: 2rem;
+  font-weight: 500;
+  color: #666;
+}

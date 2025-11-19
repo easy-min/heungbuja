@@ -138,6 +138,11 @@ export const useVoiceCommand = (
         });
         break;
 
+      case 'MODE_EXERCISE_NO_SONG':
+        console.log('노래 목록으로 이동');
+        navigate('/list');
+        break;
+
       case 'MODE_EXERCISE_END':
         console.log('체조 종료 - 결과 화면으로 이동');
         navigate('/result', {
