@@ -92,7 +92,7 @@ const DeviceUserGrid = () => {
             device={device}
             user={user}
             hasEmergency={hasEmergency}
-            onClickUser={(d, u) => {
+            onClickUser={(_, u) => {
               if (!u) return;
               // setSelectedDevice(d);
               setSelectedUser(u);
