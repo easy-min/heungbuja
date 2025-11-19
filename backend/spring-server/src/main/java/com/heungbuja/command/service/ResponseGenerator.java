@@ -39,7 +39,7 @@ public class ResponseGenerator {
             case MODE_HOME -> "홈 화면으로 돌아갈게요";
             case MODE_LISTENING -> "어떤 노래를 들려드릴까요?";
             case MODE_EXERCISE -> "체조를 시작할게요. 함께 운동해봐요!";
-            case MODE_EXERCISE_NO_SONG -> "게임 목록을 보여드릴게요";
+            case MODE_EXERCISE_NO_SONG -> "노래를 먼저 선택해주세요";
             case MODE_EXERCISE_END -> "수고하셨어요! 체조를 종료할게요";
 
             // 응급 상황
