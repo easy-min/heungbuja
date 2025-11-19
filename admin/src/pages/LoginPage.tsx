@@ -3,8 +3,8 @@ import { useAuth } from '../hooks/useAuth';
 import '../styles/login.css';
 
 const LoginPage = () => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('superadmin');
+  const [password, setPassword] = useState('superadmin123!');
   const { login, isLoading, error } = useAuth();
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {

@@ -4,3 +4,4 @@ export { useUserStore } from './userStore';
 export { useDeviceStore } from './deviceStore';
 export { useActivityStore } from './activityStore';
 export { useNotificationStore } from './notificationStore';
+export { useVisualizationStore } from './visualizationStore';
