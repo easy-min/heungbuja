@@ -523,38 +523,7 @@ def main() -> None:
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
-
-    # 클래스 가중치 계산 (불균형 해결)
-    class_sample_counts = Counter()
-    for sample in train_samples:
-        class_sample_counts[sample.label] += 1
-
-    print("\n" + "=" * 60)
-    print("⚖️  클래스 가중치 계산 (불균형 해결)")
-    print("=" * 60)
-
-    num_classes = len(action_to_label)
-    total_samples = len(train_samples)
-    class_weights = torch.zeros(num_classes)
-
-    for label, count in class_sample_counts.items():
-        # Inverse frequency weighting
-        class_weights[label] = total_samples / (num_classes * count)
-
-    # 정규화
-    class_weights = class_weights / class_weights.sum() * num_classes
-
-    print("\n클래스별 샘플 수 및 가중치:")
-    for label in sorted(class_sample_counts.keys()):
-        action = label_to_action[label]
-        count = class_sample_counts[label]
-        weight = class_weights[label].item()
-        print(f"  {action:10s}: {count:4d}개 → 가중치 {weight:.3f}")
-
-    print("=" * 60 + "\n")
-
-    # 가중치 적용
-    criterion = nn.CrossEntropyLoss(weight=class_weights.to(device))
+    criterion = nn.CrossEntropyLoss()
 
     best_val_acc = -math.inf
     best_epoch = -1
