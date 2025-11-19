@@ -22,22 +22,27 @@ export interface RegisterDeviceResponse {
   createdAt: string;
 }
 
-// 건강 통계
-export interface HealthStats {
-  heartRate: number;
-  heartRateStatus: 'normal' | 'high' | 'low';
-  steps: number;
-  calories: number;
-  exerciseTime: number; // 분 단위
+// 게임 통계
+export interface GameStats {
+  totalGames: number;
+  completedGames: number;
+  overallAverageScore: number;
+  perfectRate: number;
+  lastPlayedAt?: string;
 }
 
-// 동작별 수행도
-export interface ActionPerformance {
+// 동작 항목
+export interface ActionItem {
   actionCode: number;
   actionName: string;
-  successCount: number;
-  totalCount: number;
-  accuracy: number; // 0-100
+  averageScore: number;
+  attemptCount: number;
+}
+
+// 동작별 수행도 응답
+export interface ActionPerformanceResponse {
+  topActions: ActionItem[];
+  weakActions: ActionItem[];
 }
 
 // 활동 추이 데이터 포인트
@@ -50,9 +55,9 @@ export interface ActivityTrendPoint {
 // 활동 로그
 export interface ActivityLog {
   id: number;
-  type: 'MUSIC_PLAY' | 'EXERCISE_COMPLETE' | 'EMERGENCY' | 'DEVICE_CONNECT';
-  description: string;
-  timestamp: string;
+  activityType: 'MUSIC_PLAY' | 'EXERCISE_COMPLETE' | 'EMERGENCY' | 'DEVICE_CONNECT';
+  activitySummary: string;
+  createdAt: string;
   metadata?: Record<string, any>;
 }
 
@@ -61,8 +66,8 @@ export type PeriodType = 1 | 7 | 30;
 
 // 사용자 상세 데이터
 export interface UserDetailData {
-  healthStats: HealthStats | null;
-  actionPerformance: ActionPerformance[];
+  gameStats: GameStats | null;
+  actionPerformance: ActionPerformanceResponse | null;
   activityTrend: ActivityTrendPoint[];
   recentActivities: ActivityLog[];
 }

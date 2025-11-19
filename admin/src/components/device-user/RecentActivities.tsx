@@ -14,7 +14,7 @@ const RecentActivities = ({ data, isLoading }: RecentActivitiesProps) => {
     );
   }
 
-  if (!data || data.length === 0) {
+  if (!data || !Array.isArray(data) || data.length === 0) {
     return (
       <div className="du-empty">
         <p>활동 기록이 없습니다</p>
@@ -79,15 +79,15 @@ const RecentActivities = ({ data, isLoading }: RecentActivitiesProps) => {
         <div key={activity.id} className="activity-log-item">
           <div
             className="activity-log-icon"
-            style={{ backgroundColor: `${getActivityColor(activity.type)}20` }}
+            style={{ backgroundColor: `${getActivityColor(activity.activityType)}20` }}
           >
-            <span style={{ color: getActivityColor(activity.type) }}>
-              {getActivityIcon(activity.type)}
+            <span style={{ color: getActivityColor(activity.activityType) }}>
+              {getActivityIcon(activity.activityType)}
             </span>
           </div>
           <div className="activity-log-content">
-            <div className="activity-log-description">{activity.description}</div>
-            <div className="activity-log-time">{formatTimestamp(activity.timestamp)}</div>
+            <div className="activity-log-description">{activity.activitySummary}</div>
+            <div className="activity-log-time">{formatTimestamp(activity.createdAt)}</div>
           </div>
         </div>
       ))}

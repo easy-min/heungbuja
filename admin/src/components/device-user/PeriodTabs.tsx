@@ -17,8 +17,13 @@ const PeriodTabs = ({ selectedPeriod, onPeriodChange }: PeriodTabsProps) => {
       {periods.map((period) => (
         <button
           key={period.value}
+          type="button"
           className={`period-tab ${selectedPeriod === period.value ? 'active' : ''}`}
-          onClick={() => onPeriodChange(period.value)}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onPeriodChange(period.value);
+          }}
         >
           {period.label}
         </button>

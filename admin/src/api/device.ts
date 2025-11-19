@@ -2,8 +2,8 @@ import type {
   Device,
   RegisterDeviceRequest,
   RegisterDeviceResponse,
-  HealthStats,
-  ActionPerformance,
+  GameStats,
+  ActionPerformanceResponse,
   ActivityTrendPoint,
   ActivityLog,
   PeriodType,
@@ -80,12 +80,12 @@ export const getDeviceById = async (deviceId: number): Promise<Device> => {
 };
 
 /**
- * 사용자 건강 통계 조회
+ * 사용자 게임 통계 조회
  */
-export const getUserHealthStats = async (userId: number, days: PeriodType): Promise<HealthStats> => {
+export const getUserGameStats = async (userId: number): Promise<GameStats> => {
   const token = localStorage.getItem('accessToken');
 
-  const response = await fetch(`${API_BASE}/admins/users/${userId}/health?days=${days}`, {
+  const response = await fetch(`${API_BASE}/admins/users/${userId}/game-stats`, {
     method: 'GET',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -95,7 +95,7 @@ export const getUserHealthStats = async (userId: number, days: PeriodType): Prom
 
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(error.message || '건강 통계를 불러오는데 실패했습니다.');
+    throw new Error(error.message || '게임 통계를 불러오는데 실패했습니다.');
   }
 
   return response.json();
@@ -104,10 +104,10 @@ export const getUserHealthStats = async (userId: number, days: PeriodType): Prom
 /**
  * 사용자 동작별 수행도 조회
  */
-export const getUserActionPerformance = async (userId: number, days: PeriodType): Promise<ActionPerformance[]> => {
+export const getUserActionPerformance = async (userId: number, periodDays: PeriodType): Promise<ActionPerformanceResponse> => {
   const token = localStorage.getItem('accessToken');
 
-  const response = await fetch(`${API_BASE}/admins/users/${userId}/performance?days=${days}`, {
+  const response = await fetch(`${API_BASE}/admins/users/${userId}/action-performance?periodDays=${periodDays}`, {
     method: 'GET',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -126,10 +126,10 @@ export const getUserActionPerformance = async (userId: number, days: PeriodType)
 /**
  * 사용자 활동 추이 조회
  */
-export const getUserActivityTrend = async (userId: number, days: PeriodType): Promise<ActivityTrendPoint[]> => {
+export const getUserActivityTrend = async (userId: number, periodDays: PeriodType): Promise<ActivityTrendPoint[]> => {
   const token = localStorage.getItem('accessToken');
 
-  const response = await fetch(`${API_BASE}/admins/users/${userId}/activity-trend?days=${days}`, {
+  const response = await fetch(`${API_BASE}/admins/users/${userId}/activity-trend?periodDays=${periodDays}`, {
     method: 'GET',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -148,10 +148,10 @@ export const getUserActivityTrend = async (userId: number, days: PeriodType): Pr
 /**
  * 사용자 최근 활동 로그 조회
  */
-export const getUserRecentActivities = async (userId: number, limit: number = 10): Promise<ActivityLog[]> => {
+export const getUserRecentActivities = async (userId: number, size: number = 10): Promise<ActivityLog[]> => {
   const token = localStorage.getItem('accessToken');
 
-  const response = await fetch(`${API_BASE}/admins/users/${userId}/activities?limit=${limit}`, {
+  const response = await fetch(`${API_BASE}/admins/activity-logs/users/${userId}?page=0&size=${size}`, {
     method: 'GET',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -164,5 +164,7 @@ export const getUserRecentActivities = async (userId: number, limit: number = 10
     throw new Error(error.message || '활동 로그를 불러오는데 실패했습니다.');
   }
 
-  return response.json();
+  const data = await response.json();
+  // 페이지네이션 응답에서 content만 반환
+  return data.content || [];
 };

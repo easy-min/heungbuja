@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   Button,
   EmergencyList,
-  UserGrid,
   ActivityFeed,
   WebSocketStatus,
   DeviceRegisterModal,
@@ -51,9 +50,7 @@ const DashboardPage = () => {
   const isLoadingReports = useEmergencyStore((state) => state.isLoading);
   const setLoadingReports = useEmergencyStore((state) => state.setLoading);
 
-  const users = useUserStore((state) => state.users);
   const setUsers = useUserStore((state) => state.setUsers);
-  const isLoadingUsers = useUserStore((state) => state.isLoading);
   const setLoadingUsers = useUserStore((state) => state.setLoading);
 
   const setDevices = useDeviceStore((state) => state.setDevices);
@@ -232,10 +229,10 @@ const DashboardPage = () => {
         </div>
 
         {/* 어르신 현황 */}
-        <div className="section">
+        {/* <div className="section">
           <SectionTitle>🧑‍🦳 담당 어르신 현황</SectionTitle>
           <UserGrid users={users} isLoading={isLoadingUsers} />
-        </div>
+        </div> */}
 
         {/* 기기-사용자 관리 */}
         <div className="section">

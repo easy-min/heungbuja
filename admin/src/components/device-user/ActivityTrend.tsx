@@ -14,7 +14,7 @@ const ActivityTrend = ({ data, isLoading }: ActivityTrendProps) => {
     );
   }
 
-  if (!data || data.length === 0) {
+  if (!data || !Array.isArray(data) || data.length === 0) {
     return (
       <div className="du-empty">
         <p>활동 추이 데이터가 없습니다</p>
@@ -23,7 +23,7 @@ const ActivityTrend = ({ data, isLoading }: ActivityTrendProps) => {
   }
 
   // 최대값 계산 (차트 스케일용)
-  const maxExerciseTime = Math.max(...data.map((d) => d.exerciseTime));
+  const maxExerciseTime = Math.max(...data.map((d) => d.exerciseTime), 1);
 
   return (
     <div className="activity-trend-container">

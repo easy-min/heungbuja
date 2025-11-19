@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { PeriodType, UserDetailData } from '../../types/device';
 import {
-  getUserHealthStats,
+  getUserGameStats,
   getUserActionPerformance,
   getUserActivityTrend,
   getUserRecentActivities,
@@ -15,52 +15,87 @@ import RecentActivities from './RecentActivities';
 interface UserDetailsPanelProps {
   userId: number;
   isOpen: boolean;
+  onFirstOpen: () => void;
+  hasLoadedData: boolean;
 }
 
-const UserDetailsPanel = ({ userId, isOpen }: UserDetailsPanelProps) => {
+const UserDetailsPanel = ({ userId, isOpen, onFirstOpen, hasLoadedData }: UserDetailsPanelProps) => {
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodType>(1);
   const [data, setData] = useState<UserDetailData>({
-    healthStats: null,
-    actionPerformance: [],
+    gameStats: null,
+    actionPerformance: null,
     activityTrend: [],
     recentActivities: [],
   });
   const [isLoading, setIsLoading] = useState(false);
-  const [hasLoaded, setHasLoaded] = useState(false);
+  const loadingRef = useRef(false); // 중복 호출 방지
 
-  // 패널이 열릴 때 데이터 로드
+  // 패널이 처음 열릴 때 데이터 로드 (useEffect 사용)
   useEffect(() => {
-    if (isOpen && !hasLoaded) {
-      loadUserData();
-      setHasLoaded(true);
-    }
-  }, [isOpen]);
+    const loadInitialData = async () => {
+      if (!isOpen || hasLoadedData || loadingRef.current) return;
 
-  // 기간 변경 시 데이터 재로드
-  useEffect(() => {
-    if (hasLoaded) {
-      loadUserData();
-    }
-  }, [selectedPeriod]);
+      loadingRef.current = true;
+      setIsLoading(true);
+      onFirstOpen(); // 부모에게 로드 시작 알림
 
-  const loadUserData = async () => {
+      try {
+        const results = await Promise.allSettled([
+          getUserGameStats(userId),
+          getUserActionPerformance(userId, selectedPeriod),
+          getUserActivityTrend(userId, selectedPeriod),
+          getUserRecentActivities(userId, 10),
+        ]);
+
+        setData({
+          gameStats: results[0].status === 'fulfilled' ? results[0].value : null,
+          actionPerformance: results[1].status === 'fulfilled' ? results[1].value : null,
+          activityTrend: results[2].status === 'fulfilled' ? results[2].value : [],
+          recentActivities: results[3].status === 'fulfilled' ? results[3].value : [],
+        });
+
+        results.forEach((result, index) => {
+          if (result.status === 'rejected') {
+            const apiNames = ['게임 통계', '동작별 수행도', '활동 추이', '최근 활동'];
+            console.error(`${apiNames[index]} 로드 실패:`, result.reason);
+          }
+        });
+      } catch (error) {
+        console.error('사용자 상세 데이터 로드 실패:', error);
+      } finally {
+        setIsLoading(false);
+        loadingRef.current = false;
+      }
+    };
+
+    loadInitialData();
+  }, [isOpen, hasLoadedData, userId, selectedPeriod, onFirstOpen]);
+
+  // 기간 변경 시 수행도와 추이만 재로드
+  const handlePeriodChange = async (period: PeriodType) => {
+    setSelectedPeriod(period);
     setIsLoading(true);
+
     try {
-      const [healthStats, actionPerformance, activityTrend, recentActivities] = await Promise.all([
-        getUserHealthStats(userId, selectedPeriod),
-        getUserActionPerformance(userId, selectedPeriod),
-        getUserActivityTrend(userId, selectedPeriod),
-        getUserRecentActivities(userId, 10),
+      const results = await Promise.allSettled([
+        getUserActionPerformance(userId, period),
+        getUserActivityTrend(userId, period),
       ]);
 
-      setData({
-        healthStats,
-        actionPerformance,
-        activityTrend,
-        recentActivities,
+      setData((prev) => ({
+        ...prev,
+        actionPerformance: results[0].status === 'fulfilled' ? results[0].value : null,
+        activityTrend: results[1].status === 'fulfilled' ? results[1].value : [],
+      }));
+
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          const apiNames = ['동작별 수행도', '활동 추이'];
+          console.error(`${apiNames[index]} 로드 실패:`, result.reason);
+        }
       });
     } catch (error) {
-      console.error('사용자 상세 데이터 로드 실패:', error);
+      console.error('기간별 데이터 로드 실패:', error);
     } finally {
       setIsLoading(false);
     }
@@ -72,16 +107,16 @@ const UserDetailsPanel = ({ userId, isOpen }: UserDetailsPanelProps) => {
 
   return (
     <div className="du-details-panel open">
-      {/* 건강 모니터링 */}
+      {/* 게임 통계 */}
       <div className="du-detail-section">
-        <h5>💪 건강 모니터링</h5>
-        <PeriodTabs selectedPeriod={selectedPeriod} onPeriodChange={setSelectedPeriod} />
-        <HealthMonitoring data={data.healthStats} isLoading={isLoading} />
+        <h5>💪 게임 통계</h5>
+        <HealthMonitoring data={data.gameStats} isLoading={isLoading} />
       </div>
 
       {/* 동작별 수행도 */}
       <div className="du-detail-section">
         <h5>🎯 동작별 수행도</h5>
+        <PeriodTabs selectedPeriod={selectedPeriod} onPeriodChange={handlePeriodChange} />
         <ActionPerformance data={data.actionPerformance} isLoading={isLoading} />
       </div>
 

@@ -11,11 +11,19 @@ interface DeviceUserCardProps {
 
 const DeviceUserCard = ({ device, user, hasEmergency = false }: DeviceUserCardProps) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [hasLoadedData, setHasLoadedData] = useState(false);
 
-  const togglePanel = () => {
+  const handleToggle = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
     if (user) {
       setIsOpen(!isOpen);
     }
+  };
+
+  const handleFirstDataLoad = () => {
+    setHasLoadedData(true);
   };
 
   return (
@@ -37,7 +45,7 @@ const DeviceUserCard = ({ device, user, hasEmergency = false }: DeviceUserCardPr
         {user ? (
           <>
             {/* 사용자 기본 정보 (클릭하면 펼침) */}
-            <div className="du-user-section" onClick={togglePanel}>
+            <div className="du-user-section" onClick={handleToggle}>
               <div className="du-user-main">
                 <div className="du-user-info-left">
                   <div className="du-user-avatar">👤</div>
@@ -51,11 +59,15 @@ const DeviceUserCard = ({ device, user, hasEmergency = false }: DeviceUserCardPr
             </div>
 
             {/* 상세 패널 */}
-            <UserDetailsPanel userId={user.id} isOpen={isOpen} />
+            <UserDetailsPanel
+              userId={user.id}
+              isOpen={isOpen}
+              onFirstOpen={handleFirstDataLoad}
+              hasLoadedData={hasLoadedData}
+            />
           </>
         ) : (
           <div className="du-empty">
-            <div className="icon">👤</div>
             <p>연결된 사용자가 없습니다</p>
           </div>
         )}
