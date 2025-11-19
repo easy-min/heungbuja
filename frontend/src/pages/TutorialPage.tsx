@@ -28,6 +28,13 @@ function TutorialPage() {
   const sequenceStartedRef = useRef(false);
 
   const isStep1 = step === 1;
+  const cameraClass =
+  step === 1
+    ? 'camera-state-hidden'
+    : step === 2
+    ? 'camera-state-show-step2'
+    : 'camera-state-show-step3';
+
 
   // 페이지 진입 시 게임 데이터 로드 (음성 명령 처리 포함)
   useEffect(() => {
@@ -185,7 +192,7 @@ function TutorialPage() {
       >
         {/* ⬇⬇ 1단계가 아닐 때만 카메라 영역 렌더링 */}
         {!isStep1 && (
-          <div className="tutorial-camera-wrapper">
+          <div className={`tutorial-camera-wrapper ${cameraClass}`}>
             <div className="tutorial-camera-outer">
               <div className="tutorial-camera-frame">
                 {!error && !loading && isReady && (

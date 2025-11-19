@@ -83,6 +83,22 @@
   transition: opacity 0.5s ease, transform 0.5s ease;
 }
 
+/* 단계별 상태 */
+.camera-state-hidden {  
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.camera-state-show-step2 {
+  opacity: 1;
+  transform: translateY(0);   /* 2단계 출현 */
+}
+
+.camera-state-show-step3 {
+  opacity: 1;
+  transform: translateY(-8px); /* ⬅ 약간 다른 transform으로 애니메이션 강제 트리거 */
+}
+
 /* 1단계에서 카메라만 부드럽게 숨기기 (자리 유지) */
 .tutorial-camera-wrapper--hidden {
   opacity: 0;
