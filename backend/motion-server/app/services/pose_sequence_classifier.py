@@ -142,13 +142,29 @@ def normalize_landmarks(sequence: np.ndarray) -> np.ndarray:
     - 양쪽 골반(23, 24) 중점을 원점으로 이동
     - 양쪽 어깨(11, 12) 사이 거리를 1로 스케일링
     """
-    if sequence.shape[1] < 25:
-        raise ValueError("랜드마크 수가 25 미만으로 정규화에 필요한 관절이 없습니다.")
+    num_landmarks = sequence.shape[1]
 
-    hips_center = (sequence[:, 23] + sequence[:, 24]) / 2.0
+    if num_landmarks >= 25:
+        left_shoulder_idx, right_shoulder_idx = 11, 12
+        left_hip_idx, right_hip_idx = 23, 24
+    elif num_landmarks == 22:
+        # 얼굴을 제외한 22개 포인트(원본 Mediapipe 인덱스 11~32)만 남은 경우
+        left_shoulder_idx, right_shoulder_idx = 0, 1
+        left_hip_idx, right_hip_idx = 12, 13
+    else:
+        raise ValueError(
+            f"랜드마크 수({num_landmarks})가 지원되지 않습니다. "
+            "정규화에 필요한 어깨/골반 관절을 찾을 수 없습니다."
+        )
+
+    hips_center = (sequence[:, left_hip_idx] + sequence[:, right_hip_idx]) / 2.0
     normalized = sequence - hips_center[:, None, :]
 
-    shoulder_dist = np.linalg.norm(normalized[:, 11] - normalized[:, 12], axis=1, keepdims=True)
+    shoulder_dist = np.linalg.norm(
+        normalized[:, left_shoulder_idx] - normalized[:, right_shoulder_idx],
+        axis=1,
+        keepdims=True,
+    )
     shoulder_dist = np.maximum(shoulder_dist, 1e-6)
     normalized = normalized / shoulder_dist[:, None, :]
     return normalized
@@ -179,6 +195,12 @@ def compare_sequences(query: np.ndarray, reference: np.ndarray) -> Tuple[float, 
     """질의 시퀀스와 참조 시퀀스의 유사도를 계산합니다."""
     ref_frames = reference.shape[0]
     query_resampled = resample_sequence(query, ref_frames)
+
+    if query_resampled.shape[1:] != reference.shape[1:]:
+        raise ValueError(
+            "질의 시퀀스와 참조 시퀀스의 랜드마크 형상이 일치하지 않습니다: "
+            f"query={query_resampled.shape[1:]}, reference={reference.shape[1:]}."
+        )
 
     query_norm = normalize_landmarks(query_resampled)
     reference_norm = normalize_landmarks(reference)
