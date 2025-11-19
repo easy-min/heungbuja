@@ -32,8 +32,13 @@ type DashboardTab = 'admin' | 'developer';
 
 const DashboardPage = () => {
   const navigate = useNavigate();
-
-  const [activeTab, setActiveTab] = useState<DashboardTab>('admin');
+  const [activeTab, setActiveTab] = useState<DashboardTab>(() => {
+    const saved = localStorage.getItem('dashboardActiveTab');
+    if (saved === 'admin' || saved === 'developer') {
+      return saved;
+    }
+    return 'admin';
+  });
   
   // 모달 상태
   const [isDeviceModalOpen, setIsDeviceModalOpen] = useState(false);
@@ -159,6 +164,11 @@ const DashboardPage = () => {
     clearUnread();
   };
 
+  const handleTabChange = (tab: DashboardTab) => {
+    setActiveTab(tab);
+    localStorage.setItem('dashboardActiveTab', tab);
+  };
+
   // 긴급 신고 알림 (WebSocket을 통해 새 신고가 들어오면 자동으로 처리됨)
   useEffect(() => {
     // 가장 최근 PENDING/CONFIRMED 신고가 있으면 알림 표시
@@ -178,7 +188,7 @@ const DashboardPage = () => {
 
         <DashboardHeader 
           activeTab={activeTab}
-          onTabChange={setActiveTab}
+          onTabChange={handleTabChange}
           onNotificationClick={handleNotificationClick}
         />
 
