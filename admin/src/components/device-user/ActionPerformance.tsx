@@ -6,7 +6,8 @@ interface ActionPerformanceProps {
 }
 
 const ActionPerformance = ({ data, isLoading }: ActionPerformanceProps) => {
-  if (isLoading) {
+  // 첫 로딩이고 데이터가 없을 때만 로딩 UI 표시
+  if (isLoading && !data) {
     return (
       <div className="du-loading">
         <p>수행도 데이터를 불러오는 중...</p>
@@ -34,7 +35,7 @@ const ActionPerformance = ({ data, isLoading }: ActionPerformanceProps) => {
   };
 
   return (
-    <div className="action-performance-list">
+    <div className="action-performance-list" style={{ opacity: isLoading ? 0.6 : 1, transition: 'opacity 0.3s' }}>
       {/* 가장 잘하는 동작 */}
       {data.topActions && data.topActions.length > 0 && (
         <div className="action-performance-section">

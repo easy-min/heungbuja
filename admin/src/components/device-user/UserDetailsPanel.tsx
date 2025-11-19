@@ -25,6 +25,7 @@ const UserDetailsPanel = ({ userId, isOpen, onFirstOpen, hasLoadedData }: UserDe
     recentActivities: [],
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [isPeriodChanging, setIsPeriodChanging] = useState(false);
   const loadingRef = useRef(false); // 중복 호출 방지
 
   // 패널이 처음 열릴 때 데이터 로드 (useEffect 사용)
@@ -69,7 +70,7 @@ const UserDetailsPanel = ({ userId, isOpen, onFirstOpen, hasLoadedData }: UserDe
   // 기간 변경 시 수행도만 재로드
   const handlePeriodChange = async (period: PeriodType) => {
     setSelectedPeriod(period);
-    setIsLoading(true);
+    setIsPeriodChanging(true);
 
     try {
       const actionPerformance = await getUserActionPerformance(userId, period);
@@ -84,7 +85,7 @@ const UserDetailsPanel = ({ userId, isOpen, onFirstOpen, hasLoadedData }: UserDe
         actionPerformance: null,
       }));
     } finally {
-      setIsLoading(false);
+      setIsPeriodChanging(false);
     }
   };
 
@@ -104,7 +105,7 @@ const UserDetailsPanel = ({ userId, isOpen, onFirstOpen, hasLoadedData }: UserDe
       <div className="du-detail-section">
         <h5>🎯 동작별 수행도</h5>
         <PeriodTabs selectedPeriod={selectedPeriod} onPeriodChange={handlePeriodChange} />
-        <ActionPerformance data={data.actionPerformance} isLoading={isLoading} />
+        <ActionPerformance data={data.actionPerformance} isLoading={isPeriodChanging} />
       </div>
 
       {/* 최근 활동 */}
