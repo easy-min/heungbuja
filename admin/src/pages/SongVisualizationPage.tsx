@@ -131,6 +131,7 @@ const SongVisualizationPage = () => {
             />
 
             {/* 재생 컨트롤 */}
+            <div className="viz-controls-sticky">
             <PlaybackControls
               isPlaying={isPlaying}
               onPlay={play}
@@ -139,6 +140,7 @@ const SongVisualizationPage = () => {
               selectedLevel={selectedLevel}
               onLevelChange={setSelectedLevel}
             />
+            </div>
 
             {/* 타임라인 섹션 */}
             <div className="viz-section">
