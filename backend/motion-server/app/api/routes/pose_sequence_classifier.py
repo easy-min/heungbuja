@@ -45,7 +45,7 @@ ACTION_CODE_TO_LABEL = {
 LABEL_TO_ACTION_CODE = {label: code for code, label in ACTION_CODE_TO_LABEL.items()}
 
 MIN_VALID_FRAMES = 1
-MIN_MOTION_THRESHOLD = 0.2
+MIN_MOTION_THRESHOLD = 0.1
 
 
 class PoseSequenceClassificationResponse(BaseModel):
