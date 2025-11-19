@@ -19,8 +19,8 @@ public class WebSocketBufferConfig implements WebServerFactoryCustomizer<TomcatS
                 WsServerContainer container = (WsServerContainer) attr;
 
                 // 텍스트/바이너리 WebSocket 메시지 버퍼 사이즈 확장 (기본은 8KB~64KB 수준)
-                container.setDefaultMaxTextMessageBufferSize(1024 * 1024);    // 1MB
-                container.setDefaultMaxBinaryMessageBufferSize(1024 * 1024); // 1MB
+                container.setDefaultMaxTextMessageBufferSize(5 * 1024 * 1024);    // 5MB
+                container.setDefaultMaxBinaryMessageBufferSize(5 * 1024 * 1024); // 5MB
             }
         });
     }
