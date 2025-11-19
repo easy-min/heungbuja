@@ -174,7 +174,8 @@ def _extract_landmarks_from_frames(frames: List[str]) -> np.ndarray:
             ),
         )
 
-    return np.stack(extracted, axis=0)
+    stacked = np.stack(extracted, axis=0)
+    return sanitize_landmarks_array(stacked)
 
 
 def _load_query_sequence(payload: PoseSequenceClassificationRequest) -> Tuple[np.ndarray, dict]:
