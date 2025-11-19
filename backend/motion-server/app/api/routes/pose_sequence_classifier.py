@@ -123,6 +123,9 @@ def _is_clap_like(sequence: np.ndarray) -> bool:
 
     min_wrist_distance = float(np.min(wrist_distance))
     mean_wrist_distance = float(np.mean(wrist_distance))
+    wrist_range = float(np.max(wrist_distance) - min_wrist_distance)
+    # hands should move toward each other then apart; ensure at least one strong convergence
+    convergence_strength = wrist_range
 
     left_shoulder = normalized[:, LEFT_SHOULDER_IDX]
     right_shoulder = normalized[:, RIGHT_SHOULDER_IDX]
@@ -130,11 +133,13 @@ def _is_clap_like(sequence: np.ndarray) -> bool:
     wrist_height = (left_wrist[:, 1] + right_wrist[:, 1]) / 2.0
     height_diff = float(np.mean(shoulder_height - wrist_height))
 
-    if min_wrist_distance > 0.35:
+    if min_wrist_distance > 0.28:
         return False
-    if mean_wrist_distance > 0.60:
+    if mean_wrist_distance > 0.50:
         return False
-    if height_diff > 0.25:
+    if convergence_strength < 0.18:
+        return False
+    if height_diff > 0.18:
         return False
     return True
 
@@ -143,7 +148,8 @@ def _has_clear_margin(
     target_action: str,
     target_result: Optional[Tuple[ReferenceSequence, float, float]],
     evaluations: Sequence[Tuple[ReferenceSequence, float, float]],
-    cosine_margin: float = 0.05,
+    cosine_margin: float = 0.07,
+    distance_margin: float = 0.7,
 ) -> bool:
     if not target_result:
         return False
@@ -160,7 +166,7 @@ def _has_clear_margin(
         return True
 
     _, other_dist, other_cos = best_other
-    if best_cos - other_cos < cosine_margin and other_dist <= best_dist + 0.5:
+    if best_cos - other_cos < cosine_margin and other_dist <= best_dist + distance_margin:
         return False
     return True
 
