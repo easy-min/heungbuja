@@ -71,27 +71,26 @@ class BrandnewMotionInferenceService:
 
         self.pose_extractor = PoseExtractor()
 
-        # Brandnew 모델용 매핑
+        # Brandnew 모델용 매핑 (CLAP 제외 버전)
+        # Model: 0:ELBOW, 1:EXIT, 2:STAY, 3:STRETCH, 4:TILT, 5:UNDERARM
         # DB actionCode → Model class_index
         self.ACTION_CODE_TO_CLASS_INDEX = {
-            1: 0,  # 손 박수 → CLAP
-            2: 1,  # 팔 치기 → ELBOW
-            4: 4,  # 팔 뻗기 → STRETCH
-            5: 5,  # 기우뚱 → TILT
-            6: 2,  # 비상구 → EXIT
-            7: 6,  # 겨드랑이박수 → UNDERARM
-            9: 3,  # 가만히 있음 → STAY
+            2: 0,  # 팔 치기 → ELBOW
+            4: 3,  # 팔 뻗기 → STRETCH
+            5: 4,  # 기우뚱 → TILT
+            6: 1,  # 비상구 → EXIT
+            7: 5,  # 겨드랑이박수 → UNDERARM
+            9: 2,  # 가만히 있음 → STAY
         }
 
         # Model class_index → DB actionCode
         self.CLASS_INDEX_TO_ACTION_CODE = {
-            0: 1,  # CLAP → 손 박수
-            1: 2,  # ELBOW → 팔 치기
-            2: 6,  # EXIT → 비상구
-            3: 9,  # STAY → 가만히 있음
-            4: 4,  # STRETCH → 팔 뻗기
-            5: 5,  # TILT → 기우뚱
-            6: 7,  # UNDERARM → 겨드랑이박수
+            0: 2,  # ELBOW → 팔 치기
+            1: 6,  # EXIT → 비상구
+            2: 9,  # STAY → 가만히 있음
+            3: 4,  # STRETCH → 팔 뻗기
+            4: 5,  # TILT → 기우뚱
+            5: 7,  # UNDERARM → 겨드랑이박수
         }
 
     def predict(
@@ -232,11 +231,11 @@ class BrandnewMotionInferenceService:
         핵심 차이점:
         - 기존: 각 프레임별로 개별 정규화
         - 수정: 전체 시퀀스를 모아서 한 번에 정규화 (학습과 동일)
+        - 이미지 처리: cv2 사용 (학습 데이터 생성과 동일)
         """
         import base64
-        from io import BytesIO
+        import cv2
         from time import perf_counter
-        from PIL import Image, ImageOps
 
         raw_landmarks_list = []
         decode_elapsed = 0.0
@@ -247,25 +246,28 @@ class BrandnewMotionInferenceService:
         for encoded in frames:
             total_count += 1
 
-            # 이미지 디코딩
+            # 이미지 디코딩 (cv2 방식 - 학습 데이터 생성과 동일)
             decode_start = perf_counter()
             try:
                 image_data = base64.b64decode(encoded)
             except Exception as exc:
                 raise ValueError("Base64 디코딩에 실패했습니다.") from exc
 
-            with Image.open(BytesIO(image_data)) as img:
-                img = ImageOps.exif_transpose(img)
-                if img is None:
-                    img = Image.open(BytesIO(image_data))
-                rgb_image = img.convert("RGB")
-                image_np = np.array(rgb_image)
+            # cv2로 이미지 로드 (학습 데이터 생성 시와 동일한 방식)
+            nparr = np.frombuffer(image_data, np.uint8)
+            image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+            if image is None:
+                raise ValueError("이미지 디코딩에 실패했습니다.")
+
+            # BGR → RGB 변환 (MediaPipe는 RGB 필요)
+            image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
             decode_elapsed += perf_counter() - decode_start
 
             # Pose 추출 (raw, 정규화 안 함)
             pose_start = perf_counter()
-            results = self.pose_extractor._pose.process(image_np)
+            results = self.pose_extractor._pose.process(image_rgb)
             pose_elapsed += perf_counter() - pose_start
 
             if not results.pose_landmarks:
