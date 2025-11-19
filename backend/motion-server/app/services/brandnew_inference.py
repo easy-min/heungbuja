@@ -178,9 +178,10 @@ class BrandnewMotionInferenceService:
 
         self.pose_extractor = PoseExtractor()
 
-        # DB actionCode → Model class_index 매핑 (실제 모델 기준으로 수정 필요)
-        # 실제 모델: 0: ELBOW, 1: EXIT, 2: STAY, 3: STRETCH, 4: TILT, 5: UNDERARM
+        # DB actionCode → Model class_index 매핑
+        # 실제 모델: 0: CLAP, 1: ELBOW, 2: EXIT, 3: STAY, 4: STRETCH, 5: TILT, 6: UNDERARM
         self.ACTION_CODE_TO_CLASS_INDEX = {
+            1: self.class_mapping.get("CLAP"),       # 손 박수 → CLAP (추가!)
             2: self.class_mapping.get("ELBOW"),      # 팔 치기 → ELBOW
             4: self.class_mapping.get("STRETCH"),    # 팔 뻗기 → STRETCH
             5: self.class_mapping.get("TILT"),       # 기우뚱 → TILT
