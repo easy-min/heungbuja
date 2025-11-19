@@ -65,3 +65,5 @@ coverage/
 
 !**/gradle/wrapper/gradle-wrapper.jar
 !**/gradle/wrapper/gradle-wrapper.properties
+/backend/motion-server/app/brandnewTrain/origin_data/
+/backend/motion-server/app/brandnewTrain/extracted_data/

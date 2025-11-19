@@ -506,7 +506,8 @@
             <button class="btn btn-primary" onclick="openDeviceModal()" style="margin-right:10px;">📱 기기 등록</button>
             <button class="btn btn-success" onclick="openUserModal()" style="margin-right:10px;">👴 어르신 등록</button>
             <button class="btn btn-primary" onclick="showVisualizationScreen()" style="margin-right:10px;">🎵 곡 시각화</button>
-            <button class="btn btn-success" onclick="openSongUploadModal()">➕ 곡 등록</button>
+            <button class="btn btn-success" onclick="openSimpleSongUploadModal()" style="margin-right:10px;">🎵 곡 간편 등록</button>
+            <button class="btn btn-secondary" onclick="openSongUploadModal()">➕ 곡 수동 등록</button>
         </div>
 
         <div class="dashboard">
@@ -730,6 +731,125 @@
                 <button class="btn btn-secondary" onclick="prevSongUploadStep()" id="btn-prev-step">이전</button>
                 <button class="btn btn-success" onclick="nextSongUploadStep()" id="btn-next-step">다음</button>
                 <button class="btn btn-secondary" onclick="closeSongUploadModal()">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 곡 간편 등록 모달 -->
+    <div id="simple-song-upload-modal" class="emergency-modal">
+        <div class="modal-content">
+            <div class="modal-icon">🎵</div>
+            <div class="modal-title" style="color:#667eea;">곡 간편 등록</div>
+            <p style="color:#666; margin-bottom:30px;">오디오와 가사만 업로드하면 자동으로 분석됩니다</p>
+
+            <div style="background:#f8f9fa; padding:20px; border-radius:10px; margin-bottom:20px;">
+                <div style="margin-bottom:15px;">
+                    <label style="display:block; font-weight:bold; margin-bottom:5px;">곡 제목</label>
+                    <input type="text" id="simple-song-title" placeholder="예: 아리랑" style="width:100%; padding:10px; border:2px solid #ddd; border-radius:5px;">
+                </div>
+
+                <div style="margin-bottom:15px;">
+                    <label style="display:block; font-weight:bold; margin-bottom:5px;">아티스트</label>
+                    <input type="text" id="simple-song-artist" placeholder="예: 전통민요" style="width:100%; padding:10px; border:2px solid #ddd; border-radius:5px;">
+                </div>
+
+                <div style="margin-bottom:15px;">
+                    <label style="display:block; font-weight:bold; margin-bottom:5px;">S3 Key</label>
+                    <input type="text" id="simple-song-s3-key" placeholder="예: song/아리랑.mp3" style="width:100%; padding:10px; border:2px solid #ddd; border-radius:5px;">
+                    <small style="color:#666;">S3에 업로드된 오디오 파일의 경로를 입력하세요</small>
+                </div>
+
+                <div style="margin-bottom:15px;">
+                    <label style="display:block; font-weight:bold; margin-bottom:5px;">오디오 파일 (.mp3, .wav)</label>
+                    <input type="file" id="simple-audio-file" accept=".mp3,.wav" onchange="handleSimpleFileSelect(event, 'audio')" style="width:100%; padding:10px;">
+                    <div id="simple-audio-file-name" style="margin-top:5px; color:#28a745; font-weight:bold;"></div>
+                </div>
+
+                <div style="margin-bottom:15px;">
+                    <label style="display:block; font-weight:bold; margin-bottom:5px;">가사 파일 (.txt)</label>
+                    <input type="file" id="simple-lyrics-file" accept=".txt" onchange="handleSimpleFileSelect(event, 'lyrics')" style="width:100%; padding:10px;">
+                    <div id="simple-lyrics-file-name" style="margin-top:5px; color:#28a745; font-weight:bold;"></div>
+                    <small style="color:#666;">가사를 한 줄씩 작성한 텍스트 파일</small>
+                </div>
+            </div>
+
+            <div id="simple-upload-progress-container" style="display:none; margin-bottom:20px;">
+                <div style="background:#e9ecef; border-radius:10px; height:40px; overflow:hidden; position:relative;">
+                    <div id="simple-upload-progress-fill" style="background:linear-gradient(90deg, #667eea 0%, #764ba2 100%); height:100%; width:0%; transition:width 0.3s; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:16px;">
+                        0%
+                    </div>
+                </div>
+                <div id="simple-upload-progress-text" style="text-align:center; margin-top:10px; color:#667eea; font-weight:bold;">
+                    업로드 준비 중...
+                </div>
+            </div>
+
+            <div id="simple-upload-result" style="margin-bottom:20px;"></div>
+
+            <!-- 분석 결과 미리보기 -->
+            <div id="analysis-preview-container" style="display:none; margin-bottom:20px;">
+                <h3 style="color:#667eea; margin-bottom:15px;">📊 분석 결과 미리보기</h3>
+
+                <!-- 박자 정보 -->
+                <div style="background:#fff; border:2px solid #667eea; border-radius:10px; padding:20px; margin-bottom:15px;">
+                    <h4 style="color:#667eea; margin-bottom:10px;">🎼 박자 정보</h4>
+                    <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:15px;">
+                        <div style="background:#f8f9fa; padding:15px; border-radius:8px; text-align:center;">
+                            <div style="font-size:12px; color:#666; margin-bottom:5px;">BPM</div>
+                            <div id="preview-bpm" style="font-size:24px; font-weight:bold; color:#667eea;">--</div>
+                        </div>
+                        <div style="background:#f8f9fa; padding:15px; border-radius:8px; text-align:center;">
+                            <div style="font-size:12px; color:#666; margin-bottom:5px;">총 비트 수</div>
+                            <div id="preview-beats-count" style="font-size:24px; font-weight:bold; color:#667eea;">--</div>
+                        </div>
+                        <div style="background:#f8f9fa; padding:15px; border-radius:8px; text-align:center;">
+                            <div style="font-size:12px; color:#666; margin-bottom:5px;">곡 길이</div>
+                            <div id="preview-duration" style="font-size:24px; font-weight:bold; color:#667eea;">--</div>
+                        </div>
+                    </div>
+
+                    <!-- 비트 타임라인 -->
+                    <div style="margin-top:15px;">
+                        <div style="font-size:12px; color:#666; margin-bottom:5px;">비트 타임라인 (처음 40개)</div>
+                        <div id="preview-beats-timeline" style="background:#f8f9fa; padding:10px; border-radius:5px; font-family:monospace; font-size:11px; max-height:100px; overflow-y:auto;">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 가사 정보 -->
+                <div style="background:#fff; border:2px solid #28a745; border-radius:10px; padding:20px; margin-bottom:15px;">
+                    <h4 style="color:#28a745; margin-bottom:10px;">🎤 가사 정보</h4>
+                    <div style="background:#f8f9fa; padding:15px; border-radius:8px; text-align:center; margin-bottom:15px;">
+                        <div style="font-size:12px; color:#666; margin-bottom:5px;">총 가사 줄 수</div>
+                        <div id="preview-lyrics-count" style="font-size:24px; font-weight:bold; color:#28a745;">--</div>
+                    </div>
+
+                    <!-- 가사 목록 -->
+                    <div style="font-size:12px; color:#666; margin-bottom:5px;">가사 타이밍 (처음 10줄)</div>
+                    <div id="preview-lyrics-list" style="background:#f8f9fa; padding:10px; border-radius:5px; max-height:200px; overflow-y:auto;">
+                    </div>
+                </div>
+
+                <!-- 안무 정보 -->
+                <div style="background:#fff; border:2px solid #ffc107; border-radius:10px; padding:20px;">
+                    <h4 style="color:#ffc107; margin-bottom:10px;">💃 안무 정보 (자동 생성)</h4>
+                    <div style="background:#fff3cd; padding:15px; border-radius:8px;">
+                        <p style="margin:0; color:#856404;">
+                            ✅ 기본 안무 패턴이 자동으로 생성됩니다<br>
+                            📌 1절: P1 패턴 반복<br>
+                            📌 2절:<br>
+                            &nbsp;&nbsp;&nbsp;Level 1: P1 패턴<br>
+                            &nbsp;&nbsp;&nbsp;Level 2: P1 + P2 패턴<br>
+                            &nbsp;&nbsp;&nbsp;Level 3: P3 + P4 패턴
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn btn-success" onclick="uploadSimpleSong()" id="btn-simple-upload">🎯 분석 시작</button>
+                <button class="btn btn-primary" onclick="confirmAndRegisterSong()" id="btn-confirm-register" style="display:none;">✅ 등록 확정</button>
+                <button class="btn btn-secondary" onclick="closeSimpleSongUploadModal()">닫기</button>
             </div>
         </div>
     </div>
@@ -2794,6 +2914,269 @@
 
     function goToVisualizationAfterUpload() {
         closeSongUploadModal();
+        showVisualizationScreen();
+        // 곡 목록 새로고침
+        loadSongList();
+    }
+
+    // ===== 곡 간편 등록 관련 함수들 =====
+
+    let simpleUploadedFiles = {
+        audio: null,
+        lyrics: null
+    };
+
+    let analyzedData = null; // 분석 결과 저장
+
+    function openSimpleSongUploadModal() {
+        simpleUploadedFiles = { audio: null, lyrics: null };
+        analyzedData = null;
+        document.getElementById('simple-song-upload-modal').classList.add('show');
+
+        // 입력 필드 초기화
+        document.getElementById('simple-song-title').value = '';
+        document.getElementById('simple-song-artist').value = '';
+        document.getElementById('simple-song-s3-key').value = '';
+        document.getElementById('simple-audio-file').value = '';
+        document.getElementById('simple-lyrics-file').value = '';
+        document.getElementById('simple-audio-file-name').textContent = '';
+        document.getElementById('simple-lyrics-file-name').textContent = '';
+        document.getElementById('simple-upload-progress-container').style.display = 'none';
+        document.getElementById('simple-upload-result').innerHTML = '';
+        document.getElementById('analysis-preview-container').style.display = 'none';
+        document.getElementById('btn-simple-upload').style.display = 'inline-block';
+        document.getElementById('btn-confirm-register').style.display = 'none';
+    }
+
+    function closeSimpleSongUploadModal() {
+        document.getElementById('simple-song-upload-modal').classList.remove('show');
+    }
+
+    function handleSimpleFileSelect(event, fileType) {
+        const file = event.target.files[0];
+        if (file) {
+            simpleUploadedFiles[fileType] = file;
+            document.getElementById(`simple-${fileType}-file-name`).textContent = `✅ ${file.name}`;
+        }
+    }
+
+    async function uploadSimpleSong() {
+        try {
+            console.log('🎵 곡 분석 시작 (music-server)');
+
+            // 입력값 검증
+            const title = document.getElementById('simple-song-title').value.trim();
+            const artist = document.getElementById('simple-song-artist').value.trim();
+            const s3Key = document.getElementById('simple-song-s3-key').value.trim();
+
+            if (!title || !artist || !s3Key) {
+                alert('곡 제목, 아티스트, S3 Key를 모두 입력해주세요.');
+                return;
+            }
+
+            if (!simpleUploadedFiles.audio || !simpleUploadedFiles.lyrics) {
+                alert('오디오 파일과 가사 파일을 모두 업로드해주세요.');
+                return;
+            }
+
+            // FormData 생성 (Spring 서버 -> music-server 분석용)
+            const formData = new FormData();
+            formData.append('title', title);
+            formData.append('audioFile', simpleUploadedFiles.audio);
+            formData.append('lyricsFile', simpleUploadedFiles.lyrics);
+
+            console.log('📍 Audio:', simpleUploadedFiles.audio.name);
+            console.log('📍 Lyrics:', simpleUploadedFiles.lyrics.name);
+
+            // 진행률 표시 시작
+            document.getElementById('simple-upload-progress-container').style.display = 'block';
+            document.getElementById('btn-simple-upload').disabled = true;
+
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress += 10;
+                if (progress <= 90) {
+                    updateSimpleAnalysisProgress(progress);
+                }
+            }, 800);
+
+            // Spring 서버를 통해 music-server로 분석 요청
+            console.log('📤 Spring 서버 -> music-server 분석 요청');
+            console.log('🔑 사용 중인 토큰:', accessToken ? '있음 (길이: ' + accessToken.length + ')' : '❌ 없음!');
+            const res = await fetch(`${API_BASE}/admins/songs/analyze-only`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                },
+                body: formData
+            });
+
+            clearInterval(progressInterval);
+
+            console.log('📥 응답 상태:', res.status, res.statusText);
+
+            if (res.ok) {
+                const result = await res.json();
+                console.log('✅ 분석 성공:', result);
+                updateSimpleAnalysisProgress(100);
+
+                // 분석 결과 저장
+                analyzedData = {
+                    title: title,
+                    artist: artist,
+                    s3Key: s3Key,
+                    beats: result.beats,
+                    lyrics: result.lyrics,
+                    duration: result.duration
+                };
+
+                // 분석 결과 시각화
+                displayAnalysisPreview(analyzedData);
+
+                // UI 업데이트
+                document.getElementById('simple-upload-progress-container').style.display = 'none';
+                document.getElementById('analysis-preview-container').style.display = 'block';
+                document.getElementById('btn-simple-upload').style.display = 'none';
+                document.getElementById('btn-confirm-register').style.display = 'inline-block';
+
+            } else {
+                const error = await res.json().catch(() => ({ message: res.statusText }));
+                console.error('❌ 분석 실패:', error);
+                alert(`분석 실패 (${res.status}): ${error.detail || error.message || res.statusText}`);
+                document.getElementById('simple-upload-progress-container').style.display = 'none';
+                document.getElementById('btn-simple-upload').disabled = false;
+            }
+
+        } catch (e) {
+            console.error('❌ 분석 중 예외 발생:', e);
+            alert(`분석 중 오류 발생: ${e.message}\n\nmusic-server가 실행 중인지 확인해주세요.`);
+            document.getElementById('simple-upload-progress-container').style.display = 'none';
+            document.getElementById('btn-simple-upload').disabled = false;
+        }
+    }
+
+    function displayAnalysisPreview(data) {
+        console.log('📊 분석 결과 시각화');
+
+        // 박자 정보
+        const bpm = data.beats.tempoMap[0].bpm.toFixed(1);
+        const beatsCount = data.beats.beats.length;
+        const durationMin = Math.floor(data.duration / 60);
+        const durationSec = Math.floor(data.duration % 60);
+
+        document.getElementById('preview-bpm').textContent = bpm;
+        document.getElementById('preview-beats-count').textContent = beatsCount;
+        document.getElementById('preview-duration').textContent = `${durationMin}:${durationSec.toString().padStart(2, '0')}`;
+
+        // 비트 타임라인 (처음 40개)
+        const beatsTimeline = data.beats.beats.slice(0, 40).map(b => {
+            return `Bar ${b.bar} Beat ${b.beat}: ${b.t.toFixed(2)}s`;
+        }).join('\n');
+        document.getElementById('preview-beats-timeline').textContent = beatsTimeline;
+
+        // 가사 정보
+        const lyricsCount = data.lyrics.lines.length;
+        document.getElementById('preview-lyrics-count').textContent = lyricsCount;
+
+        // 가사 목록 (처음 10줄)
+        const lyricsHtml = data.lyrics.lines.slice(0, 10).map(line => {
+            return `<div style="padding:8px; border-bottom:1px solid #ddd;">
+                <div style="font-weight:bold; color:#28a745; margin-bottom:3px;">${line.lineIndex}. ${line.text}</div>
+                <div style="font-size:11px; color:#666;">
+                    시작: ${line.start}s (Beat ${line.sBeat}) → 끝: ${line.end}s (Beat ${line.eBeat})
+                </div>
+            </div>`;
+        }).join('');
+        document.getElementById('preview-lyrics-list').innerHTML = lyricsHtml;
+    }
+
+    async function confirmAndRegisterSong() {
+        try {
+            console.log('✅ 곡 등록 확정');
+            console.log('🔑 사용 중인 토큰:', accessToken ? '있음 (길이: ' + accessToken.length + ')' : '❌ 없음!');
+
+            if (!analyzedData) {
+                alert('분석 데이터가 없습니다. 다시 분석해주세요.');
+                return;
+            }
+
+            // FormData 생성 (Spring 서버 등록용)
+            const formData = new FormData();
+            formData.append('title', analyzedData.title);
+            formData.append('artist', analyzedData.artist);
+            formData.append('s3Key', analyzedData.s3Key);
+            formData.append('audioFile', simpleUploadedFiles.audio);
+            formData.append('lyricsFile', simpleUploadedFiles.lyrics);
+
+            console.log('📤 Spring 서버로 등록 요청');
+            document.getElementById('btn-confirm-register').disabled = true;
+            document.getElementById('btn-confirm-register').textContent = '등록 중...';
+
+            const res = await fetch(`${API_BASE}/admins/songs/auto`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                },
+                body: formData
+            });
+
+            console.log('📥 응답 상태:', res.status, res.statusText);
+
+            if (res.ok) {
+                const result = await res.json();
+                console.log('✅ 등록 성공:', result);
+
+                document.getElementById('simple-upload-result').innerHTML = `
+                    <div style="background:#d4edda; border:2px solid #c3e6cb; border-radius:10px; padding:20px; text-align:center;">
+                        <div style="font-size:50px; margin-bottom:10px;">✅</div>
+                        <h3 style="color:#155724; margin-bottom:10px;">곡 등록 완료!</h3>
+                        <p style="color:#155724;">
+                            곡 ID: ${result.songId}<br>
+                            제목: ${result.title}<br>
+                            아티스트: ${result.artist}
+                        </p>
+                        <button class="btn btn-primary" onclick="goToVisualizationAfterSimpleUpload()" style="margin-top:15px;">🎵 곡 시각화 보기</button>
+                    </div>
+                `;
+
+                document.getElementById('analysis-preview-container').style.display = 'none';
+                document.getElementById('btn-confirm-register').style.display = 'none';
+
+            } else {
+                const error = await res.json().catch(() => ({ message: res.statusText }));
+                console.error('❌ 등록 실패:', error);
+                alert(`등록 실패 (${res.status}): ${error.error || error.message || res.statusText}`);
+                document.getElementById('btn-confirm-register').disabled = false;
+                document.getElementById('btn-confirm-register').textContent = '✅ 등록 확정';
+            }
+
+        } catch (e) {
+            console.error('❌ 등록 중 예외 발생:', e);
+            alert(`등록 중 오류 발생: ${e.message}`);
+            document.getElementById('btn-confirm-register').disabled = false;
+            document.getElementById('btn-confirm-register').textContent = '✅ 등록 확정';
+        }
+    }
+
+    function updateSimpleAnalysisProgress(percent) {
+        const fillEl = document.getElementById('simple-upload-progress-fill');
+        const textEl = document.getElementById('simple-upload-progress-text');
+        fillEl.style.width = percent + '%';
+        fillEl.textContent = percent + '%';
+
+        if (percent < 30) {
+            textEl.textContent = '오디오 파일 로딩 중...';
+        } else if (percent < 60) {
+            textEl.textContent = '비트 검출 중... (librosa)';
+        } else if (percent < 90) {
+            textEl.textContent = '가사 타이밍 분석 중...';
+        } else {
+            textEl.textContent = '분석 완료!';
+        }
+    }
+
+    function goToVisualizationAfterSimpleUpload() {
+        closeSimpleSongUploadModal();
         showVisualizationScreen();
         // 곡 목록 새로고침
         loadSongList();
