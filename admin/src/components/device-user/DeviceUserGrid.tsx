@@ -6,6 +6,7 @@ import { getDevices } from '../../api/device';
 import { getUsers } from '../../api/user';
 import { getEmergencyReports } from '../../api/emergency';
 import DeviceUserCard from './DeviceUserCard';
+import UserDetailsModal from './UserDetailsModal';
 
 const DeviceUserGrid = () => {
   const [devices, setDevices] = useState<Device[]>([]);
@@ -13,6 +14,10 @@ const DeviceUserGrid = () => {
   const [emergencies, setEmergencies] = useState<EmergencyReport[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  // const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
+  const [isUserDetailsOpen, setIsUserDetailsOpen] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -87,9 +92,21 @@ const DeviceUserGrid = () => {
             device={device}
             user={user}
             hasEmergency={hasEmergency}
+            onClickUser={(d, u) => {
+              if (!u) return;
+              // setSelectedDevice(d);
+              setSelectedUser(u);
+              setIsUserDetailsOpen(true);
+            }}
           />
         );
       })}
+
+      <UserDetailsModal
+        isOpen={isUserDetailsOpen}
+        onClose={() => setIsUserDetailsOpen(false)}
+        user={selectedUser}
+      />
     </div>
   );
 };

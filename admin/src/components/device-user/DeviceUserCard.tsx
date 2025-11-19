@@ -1,29 +1,21 @@
-import { useState } from 'react';
 import type { Device } from '../../types/device';
 import type { User } from '../../types/user';
-import UserDetailsPanel from './UserDetailsPanel';
 
 interface DeviceUserCardProps {
   device: Device;
   user?: User;
   hasEmergency?: boolean;
+  onClickUser?: (device: Device, user?: User) => void;
 }
 
-const DeviceUserCard = ({ device, user, hasEmergency = false }: DeviceUserCardProps) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [hasLoadedData, setHasLoadedData] = useState(false);
+const DeviceUserCard = ({ device, user, hasEmergency = false, onClickUser }: DeviceUserCardProps) => {
 
-  const handleToggle = (e: React.MouseEvent) => {
+  const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-
-    if (user) {
-      setIsOpen(!isOpen);
+    if (user && onClickUser) {
+      onClickUser(device, user);
     }
-  };
-
-  const handleFirstDataLoad = () => {
-    setHasLoadedData(true);
   };
 
   return (
@@ -43,29 +35,19 @@ const DeviceUserCard = ({ device, user, hasEmergency = false }: DeviceUserCardPr
       {/* 카드 본문 */}
       <div className="du-card-body">
         {user ? (
-          <>
-            {/* 사용자 기본 정보 (클릭하면 펼침) */}
-            <div className="du-user-section" onClick={handleToggle}>
-              <div className="du-user-main">
-                <div className="du-user-info-left">
-                  <div className="du-user-avatar">👤</div>
-                  <div className="du-user-details">
-                    <h4>{user.name}</h4>
-                    <p>{user.birthDate || '생년월일 정보 없음'}</p>
-                  </div>
+          <div className="du-user-section" onClick={handleClick}>
+            <div className="du-user-main">
+              <div className="du-user-info-left">
+                <div className="du-user-avatar">👤</div>
+                <div className="du-user-details">
+                  <h4>{user.name}</h4>
+                  <p>{user.birthDate || '생년월일 정보 없음'}</p>
                 </div>
-                <div className={`du-toggle-icon ${isOpen ? 'open' : ''}`}>▼</div>
               </div>
+              {/* 드롭다운 아이콘은 모달 표시용으로 바꾸거나 제거 */}
+              <div className="du-toggle-icon">🔍</div>
             </div>
-
-            {/* 상세 패널 */}
-            <UserDetailsPanel
-              userId={user.id}
-              isOpen={isOpen}
-              onFirstOpen={handleFirstDataLoad}
-              hasLoadedData={hasLoadedData}
-            />
-          </>
+          </div>
         ) : (
           <div className="du-empty">
             <p>연결된 사용자가 없습니다</p>
