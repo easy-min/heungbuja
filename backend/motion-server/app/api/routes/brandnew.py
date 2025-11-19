@@ -5,8 +5,8 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, conlist
 
-from app.services.inference import InferenceResult, MotionInferenceService
-from app.services.brandnew_inference import get_brandnew_inference_service
+from app.services.inference import InferenceResult
+from app.services.brandnew_inference import BrandnewMotionInferenceService, get_brandnew_inference_service
 
 router = APIRouter(prefix="/api/ai/brandnew", tags=["brandnew-analysis"])
 LOGGER = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ class BrandnewAnalyzeResponse(BaseModel):
 @router.post("/analyze", response_model=BrandnewAnalyzeResponse)
 async def analyze_motion_brandnew(
     payload: BrandnewAnalyzeRequest,
-    inference_service: MotionInferenceService = Depends(get_brandnew_inference_service),
+    inference_service: BrandnewMotionInferenceService = Depends(get_brandnew_inference_service),
 ) -> BrandnewAnalyzeResponse:
     """Brandnew 모델을 사용한 동작 분석 엔드포인트."""
     try:
