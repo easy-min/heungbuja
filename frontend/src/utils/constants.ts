@@ -2,7 +2,7 @@ import { type GameConfig  } from '@/types';
 
 // ===== 체조 설정 상수 =====
 export const GAME_CONFIG: GameConfig = {
-  FPS: 15, // 30에서 15로 변경
+  FPS: 10, // 30에서 10로 변경
   FRAME_MS: 1000 / 15, // 30에서 15로 변경
   EPS: 0.03,            // 타이밍 오차 허용 (30ms)
   LATE_GUARD: 0.08,     // 늦은 시작 방지 
