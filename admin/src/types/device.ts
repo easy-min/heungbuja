@@ -68,6 +68,5 @@ export type PeriodType = 1 | 7 | 30;
 export interface UserDetailData {
   gameStats: GameStats | null;
   actionPerformance: ActionPerformanceResponse | null;
-  activityTrend: ActivityTrendPoint[];
   recentActivities: ActivityLog[];
 }

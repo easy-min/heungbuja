@@ -3,13 +3,11 @@ import type { PeriodType, UserDetailData } from '../../types/device';
 import {
   getUserGameStats,
   getUserActionPerformance,
-  getUserActivityTrend,
   getUserRecentActivities,
 } from '../../api/device';
 import PeriodTabs from './PeriodTabs';
 import HealthMonitoring from './HealthMonitoring';
 import ActionPerformance from './ActionPerformance';
-import ActivityTrend from './ActivityTrend';
 import RecentActivities from './RecentActivities';
 
 interface UserDetailsPanelProps {
@@ -24,7 +22,6 @@ const UserDetailsPanel = ({ userId, isOpen, onFirstOpen, hasLoadedData }: UserDe
   const [data, setData] = useState<UserDetailData>({
     gameStats: null,
     actionPerformance: null,
-    activityTrend: [],
     recentActivities: [],
   });
   const [isLoading, setIsLoading] = useState(false);
@@ -43,20 +40,18 @@ const UserDetailsPanel = ({ userId, isOpen, onFirstOpen, hasLoadedData }: UserDe
         const results = await Promise.allSettled([
           getUserGameStats(userId),
           getUserActionPerformance(userId, selectedPeriod),
-          getUserActivityTrend(userId, selectedPeriod),
           getUserRecentActivities(userId, 10),
         ]);
 
         setData({
           gameStats: results[0].status === 'fulfilled' ? results[0].value : null,
           actionPerformance: results[1].status === 'fulfilled' ? results[1].value : null,
-          activityTrend: results[2].status === 'fulfilled' ? results[2].value : [],
-          recentActivities: results[3].status === 'fulfilled' ? results[3].value : [],
+          recentActivities: results[2].status === 'fulfilled' ? results[2].value : [],
         });
 
         results.forEach((result, index) => {
           if (result.status === 'rejected') {
-            const apiNames = ['게임 통계', '동작별 수행도', '활동 추이', '최근 활동'];
+            const apiNames = ['게임 통계', '동작별 수행도', '최근 활동'];
             console.error(`${apiNames[index]} 로드 실패:`, result.reason);
           }
         });
@@ -71,31 +66,23 @@ const UserDetailsPanel = ({ userId, isOpen, onFirstOpen, hasLoadedData }: UserDe
     loadInitialData();
   }, [isOpen, hasLoadedData, userId, selectedPeriod, onFirstOpen]);
 
-  // 기간 변경 시 수행도와 추이만 재로드
+  // 기간 변경 시 수행도만 재로드
   const handlePeriodChange = async (period: PeriodType) => {
     setSelectedPeriod(period);
     setIsLoading(true);
 
     try {
-      const results = await Promise.allSettled([
-        getUserActionPerformance(userId, period),
-        getUserActivityTrend(userId, period),
-      ]);
-
+      const actionPerformance = await getUserActionPerformance(userId, period);
       setData((prev) => ({
         ...prev,
-        actionPerformance: results[0].status === 'fulfilled' ? results[0].value : null,
-        activityTrend: results[1].status === 'fulfilled' ? results[1].value : [],
+        actionPerformance,
       }));
-
-      results.forEach((result, index) => {
-        if (result.status === 'rejected') {
-          const apiNames = ['동작별 수행도', '활동 추이'];
-          console.error(`${apiNames[index]} 로드 실패:`, result.reason);
-        }
-      });
     } catch (error) {
-      console.error('기간별 데이터 로드 실패:', error);
+      console.error('동작별 수행도 로드 실패:', error);
+      setData((prev) => ({
+        ...prev,
+        actionPerformance: null,
+      }));
     } finally {
       setIsLoading(false);
     }
@@ -118,12 +105,6 @@ const UserDetailsPanel = ({ userId, isOpen, onFirstOpen, hasLoadedData }: UserDe
         <h5>🎯 동작별 수행도</h5>
         <PeriodTabs selectedPeriod={selectedPeriod} onPeriodChange={handlePeriodChange} />
         <ActionPerformance data={data.actionPerformance} isLoading={isLoading} />
-      </div>
-
-      {/* 활동 추이 */}
-      <div className="du-detail-section">
-        <h5>📈 활동 추이</h5>
-        <ActivityTrend data={data.activityTrend} isLoading={isLoading} />
       </div>
 
       {/* 최근 활동 */}

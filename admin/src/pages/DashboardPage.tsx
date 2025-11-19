@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   Button,
   EmergencyList,
-  ActivityFeed,
   WebSocketStatus,
   DeviceRegisterModal,
   UserRegisterModal,
@@ -17,7 +16,6 @@ import { useWebSocket } from '../hooks/useWebSocket';
 import {
   useEmergencyStore,
   useUserStore,
-  useActivityStore,
   useNotificationStore,
   useDeviceStore,
 } from '../stores';
@@ -55,7 +53,6 @@ const DashboardPage = () => {
 
   const setDevices = useDeviceStore((state) => state.setDevices);
 
-  const activities = useActivityStore((state) => state.activities);
   
   const clearUnread = useNotificationStore((state) => state.clearUnread);
 
@@ -241,10 +238,10 @@ const DashboardPage = () => {
         </div>
 
         {/* 활동 피드 */}
-        <div className="section">
+        {/* <div className="section">
           <SectionTitle>📝 활동 피드</SectionTitle>
           <ActivityFeed activities={activities} />
-        </div>
+        </div> */}
 
         {/* WebSocket 상태 */}
         <WebSocketStatus 
