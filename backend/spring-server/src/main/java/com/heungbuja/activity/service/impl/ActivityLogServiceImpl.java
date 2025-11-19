@@ -77,6 +77,8 @@ public class ActivityLogServiceImpl implements ActivityLogService {
                 new ActivityMapping(ActivityType.MODE_CHANGE, "감상 모드로 변경했습니다"));
 
         // 게임
+        INTENT_ACTIVITY_MAP.put(Intent.MODE_EXERCISE,
+                new ActivityMapping(ActivityType.GAME_START, "게임을 시작했습니다"));
         INTENT_ACTIVITY_MAP.put(Intent.MODE_EXERCISE_NO_SONG,
                 new ActivityMapping(ActivityType.GAME_START, "게임 목록을 조회했습니다"));
         INTENT_ACTIVITY_MAP.put(Intent.MODE_EXERCISE_END,

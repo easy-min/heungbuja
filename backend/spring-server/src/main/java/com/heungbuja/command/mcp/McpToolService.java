@@ -738,12 +738,12 @@ public class McpToolService {
                 yield switch (mode.toUpperCase()) {
                     case "HOME" -> com.heungbuja.voice.enums.Intent.MODE_HOME;
                     case "LISTENING" -> com.heungbuja.voice.enums.Intent.MODE_LISTENING;
-                    case "EXERCISE" -> com.heungbuja.voice.enums.Intent.MODE_EXERCISE_NO_SONG;
+                    case "EXERCISE" -> com.heungbuja.voice.enums.Intent.MODE_EXERCISE;
                     default -> com.heungbuja.voice.enums.Intent.UNKNOWN;
                 };
             }
 
-            case "start_game", "start_game_with_song" -> null; // MCP는 START_GAME_IMMEDIATELY를 사용하므로 Intent 로그 불필요
+            case "start_game", "start_game_with_song" -> com.heungbuja.voice.enums.Intent.MODE_EXERCISE;
 
             case "get_current_context" -> null; // 조회는 로그 저장 안 함
 

@@ -147,6 +147,7 @@ public class CommandServiceImpl implements CommandService {
             // 모드 관련 (프론트가 관리하므로 TTS 응답만)
             case MODE_HOME -> handleModeChange(user, Intent.MODE_HOME, PlaybackMode.HOME);
             case MODE_LISTENING -> handleModeChange(user, Intent.MODE_LISTENING, PlaybackMode.LISTENING);
+            case MODE_EXERCISE -> handleSimpleResponse(user, Intent.MODE_EXERCISE);
             case MODE_EXERCISE_NO_SONG -> handleGameListScreen(user);
             case MODE_EXERCISE_END -> handleGameEnd(user);
 
