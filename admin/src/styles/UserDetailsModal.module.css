@@ -1,0 +1,222 @@
+/* ============================================
+   공통 : 오버레이
+   ============================================ */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 1000;
+  animation: udm-fadeIn 0.2s ease-out;
+}
+
+@keyframes udm-fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ============================================
+   모달 박스 (곡 간편 등록보다 조금 넓게)
+   ============================================ */
+.modalBox {
+  background: #ffffff;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 640px;      /* 🔹 상세 정보는 내용이 많으니 조금 넓게 */
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 50px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  animation: udm-slideUp 0.25s ease-out;
+}
+
+@keyframes udm-slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ============================================
+   헤더 (상단 그라데이션 영역)
+   ============================================ */
+.modalHeader {
+  position: relative;
+  padding: 26px 24px 22px;
+  text-align: center;
+  flex-shrink: 0;
+  /* 운동/상담 느낌의 블루-그린 그라데이션 */
+  background: linear-gradient(135deg, #3b82f6 0%, #10b981 100%);
+  color: #ffffff;
+}
+
+.headerContent {
+  position: relative;
+  z-index: 1;
+}
+
+.iconWrapper {
+  margin-bottom: 10px;
+}
+
+.userIcon {
+  font-size: 42px;
+  display: inline-block;
+}
+
+.modalTitle {
+  margin: 0 0 6px;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.modalSubtitle {
+  margin: 0;
+  font-size: 13px;
+  opacity: 0.95;
+  line-height: 1.5;
+}
+
+/* 닫기 버튼 */
+.closeButton {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  z-index: 2;
+}
+
+.closeButton:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: rotate(90deg);
+}
+
+/* ============================================
+   바디 (UserDetailsPanel 영역)
+   ============================================ */
+.modalBody {
+  flex: 1;
+  padding: 20px 24px 24px;
+  background: #f7f9fc;
+  overflow-y: auto;
+
+  /* 스크롤바 */
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e0 transparent;
+}
+
+.modalBody::-webkit-scrollbar {
+  width: 6px;
+}
+
+.modalBody::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.modalBody::-webkit-scrollbar-thumb {
+  background: #cbd5e0;
+  border-radius: 3px;
+}
+
+.modalBody::-webkit-scrollbar-thumb:hover {
+  background: #a0aec0;
+}
+
+/* ============================================
+   (선택) 하단 푸터 – 닫기 버튼 등을 넣고 싶을 때 사용
+   ============================================ */
+.modalFooter {
+  padding: 14px 24px 18px;
+  border-top: 1px solid #e5e7eb;
+  background: #ffffff;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* ============================================
+   푸터용 버튼 (필요 시)
+   ============================================ */
+.footerButton {
+  min-width: 90px;
+  padding: 9px 16px;
+  border-radius: 10px;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+
+.footerButtonPrimary {
+  background: #3b82f6;
+  color: #ffffff;
+}
+
+.footerButtonPrimary:hover {
+  background: #2563eb;
+}
+
+.footerButtonGhost {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.footerButtonGhost:hover {
+  background: #e5e7eb;
+}
+
+/* ============================================
+   반응형
+   ============================================ */
+@media (max-width: 768px) {
+  .modalBox {
+    max-width: 95vw;
+    max-height: 95vh;
+  }
+
+  .modalBody {
+    padding: 18px 18px 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .modalBox {
+    max-width: 100vw;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .modalHeader {
+    border-radius: 0;
+  }
+
+  .modalTitle {
+    font-size: 20px;
+  }
+
+  .modalSubtitle {
+    font-size: 12px;
+  }
+}
