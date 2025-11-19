@@ -17,10 +17,11 @@ function TutorialPage() {
   const [songId, setSongId] = useState<number | null>(null);
   const [step, setStep] = useState<Step>(1);
   const [isFinalMessage, setIsFinalMessage] = useState(false);
-
+  
   // 카메라 훅 (웹소켓 없이 미리보기만 사용)
   const { stream, isReady, error, startCamera, stopCamera } = useCamera();
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const isCameraReady = !!stream && isReady && !error;
 
   // 타이머 관리 (단계 전환용)
   const timersRef = useRef<number[]>([]);
@@ -71,12 +72,14 @@ function TutorialPage() {
   useEffect(() => {
     if (stream && videoRef.current) {
       videoRef.current.srcObject = stream;
+      // 필요하면 방어적으로 play까지 호출
+      // void videoRef.current.play().catch(() => {});
     }
-  }, [stream]);
+  }, [stream, step]);
 
   // ===== 단계 자동 진행 (카메라 준비 시간 제외) =====
   useEffect(() => {
-    if (loading || !songId || !isReady) return;
+    if (loading || !songId || !isCameraReady) return;
     if (sequenceStartedRef.current) return;
 
     sequenceStartedRef.current = true;
@@ -101,11 +104,11 @@ function TutorialPage() {
     return () => {
       timersRef.current.forEach((id) => clearTimeout(id));
     };
-  }, [loading, songId, isReady, nav]);
+  }, [loading, songId, isCameraReady, nav]);
 
   // 단계별 문구
   const renderTitle = () => {
-    if (loading || !isReady) {
+    if (loading || !isCameraReady) {
       return (
         <>
           카메라를 준비하고 있어요.
