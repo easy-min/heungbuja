@@ -695,6 +695,17 @@ public class GameService {
 //        }
         // --- ▲ -------------------------------------------------------- ▲ ---
 
+
+        // 전체 프레임 Base64 데이터를 로그로 출력
+        if (frames != null && !frames.isEmpty()) {
+            for (int i = 0; i < frames.size(); i++) {
+                String frameData = frames.get(i);
+                log.info(" > AI 서버 요청 프레임 [{}] (length={}): {}", i, frameData != null ? frameData.length() : 0, frameData);
+            }
+        } else {
+            log.info(" > AI 서버 요청 프레임이 비어 있습니다.");
+        }
+
         aiWebClient.post()
                 .uri("/api/pose-sequences/classify")
                 .bodyValue(requestBody)
