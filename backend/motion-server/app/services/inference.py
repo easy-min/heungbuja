@@ -350,8 +350,8 @@ class MotionInferenceService:
         #   class 2: STRETCH (팔 뻗기)
         #   class 3: TILT (기우뚱)
         #   class 4: EXIT (비상구)
-        #   class 5: UNDERARM (겨드랑이박수)
-        #   class 6: STAY (가만히 있음)
+        #   class 5: UNDERARM (겨드랑이 박수)
+        #   class 6: STAY (가만히)
         #
         # DB actionCode → Model class_index 매핑:
         ACTION_CODE_TO_CLASS_INDEX = {

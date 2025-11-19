@@ -63,6 +63,7 @@ public class GameService {
     // --- 동작 코드와 이름을 매핑하는 캐시 ---
     private final Map<Integer, String> actionCodeToNameMap = new HashMap<>();
 
+
     // --- 상수 정의 ---
     /** Redis 세션 만료 시간 (분) */
     private static final int SESSION_TIMEOUT_MINUTES = 30;
@@ -220,7 +221,7 @@ public class GameService {
         GameStartResponse.SectionPatterns sectionPatterns = createSectionPatterns(songBeat, choreography);
 
         // SectionInfo (Map)와 SegmentInfo 생성
-        Map<String, Double> sectionInfo = createSectionInfo(songBeat, barStartTimes);
+        Map<String, Double> sectionInfo = createSectionInfo(songBeat, beatNumToTimeMap);
         GameStartResponse.SegmentRange verse1cam = createSegmentRange(songBeat, "verse1", beatNumToTimeMap);
         GameStartResponse.SegmentRange verse2cam = createSegmentRange(songBeat, "verse2", beatNumToTimeMap);
         GameStartResponse.SegmentInfo segmentInfo = GameStartResponse.SegmentInfo.builder()
@@ -377,11 +378,11 @@ public class GameService {
     /**
      * SectionInfo 생성을 전담하는 헬퍼 메소드
      */
-    private Map<String, Double> createSectionInfo(SongBeat songBeat, Map<Integer, Double> barStartTimes) {
+    private Map<String, Double> createSectionInfo(SongBeat songBeat, Map<Integer, Double> beatNumToTimeMap) {
         return songBeat.getSections().stream()
                 .collect(Collectors.toMap(
                         SongBeat.Section::getLabel,
-                        s -> barStartTimes.getOrDefault(s.getStartBar(), 0.0)
+                        s -> beatNumToTimeMap.getOrDefault(s.getStartBeat(), 0.0)
                 ));
     }
 
@@ -673,8 +674,29 @@ public class GameService {
                 .frames(frames)
                 .build();
 
+        // --- ▼ (핵심 추가) 요청 본문을 JSON 문자열로 변환하여 로그로 출력 ---
+//        try {
+//            String firstFrameSnippet = "N/A"; // 프레임이 없는 경우를 대비한 기본값
+//            if (frames != null && !frames.isEmpty()) {
+//                String firstFrame = frames.get(0);
+//                // 첫 프레임의 최대 100자까지만 잘라서 보여줌
+//                firstFrameSnippet = firstFrame;
+//            }
+//
+//            // 로그용 객체를 만들지 않고, 주요 정보만 직접 로그에 포함
+//            log.info(" > AI 서버 요청 Body: actionCode={}, actionName='{}', frameCount={}, firstFrame='{}'",
+//                    requestBody.getActionCode(),
+//                    requestBody.getActionName(),
+//                    requestBody.getFrameCount(),
+//                    firstFrameSnippet);
+//
+//        } catch (Exception e) {
+//            log.error(" > AI 서버 요청 Body 로그를 생성하는 데 실패했습니다.", e);
+//        }
+        // --- ▲ -------------------------------------------------------- ▲ ---
+
         aiWebClient.post()
-                .uri("/api/ai/analyze")
+                .uri("/api/pose-sequences/classify")
                 .bodyValue(requestBody)
                 .retrieve()
                 .bodyToMono(AiJudgmentResponse.class)
@@ -700,7 +722,9 @@ public class GameService {
                         },
                         error -> { // 실패 시
                             long responseTime = System.currentTimeMillis() - startTime;
-                            log.error("AI 서버 호출 실패 (세션 {}): {} (소요시간: {}ms)", sessionId, error.getMessage(), responseTime);
+                            // AI 서버 통신 중 에러가 발생하면, 서버가 중단되지 않고
+                            // 판정 점수를 1점으로 처리하여 게임을 계속 진행합니다.
+                            log.error("AI 서버 호출 중 오류 발생 (세션 ID: {}). 기본 점수(1점)으로 처리합니다. (소요시간: {}ms)", sessionId, responseTime, error);
 
                             // ========================================================================
                             // AI 서버 에러 처리 (0점)
@@ -720,6 +744,7 @@ public class GameService {
                         }
                 );
     }
+
 
     /**
      * AI 판정 결과를 받아 후속 처리를 하는 메소드
