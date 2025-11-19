@@ -4,6 +4,7 @@ import { gameStartApi } from '@/api/game';
 import { useGameStore } from '@/store/gameStore';
 import { useCamera } from '@/hooks/useCamera';
 import type { GameStartResponse } from '@/types/game';
+import LoadingDots from '@/components/icons/LoadingDots';
 import './TutorialPage.css';
 
 type Step = 1 | 2 | 3;
@@ -118,9 +119,8 @@ function TutorialPage() {
     if (loading || !isCameraReady) {
       return (
         <>
-          카메라를 준비하고 있어요.
-          <br />
-          잠시만 기다려 주세요.
+        {/* 카메라 준비 중 */}
+          <LoadingDots className="tutorial-camera-loading"/>
         </>
       );
     }

@@ -162,6 +162,14 @@
   opacity: 1;
 }
 
+.tutorial-camera-loading {
+  transform: scale(1.5);
+}
+
+.tutorial-camera-loading .dot {
+  background-color: var(--color-primary);
+}
+
 /* 기존 버튼 스타일은 필요 시 유지 */
 .play-btn {
   width: 120px;
