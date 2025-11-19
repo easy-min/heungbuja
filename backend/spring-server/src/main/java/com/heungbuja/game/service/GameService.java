@@ -68,9 +68,9 @@ public class GameService {
     /** Redis 세션 만료 시간 (분) */
     private static final int SESSION_TIMEOUT_MINUTES = 30;
     private static final int JUDGMENT_PERFECT = 3;
-    private static final double ACTION_DURATION_SECONDS = 1.2; // 1개 동작 지속 시간 (학습 데이터와 동일: 2비트 = 1.2초)
-    private static final double CENTER_BUFFER_SECONDS = 0.6; // 중심 기반 동작: 수집 범위 (±0.6초)
-    private static final double EXIT_DURATION_SECONDS = 0.8; // 비상구: 시작 기반 수집 (0.8초)
+    // BPM 기반 타이밍 계산을 위한 비트 수
+    private static final double ACTION_DURATION_BEATS = 2.0; // 기본 동작: 2비트
+    private static final double CENTER_BUFFER_BEATS = 1.0; // 중심 기반 동작: ±1비트
     private static final int CLAP_ACTION_CODE = 1; // 손 박수 actionCode
     private static final int ELBOW_ACTION_CODE = 2; // 팔 치기 actionCode
     private static final int EXIT_ACTION_CODE = 6; // 비상구 actionCode
@@ -591,25 +591,26 @@ public class GameService {
         double actionTime = currentAction.getTime();
         int actionCode = currentAction.getActionCode();
 
+        // BPM 기반 타이밍 계산
+        double bpm = gameState.getBpm() != null ? gameState.getBpm() : 100.0; // 기본값 100 BPM
+        double secondsPerBeat = 60.0 / bpm;
+        double actionDurationSeconds = ACTION_DURATION_BEATS * secondsPerBeat;
+        double centerBufferSeconds = CENTER_BUFFER_BEATS * secondsPerBeat;
+
         // 프레임 수집: 동작별로 다르게 처리
         boolean shouldCollect;
         boolean shouldTrigger;
 
         if (actionCode == CLAP_ACTION_CODE || actionCode == ELBOW_ACTION_CODE) {
-            // 손 박수, 팔 치기: 중심 기반 수집 (actionTime ± 0.6초)
-            shouldCollect = currentPlayTime >= actionTime - CENTER_BUFFER_SECONDS &&
-                           currentPlayTime <= actionTime + CENTER_BUFFER_SECONDS;
-            shouldTrigger = currentPlayTime > actionTime + CENTER_BUFFER_SECONDS;
-        } else if (actionCode == EXIT_ACTION_CODE) {
-            // 비상구: 시작 기반 수집 (actionTime → actionTime + 0.8초)
-            shouldCollect = currentPlayTime >= actionTime &&
-                           currentPlayTime <= actionTime + EXIT_DURATION_SECONDS;
-            shouldTrigger = currentPlayTime > actionTime + EXIT_DURATION_SECONDS;
+            // 손 박수, 팔 치기: 중심 기반 수집 (actionTime ± 1비트)
+            shouldCollect = currentPlayTime >= actionTime - centerBufferSeconds &&
+                           currentPlayTime <= actionTime + centerBufferSeconds;
+            shouldTrigger = currentPlayTime > actionTime + centerBufferSeconds;
         } else {
-            // 다른 동작: 시작 기반 수집 (actionTime → actionTime + 1.2초)
+            // 다른 동작 (비상구 포함): 시작 기반 수집 (actionTime → actionTime + 2비트)
             shouldCollect = currentPlayTime >= actionTime &&
-                           currentPlayTime <= actionTime + ACTION_DURATION_SECONDS;
-            shouldTrigger = currentPlayTime > actionTime + ACTION_DURATION_SECONDS;
+                           currentPlayTime <= actionTime + actionDurationSeconds;
+            shouldTrigger = currentPlayTime > actionTime + actionDurationSeconds;
         }
 
         if (shouldCollect) {
