@@ -182,6 +182,18 @@ public class GameService {
     }
 
     /**
+     * 게임 가능한 노래 목록 조회 (최대 limit개)
+     */
+    @Transactional(readOnly = true)
+    public List<GameSongListResponse> getAvailableGameSongs(int limit) {
+        List<Song> songs = songRepository.findAll();
+        return songs.stream()
+                .limit(limit)
+                .map(GameSongListResponse::from)
+                .collect(Collectors.toList());
+    }
+
+    /**
      * 1. 게임 시작 로직 (디버깅용 - GameState, GameSession 동시 생성)
      */
     @Transactional
