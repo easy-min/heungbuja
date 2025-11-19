@@ -327,77 +327,24 @@ public class CommandServiceImpl implements CommandService {
     }
 
     /**
-     * 게임 시작 처리 (튜토리얼)
+     * 게임 시작 처리 (게임 목록 화면으로 이동)
      */
     private CommandResponse handleGameStart(User user) {
-        log.info("게임 시작 요청: userId={}", user.getId());
+        log.info("게임 목록 화면 이동 요청: userId={}", user.getId());
 
         // 1. 음악/게임 진행 중이면 중단
-        handleActivityInterrupt(user.getId(), "게임 시작");
+        handleActivityInterrupt(user.getId(), "게임 목록");
 
-        // 2. 노래 선택 (최근 청취한 곡 or 랜덤)
-        Song selectedSong;
-        try {
-            var recentHistory = listeningHistoryService.getRecentHistory(user, 1);
-            if (!recentHistory.isEmpty()) {
-                selectedSong = recentHistory.get(0).getSong();
-            } else {
-                selectedSong = songService.searchByArtist("");
-            }
-        } catch (Exception e) {
-            log.error("게임용 노래 선택 실패: userId={}", user.getId(), e);
-            String errorText = "게임을 시작할 노래를 찾을 수 없습니다";
-            String ttsUrl = ttsService.synthesize(errorText);
-            return CommandResponse.failure(Intent.MODE_EXERCISE, errorText, "/commands/tts/" + ttsUrl);
-        }
-
-        // 3. Song 게임 데이터 조회 (캐시 우선)
-        com.heungbuja.song.dto.SongGameData songGameData = songGameDataCache.getOrLoadSongGameData(selectedSong.getId());
-        log.debug("Song 게임 데이터 조회: songId={}", selectedSong.getId());
-
-        // 4. audioUrl 생성
-        String audioUrl = mediaUrlService.issueUrlById(selectedSong.getMedia().getId());
-
-        // 5. SessionPrepareService로 세션 준비 (GameState만 생성)
-        com.heungbuja.game.dto.GameSessionPrepareResponse prepareResponse =
-                sessionPrepareService.prepareGameSession(
-                        user.getId(),
-                        selectedSong,
-                        audioUrl,
-                        songGameData
-                );
-
-        String sessionId = prepareResponse.getSessionId();
-        log.info("GameState 생성 완료: sessionId={}", sessionId);
-
-        // 6. ActivityState 설정 (Command가 관리!)
-        sessionStateService.setCurrentActivity(
-                user.getId(),
-                com.heungbuja.session.state.ActivityState.gameTutorial(sessionId)
-        );
-
-        // 7. SessionStatus 설정
-        sessionStateService.setSessionStatus(sessionId, "TUTORIAL_READY");
-
-        log.info("세션 상태 설정 완료: sessionId={}", sessionId);
-
-        // 8. ConversationContext 모드 변경
+        // 2. ConversationContext 모드 변경
         conversationContextService.changeMode(user.getId(), PlaybackMode.EXERCISE);
 
-        // 9. 응답 생성
-        String responseText = String.format("%s의 %s로 게임을 시작할게요",
-                selectedSong.getArtist(), selectedSong.getTitle());
-
-        Map<String, Object> tutorialData = new HashMap<>();
-        tutorialData.put("sessionId", sessionId);
-        tutorialData.put("tutorialVideoUrl", prepareResponse.getTutorialVideoUrl());
-        tutorialData.put("songTitle", prepareResponse.getSongTitle());
-        tutorialData.put("songArtist", prepareResponse.getSongArtist());
+        // 3. 응답 생성
+        String responseText = "게임 목록을 보여드릴게요";
 
         CommandResponse.ScreenTransition screenTransition = CommandResponse.ScreenTransition.builder()
-                .targetScreen("/tutorial")
-                .action("START_TUTORIAL")
-                .data(tutorialData)
+                .targetScreen("/game/list")
+                .action("SHOW_GAME_LIST")
+                .data(Map.of())
                 .build();
 
         return CommandResponse.builder()
